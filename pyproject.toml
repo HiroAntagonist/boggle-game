@@ -1,13 +1,23 @@
 [project]
-name = "boggle"
+name = "boggle-game"
 version = "0.1.0"
-description = "Add your description here"
+description = "Multiplayer Boggle game - learning project"
 requires-python = ">=3.12"
 dependencies = []
 
+[project.scripts]
+boggle = "src.cli:main"
+
 [dependency-groups]
 dev = [
-    "mypy>=1.18.2",
-    "pytest>=8.4.2",
+    "pytest>=8.3.4",
     "pytest-watch>=4.2.0",
+    "mypy>=1.14.1",
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
