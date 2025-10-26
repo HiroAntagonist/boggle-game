@@ -311,3 +311,108 @@ min_length = 3:
 Scoring was simpler than expected. The key insight was pre-caching Fibonacci numbers - generate once, use many times. The index arithmetic (`word_length - min_word_length`) elegantly maps word lengths to the Fibonacci sequence. Python's `sum()` with a generator expression is much cleaner than a manual loop. Git workflow is now second nature - I'm automatically checking `git branch` and `git status` before every commit. Ready to integrate everything into a playable game!
 
 ---
+
+## 2025-01-XX: Week 1, Day 6 - CLI Interface & Full Game Integration
+
+### What we did
+- Created Game class to orchestrate Board, Dictionary, and Scorer
+- Implemented full validation pipeline (length, dictionary, board path, duplicates)
+- Built interactive CLI with board display and game loop
+- Added helpful feedback for rejected words
+- Configured package with `boggle` command entry point via pyproject.toml
+- Played actual Boggle game - IT WORKS! 🎉
+- Week 1 complete!
+
+### What I learned
+- **Orchestration pattern**: Game class coordinates multiple components without business logic
+- **Dependency injection**: Pass Board, Dictionary, Scorer to Game constructor
+- **CLI interaction**: `input()`, display functions, game loop pattern
+- **Package entry points**: `[project.scripts]` in pyproject.toml creates commands
+- **`__name__ == "__main__"`**: How Python distinguishes "run directly" vs "imported"
+- **`sys.argv[0]`**: First argument is always the program name
+- **`sys.exit()`**: Proper way to exit with status code
+- **Cross-platform packaging**: Auto-generated wrapper handles Windows `.exe` and `.pyw`
+- **Editable installs**: `uv pip install -e .` for development
+
+### Challenges/Issues
+- Module import issue: `from src.board` didn't work with `python src/cli.py`
+- Fixed with `python -m src.cli` or by installing package with entry point
+- Hatchling build error: needed to tell it where code lives with `packages = ["src"]`
+
+### Key Commands Learned
+```bash
+python -m src.cli                # Run as module (fixes imports)
+uv pip install -e .              # Install package in editable mode
+boggle                           # Run installed command!
+git merge feature/branch         # Merge feature into current branch
+```
+
+### Code Concepts
+- **Orchestration class**: Coordinates components without business logic
+- **Validation pipeline**: Multiple checks in sequence, early returns
+- **CLI game loop**: `while True` with command handling
+- **Entry points**: Map command names to Python functions
+- **Module execution**: `if __name__ == "__main__"` pattern
+- **Helpful error messages**: Give users specific feedback on why word rejected
+
+### Package Structure Learned
+```
+[project.scripts]
+boggle = "src.cli:main"
+         ^^^^^^^^^^^^^^
+         module:function
+
+Creates wrapper script that:
+1. Imports the function
+2. Cleans up sys.argv[0] (cross-platform)
+3. Calls function with sys.exit()
+```
+
+### Game Flow
+```
+1. Initialize Board, Dictionary, Scorer
+2. Create Game with components
+3. Display board
+4. Loop:
+   - Get user input
+   - Handle commands (quit/score/words)
+   - Validate word:
+     * Check minimum length
+     * Check dictionary
+     * Check board path
+     * Check duplicates
+   - Update score if valid
+5. Display final results
+```
+
+### What Makes a Valid Word
+```python
+✓ Length >= min_word_length
+✓ In dictionary (SOWPODS)
+✓ Path exists on board (DFS)
+✓ Not already submitted
+= Valid word! Add to list, update score
+```
+
+### Blockers/Questions
+- None - everything came together!
+
+### Next Steps (Week 2)
+- Add local multiplayer (multiple players on same machine)
+- Implement word strike-out logic (duplicates across players)
+- Add configurable game options with Pydantic
+- Enhance CLI for multi-player experience
+
+### Time spent
+~90 minutes
+
+### Reflection
+This was the most satisfying day! Everything we built separately (Board, Dictionary, Scorer) came together into an actual playable game. The orchestration pattern is elegant - Game class just coordinates without implementing game logic itself. Setting up the package entry point made the game feel "real" - typing `boggle` to play is much nicer than `python -m src.cli`. 
+
+Understanding `__name__ == "__main__"` and how packaging tools generate wrapper scripts demystified a lot of Python magic. The CLI game loop pattern (input → validate → feedback → repeat) is straightforward and effective.
+
+Week 1 complete! I went from zero to a working single-player Boggle game with tests, type checking, proper packaging, and git workflow. The git workflow is now muscle memory - I naturally check branch status before every commit.
+
+Ready for Week 2: multiplayer, configuration, and more complex game state!
+
+---
