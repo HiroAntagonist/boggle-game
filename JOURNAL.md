@@ -236,3 +236,78 @@ Loading 267k words into a set takes ~0.1 seconds, but lookups are instant (O(1))
 Dictionary validation was much simpler than DFS - just loading a file and using the right data structure. The key insight is using a set for O(1) lookup instead of a list. Python's context managers (`with open()`) are much nicer than C's manual file handling. Git workflow is becoming more natural - I'm checking `git branch` before every commit now and it's preventing mistakes. The three-stage workflow (working directory → staging → repository) is starting to click.
 
 ---
+
+## 2025-01-XX: Week 1, Day 5 - Fibonacci Scoring System
+
+### What we did
+- Implemented Fibonacci-based scoring for word lengths
+- Configurable minimum word length
+- Score individual words and lists of words
+- Pre-cached Fibonacci numbers for efficiency
+- All tests passing, type checking passing
+- Git workflow flowing smoothly
+
+### What I learned
+- **Fibonacci sequence**: 1, 2, 3, 5, 8, 13, 21... (each is sum of previous two)
+- **Caching for performance**: Pre-generate Fibonacci numbers instead of recalculating
+- **Index arithmetic**: Mapping word length to Fibonacci index
+- **List comprehension with sum**: `sum(expr for item in list)` - clean Python idiom
+- **Generator expressions**: The expression inside `sum()` is actually a generator
+
+### Challenges/Issues
+- None - straightforward implementation
+
+### Key Commands Learned
+```bash
+# (Still practicing the git workflow habits)
+git branch                       # Check current branch
+git log --oneline -3             # See recent commits
+git status                       # Check for uncommitted changes
+```
+
+### Code Concepts
+- **Pre-computation/Caching**: Generate Fibonacci sequence once, reuse many times
+- **Index calculation**: `fib_index = word_length - min_word_length`
+- **Generator expression**: `sum(self.score_word(word) for word in words)`
+- **Private methods**: `_generate_fibonacci()` is internal implementation detail
+- **List comprehension inside sum**: Pythonic way to sum computed values
+
+### Algorithm: Fibonacci Generation
+```python
+def _generate_fibonacci(n):
+    if n == 0: return []
+    if n == 1: return [1]
+    
+    fib = [1, 2]
+    for i in range(2, n):
+        fib.append(fib[i-1] + fib[i-2])  # Each = sum of previous two
+    
+    return fib
+```
+
+### Scoring Examples
+```
+min_length = 3:
+- 3 letters: index 0 → Fib[0] = 1
+- 4 letters: index 1 → Fib[1] = 2
+- 5 letters: index 2 → Fib[2] = 3
+- 6 letters: index 3 → Fib[3] = 5
+- 7 letters: index 4 → Fib[4] = 8
+```
+
+### Blockers/Questions
+- None
+
+### Next session
+- Day 6 (Weekend - 90 min): CLI Interface & Integration
+- Bring everything together: Board, Dictionary, Scorer
+- Build interactive CLI game
+- Full single-player game working end-to-end
+
+### Time spent
+~45 minutes
+
+### Reflection
+Scoring was simpler than expected. The key insight was pre-caching Fibonacci numbers - generate once, use many times. The index arithmetic (`word_length - min_word_length`) elegantly maps word lengths to the Fibonacci sequence. Python's `sum()` with a generator expression is much cleaner than a manual loop. Git workflow is now second nature - I'm automatically checking `git branch` and `git status` before every commit. Ready to integrate everything into a playable game!
+
+---
