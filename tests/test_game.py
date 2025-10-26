@@ -162,3 +162,65 @@ def test_word_too_short() -> None:
     assert result is False
     assert "AT" not in game.get_submitted_words()
     assert game.get_score() == 0
+
+
+def test_game_starts_with_no_rotation() -> None:
+    """Game should start with rotation = 0."""
+    board = Board(size=4)
+    dictionary = Dictionary("data/sowpods.txt")
+    scorer = Scorer(min_word_length=3)
+    
+    game = Game(board=board, dictionary=dictionary, scorer=scorer)
+    
+    assert game.get_rotation() == 0
+
+
+def test_rotate_view_clockwise() -> None:
+    """Should increment rotation counter (mod 4)."""
+    board = Board(size=4)
+    dictionary = Dictionary("data/sowpods.txt")
+    scorer = Scorer(min_word_length=3)
+    
+    game = Game(board=board, dictionary=dictionary, scorer=scorer)
+    
+    assert game.get_rotation() == 0
+    
+    game.rotate_view_clockwise()
+    assert game.get_rotation() == 1
+    
+    game.rotate_view_clockwise()
+    assert game.get_rotation() == 2
+    
+    game.rotate_view_clockwise()
+    assert game.get_rotation() == 3
+    
+    game.rotate_view_clockwise()
+    assert game.get_rotation() == 0  # Wraps back to 0
+
+
+def test_rotation_does_not_affect_word_validation() -> None:
+    """Word validation should use original grid regardless of rotation."""
+    board = Board(size=4)
+    board.grid = [
+        ["C", "A", "T", "S"],
+        ["O", "R", "E", "D"],
+        ["D", "E", "S", "K"],
+        ["M", "O", "P", "S"]
+    ]
+    dictionary = Dictionary("data/sowpods.txt")
+    scorer = Scorer(min_word_length=3)
+    
+    game = Game(board=board, dictionary=dictionary, scorer=scorer)
+    
+    # CAT exists on original board
+    assert game.submit_word("CAT") is True
+    
+    # Rotate view
+    game.rotate_view_clockwise()
+    
+    # CATS should still be validated against original grid
+    # (not the rotated view)
+    assert game.submit_word("CATS") is True
+    
+    # Both words should be in submitted list
+    assert len(game.get_submitted_words()) == 2
