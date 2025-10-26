@@ -27,6 +27,7 @@ class Game:
         self.dictionary = dictionary
         self.scorer = scorer
         self._submitted_words: List[str] = []
+        self._rotation = 0  # 0, 1, 2, or 3 (number of 90° clockwise rotations)
     
     def submit_word(self, word: str) -> bool:
         """Submit a word for validation and scoring.
@@ -83,3 +84,19 @@ class Game:
             Total score
         """
         return self.scorer.score_words(self._submitted_words)
+    
+    def rotate_view_clockwise(self) -> None:
+        """Rotate the board view 90 degrees clockwise.
+        
+        This is purely a visual aid - the board data itself is unchanged.
+        Word validation always uses the original grid orientation.
+        """
+        self._rotation = (self._rotation + 1) % 4
+    
+    def get_rotation(self) -> int:
+        """Get the current rotation state.
+        
+        Returns:
+            Rotation value: 0 (no rotation), 1 (90°), 2 (180°), or 3 (270°)
+        """
+        return self._rotation
