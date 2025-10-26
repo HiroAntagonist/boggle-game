@@ -1,0 +1,164 @@
+# ABOUTME: Tests for the Game class
+# ABOUTME: Orchestrates Board, Dictionary, and Scorer for a complete game
+
+from src.game import Game
+from src.board import Board
+from src.dictionary import Dictionary
+from src.scorer import Scorer
+
+
+def test_game_initializes_with_components() -> None:
+    """Game should initialize with board, dictionary, and scorer."""
+    board = Board(size=4)
+    dictionary = Dictionary("data/sowpods.txt")
+    scorer = Scorer(min_word_length=3)
+    
+    game = Game(board=board, dictionary=dictionary, scorer=scorer)
+    
+    assert game.board is board
+    assert game.dictionary is dictionary
+    assert game.scorer is scorer
+
+
+def test_game_starts_with_no_submitted_words() -> None:
+    """Game should start with empty submitted words list."""
+    board = Board(size=4)
+    dictionary = Dictionary("data/sowpods.txt")
+    scorer = Scorer(min_word_length=3)
+    
+    game = Game(board=board, dictionary=dictionary, scorer=scorer)
+    
+    assert game.get_submitted_words() == []
+    assert game.get_score() == 0
+
+
+def test_submit_valid_word() -> None:
+    """Should accept a word that is on board and in dictionary."""
+    board = Board(size=4)
+    board.grid = [
+        ["C", "A", "T", "S"],
+        ["O", "R", "E", "D"],
+        ["D", "E", "S", "K"],
+        ["M", "O", "P", "S"]
+    ]
+    dictionary = Dictionary("data/sowpods.txt")
+    scorer = Scorer(min_word_length=3)
+    
+    game = Game(board=board, dictionary=dictionary, scorer=scorer)
+    
+    result = game.submit_word("CAT")
+    
+    assert result is True
+    assert "CAT" in game.get_submitted_words()
+    assert game.get_score() == 1  # 3-letter word scores 1
+
+
+def test_submit_word_not_in_dictionary() -> None:
+    """Should reject a word that is on board but not in dictionary."""
+    board = Board(size=4)
+    board.grid = [
+        ["X", "Y", "Z", "Q"],
+        ["A", "B", "C", "D"],
+        ["E", "F", "G", "H"],
+        ["I", "J", "K", "L"]
+    ]
+    dictionary = Dictionary("data/sowpods.txt")
+    scorer = Scorer(min_word_length=3)
+    
+    game = Game(board=board, dictionary=dictionary, scorer=scorer)
+    
+    # XYZ is on the board but not a word
+    result = game.submit_word("XYZ")
+    
+    assert result is False
+    assert "XYZ" not in game.get_submitted_words()
+    assert game.get_score() == 0
+
+
+def test_submit_word_not_on_board() -> None:
+    """Should reject a word that is in dictionary but not on board."""
+    board = Board(size=4)
+    board.grid = [
+        ["X", "X", "X", "X"],
+        ["X", "X", "X", "X"],
+        ["X", "X", "X", "X"],
+        ["X", "X", "X", "X"]
+    ]
+    dictionary = Dictionary("data/sowpods.txt")
+    scorer = Scorer(min_word_length=3)
+    
+    game = Game(board=board, dictionary=dictionary, scorer=scorer)
+    
+    # CAT is in dictionary but not on board (all X's)
+    result = game.submit_word("CAT")
+    
+    assert result is False
+    assert "CAT" not in game.get_submitted_words()
+    assert game.get_score() == 0
+
+
+def test_submit_duplicate_word() -> None:
+    """Should reject duplicate word submissions."""
+    board = Board(size=4)
+    board.grid = [
+        ["C", "A", "T", "S"],
+        ["O", "R", "E", "D"],
+        ["D", "E", "S", "K"],
+        ["M", "O", "P", "S"]
+    ]
+    dictionary = Dictionary("data/sowpods.txt")
+    scorer = Scorer(min_word_length=3)
+    
+    game = Game(board=board, dictionary=dictionary, scorer=scorer)
+    
+    # Submit CAT first time - should succeed
+    assert game.submit_word("CAT") is True
+    assert game.get_score() == 1
+    
+    # Submit CAT second time - should fail
+    assert game.submit_word("CAT") is False
+    assert game.get_score() == 1  # Score doesn't change
+
+
+def test_submit_multiple_valid_words() -> None:
+    """Should track multiple valid word submissions."""
+    board = Board(size=4)
+    board.grid = [
+        ["C", "A", "T", "S"],
+        ["O", "R", "E", "D"],
+        ["D", "E", "S", "K"],
+        ["M", "O", "P", "S"]
+    ]
+    dictionary = Dictionary("data/sowpods.txt")
+    scorer = Scorer(min_word_length=3)
+    
+    game = Game(board=board, dictionary=dictionary, scorer=scorer)
+    
+    game.submit_word("CAT")    # 1 point
+    game.submit_word("CATS")   # 2 points
+    game.submit_word("CORE")   # 2 points
+    
+    assert len(game.get_submitted_words()) == 3
+    assert game.get_score() == 5  # 1 + 2 + 2
+
+
+def test_word_too_short() -> None:
+    """Should reject words below minimum length."""
+    board = Board(size=4)
+    board.grid = [
+        ["C", "A", "T", "S"],
+        ["O", "R", "E", "D"],
+        ["D", "E", "S", "K"],
+        ["M", "O", "P", "S"]
+    ]
+    dictionary = Dictionary("data/sowpods.txt")
+    scorer = Scorer(min_word_length=3)
+    
+    game = Game(board=board, dictionary=dictionary, scorer=scorer)
+    
+    # AT is only 2 letters (min is 3)
+    result = game.submit_word("AT")
+    
+    assert result is False
+    assert "AT" not in game.get_submitted_words()
+    assert game.get_score() == 0
