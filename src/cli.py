@@ -7,17 +7,38 @@ from src.scorer import Scorer
 from src.game import Game
 
 
-def display_board(board: Board) -> None:
-    """Display the board in a nice format.
+def display_board(board: Board, rotation: int = 0) -> None:
+    """Display the board in a nice format with optional rotation.
     
     Args:
         board: The game board to display
+        rotation: Number of 90° clockwise rotations (0, 1, 2, or 3)
     """
+    # Get the grid to display based on rotation
+    n = board.size
+    original_grid = board.grid
+    
+    # Apply rotation transformation to display coordinates
+    if rotation == 0:
+        display_grid = original_grid
+    elif rotation == 1:  # 90° clockwise
+        display_grid = [[original_grid[n-1-c][r] for c in range(n)] for r in range(n)]
+    elif rotation == 2:  # 180°
+        display_grid = [[original_grid[n-1-r][n-1-c] for c in range(n)] for r in range(n)]
+    elif rotation == 3:  # 270° clockwise (90° counter-clockwise)
+        display_grid = [[original_grid[c][n-1-r] for c in range(n)] for r in range(n)]
+    else:
+        display_grid = original_grid
+    
+    # Display the board
     print("\n" + "=" * 20)
-    print("    BOGGLE BOARD")
+    if rotation > 0:
+        print(f"  BOGGLE BOARD (↻{rotation * 90}°)")
+    else:
+        print("    BOGGLE BOARD")
     print("=" * 20)
     
-    for row in board.grid:
+    for row in display_grid:
         print("  " + "  ".join(row))
     
     print("=" * 20 + "\n")
@@ -33,6 +54,7 @@ def display_instructions() -> None:
     print("- Type 'quit' to end the game")
     print("- Type 'score' to see your current score")
     print("- Type 'words' to see your submitted words")
+    print("- Type 'rotate' to rotate the board view 90° clockwise")
     print()
 
 
@@ -76,11 +98,11 @@ def play_game() -> None:
     
     # Display instructions and board
     display_instructions()
-    display_board(board)
+    display_board(board, game.get_rotation())
     
     # Game loop
     while True:
-        word = input("Enter a word (or 'quit'/'score'/'words'): ").strip()
+        word = input("Enter a word (or 'quit'/'score'/'words'/'rotate'): ").strip()
         
         if not word:
             continue
@@ -103,6 +125,12 @@ def play_game() -> None:
                 print()
             else:
                 print("\nNo words submitted yet.\n")
+            continue
+        
+        if word.lower() == "rotate":
+            game.rotate_view_clockwise()
+            display_board(board, game.get_rotation())
+            print("Board rotated 90° clockwise. Words validate against original orientation.\n")
             continue
         
         # Try to submit the word
