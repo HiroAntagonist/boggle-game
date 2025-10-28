@@ -5,6 +5,7 @@ from typing import List
 from src.board import Board
 from src.dictionary import Dictionary
 from src.scorer import Scorer
+from src.config import GameConfig
 
 
 class Game:
@@ -14,7 +15,8 @@ class Game:
         self,
         board: Board,
         dictionary: Dictionary,
-        scorer: Scorer
+        scorer: Scorer,
+        config: GameConfig | None = None
     ) -> None:
         """Initialize a game with its components.
         
@@ -22,10 +24,12 @@ class Game:
             board: The game board
             dictionary: Word validator
             scorer: Scoring calculator
+            config: Game configuration (uses defaults if not provided)
         """
         self.board = board
         self.dictionary = dictionary
         self.scorer = scorer
+        self.config = config or GameConfig()
         self._submitted_words: List[str] = []
         self._rotation = 0  # 0, 1, 2, or 3 (number of 90° clockwise rotations)
     

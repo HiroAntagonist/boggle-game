@@ -5,6 +5,7 @@ from src.game import Game
 from src.board import Board
 from src.dictionary import Dictionary
 from src.scorer import Scorer
+from src.config import GameConfig
 
 
 def test_game_initializes_with_components() -> None:
@@ -224,3 +225,38 @@ def test_rotation_does_not_affect_word_validation() -> None:
     
     # Both words should be in submitted list
     assert len(game.get_submitted_words()) == 2
+
+
+def test_game_accepts_config() -> None:
+    """Game should accept and store GameConfig."""
+    board = Board(size=5)
+    dictionary = Dictionary("data/sowpods.txt")
+    scorer = Scorer(min_word_length=4)
+    config = GameConfig(
+        board_size=5,
+        time_limit_seconds=240,
+        min_word_length=4,
+        max_players=2
+    )
+    
+    game = Game(board=board, dictionary=dictionary, scorer=scorer, config=config)
+    
+    assert game.config is config
+    assert game.config.board_size == 5
+    assert game.config.time_limit_seconds == 240
+    assert game.config.min_word_length == 4
+    assert game.config.max_players == 2
+
+
+def test_game_uses_default_config_if_not_provided() -> None:
+    """Game should use default GameConfig if none provided."""
+    board = Board(size=4)
+    dictionary = Dictionary("data/sowpods.txt")
+    scorer = Scorer(min_word_length=3)
+    
+    game = Game(board=board, dictionary=dictionary, scorer=scorer)
+    
+    assert game.config.board_size == 4
+    assert game.config.time_limit_seconds == 180
+    assert game.config.min_word_length == 3
+    assert game.config.max_players == 4
