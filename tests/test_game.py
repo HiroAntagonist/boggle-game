@@ -368,3 +368,132 @@ def test_player_cannot_submit_same_word_twice() -> None:
     
     assert game.submit_word("CAT", player1) is True
     assert game.submit_word("CAT", player1) is False  # Duplicate
+
+
+def test_get_duplicate_words() -> None:
+    """Should identify words submitted by multiple players."""
+    board = Board(size=4)
+    dictionary = Dictionary("data/sowpods.txt")
+    scorer = Scorer(min_word_length=3)
+    game = Game(board=board, dictionary=dictionary, scorer=scorer)
+    
+    player1 = Player(player_id="p1", name="Alice")
+    player2 = Player(player_id="p2", name="Bob")
+    player3 = Player(player_id="p3", name="Charlie")
+    
+    game.add_player(player1)
+    game.add_player(player2)
+    game.add_player(player3)
+    
+    # Manually add words to players
+    player1.add_word("CAT")
+    player1.add_word("DOG")
+    player1.add_word("FISH")
+    
+    player2.add_word("CAT")  # Duplicate with player1
+    player2.add_word("BIRD")
+    player2.add_word("FISH")  # Duplicate with player1
+    
+    player3.add_word("FISH")  # Duplicate with player1 and player2
+    player3.add_word("MOUSE")
+    
+    duplicates = game.get_duplicate_words()
+    
+    assert "CAT" in duplicates   # 2 players have it
+    assert "FISH" in duplicates  # 3 players have it
+    assert "DOG" not in duplicates   # Only player1 has it
+    assert "BIRD" not in duplicates  # Only player2 has it
+    assert "MOUSE" not in duplicates # Only player3 has it
+
+
+def test_get_player_score_with_strikeout() -> None:
+    """Player score should exclude struck-out words."""
+    board = Board(size=4)
+    dictionary = Dictionary("data/sowpods.txt")
+    scorer = Scorer(min_word_length=3)
+    game = Game(board=board, dictionary=dictionary, scorer=scorer)
+    
+    player1 = Player(player_id="p1", name="Alice")
+    player2 = Player(player_id="p2", name="Bob")
+    
+    game.add_player(player1)
+    game.add_player(player2)
+    
+    # Player 1: CAT (unique, 1pt), DOGS (unique, 2pt), FISH (duplicate, 0pt)
+    player1.add_word("CAT")
+    player1.add_word("DOGS")
+    player1.add_word("FISH")
+    
+    # Player 2: FISH (duplicate, 0pt), BIRD (unique, 2pt)
+    player2.add_word("FISH")
+    player2.add_word("BIRD")
+    
+    # Player 1 should score: CAT(1) + DOGS(2) = 3
+    assert game.get_player_score(player1) == 3
+    
+    # Player 2 should score: BIRD(2) = 2
+    assert game.get_player_score(player2) == 2
+
+
+def test_get_player_valid_words() -> None:
+    """Should return player's words excluding struck-out ones."""
+    board = Board(size=4)
+    dictionary = Dictionary("data/sowpods.txt")
+    scorer = Scorer(min_word_length=3)
+    game = Game(board=board, dictionary=dictionary, scorer=scorer)
+    
+    player1 = Player(player_id="p1", name="Alice")
+    player2 = Player(player_id="p2", name="Bob")
+    
+    game.add_player(player1)
+    game.add_player(player2)
+    
+    player1.add_word("CAT")
+    player1.add_word("DOG")
+    player1.add_word("FISH")
+    
+    player2.add_word("DOG")  # Duplicate
+    player2.add_word("BIRD")
+    
+    # Player 1's valid words (excluding DOG)
+    valid = game.get_player_valid_words(player1)
+    assert "CAT" in valid
+    assert "FISH" in valid
+    assert "DOG" not in valid  # Struck out
+    assert len(valid) == 2
+    
+    # Player 2's valid words (excluding DOG)
+    valid = game.get_player_valid_words(player2)
+    assert "BIRD" in valid
+    assert "DOG" not in valid  # Struck out
+    assert len(valid) == 1
+
+
+def test_all_players_have_same_word_all_struck_out() -> None:
+    """If all players have the same word, all get it struck out."""
+    board = Board(size=4)
+    dictionary = Dictionary("data/sowpods.txt")
+    scorer = Scorer(min_word_length=3)
+    game = Game(board=board, dictionary=dictionary, scorer=scorer)
+    
+    player1 = Player(player_id="p1", name="Alice")
+    player2 = Player(player_id="p2", name="Bob")
+    player3 = Player(player_id="p3", name="Charlie")
+    
+    game.add_player(player1)
+    game.add_player(player2)
+    game.add_player(player3)
+    
+    # All three find CAT
+    player1.add_word("CAT")
+    player2.add_word("CAT")
+    player3.add_word("CAT")
+    
+    # All should have it struck out
+    assert game.get_player_score(player1) == 0
+    assert game.get_player_score(player2) == 0
+    assert game.get_player_score(player3) == 0
+    
+    assert len(game.get_player_valid_words(player1)) == 0
+    assert len(game.get_player_valid_words(player2)) == 0
+    assert len(game.get_player_valid_words(player3)) == 0
