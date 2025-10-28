@@ -6,6 +6,7 @@ from src.board import Board
 from src.dictionary import Dictionary
 from src.scorer import Scorer
 from src.config import GameConfig
+from src.player import Player
 
 
 class Game:
@@ -30,20 +31,22 @@ class Game:
         self.dictionary = dictionary
         self.scorer = scorer
         self.config = config or GameConfig()
-        self._submitted_words: List[str] = []
+        self._submitted_words: List[str] = []  # For backward compatibility (single player)
+        self._players: List[Player] = []
         self._rotation = 0  # 0, 1, 2, or 3 (number of 90° clockwise rotations)
     
-    def submit_word(self, word: str) -> bool:
+    def submit_word(self, word: str, player: Player | None = None) -> bool:
         """Submit a word for validation and scoring.
         
         A word is valid if:
         1. It meets minimum length requirement
         2. It exists in the dictionary
         3. It can be formed on the board
-        4. It hasn't been submitted already
+        4. Player hasn't submitted it already (if multiplayer)
         
         Args:
             word: The word to submit (case-insensitive)
+            player: The player submitting (for multiplayer), None for single-player
             
         Returns:
             True if word is valid and accepted, False otherwise
@@ -53,10 +56,42 @@ class Game:
         
         word = word.upper()
         
-        # Check if already submitted
-        if word in self._submitted_words:
-            return False
+        # Multiplayer mode
+        if player is not None:
+            # Check if player already submitted this word
+            if word in player.get_words():
+                return False
+            
+            # Validate word
+            if not self._validate_word(word):
+                return False
+            
+            # Add to player's words
+            return player.add_word(word)
         
+        # Single-player mode (backward compatibility)
+        else:
+            # Check if already submitted
+            if word in self._submitted_words:
+                return False
+            
+            # Validate word
+            if not self._validate_word(word):
+                return False
+            
+            # All checks passed - accept the word
+            self._submitted_words.append(word)
+            return True
+    
+    def _validate_word(self, word: str) -> bool:
+        """Validate a word against game rules.
+        
+        Args:
+            word: The word to validate (already uppercase)
+            
+        Returns:
+            True if word is valid, False otherwise
+        """
         # Check minimum length
         if len(word) < self.scorer.min_word_length:
             return False
@@ -69,9 +104,30 @@ class Game:
         if not self.board.has_word_path(word):
             return False
         
-        # All checks passed - accept the word
-        self._submitted_words.append(word)
         return True
+    
+    def add_player(self, player: Player) -> bool:
+        """Add a player to the game.
+        
+        Args:
+            player: The player to add
+            
+        Returns:
+            True if player was added, False if game is full
+        """
+        if len(self._players) >= self.config.max_players:
+            return False
+        
+        self._players.append(player)
+        return True
+    
+    def get_players(self) -> List[Player]:
+        """Get list of players in the game.
+        
+        Returns:
+            List of players
+        """
+        return self._players.copy()
     
     def get_submitted_words(self) -> List[str]:
         """Get list of successfully submitted words.
