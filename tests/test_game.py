@@ -6,6 +6,7 @@ from src.board import Board
 from src.dictionary import Dictionary
 from src.scorer import Scorer
 from src.config import GameConfig
+from src.player import Player
 
 
 def test_game_initializes_with_components() -> None:
@@ -260,3 +261,93 @@ def test_game_uses_default_config_if_not_provided() -> None:
     assert game.config.time_limit_seconds == 180
     assert game.config.min_word_length == 3
     assert game.config.max_players == 4
+
+
+def test_game_add_player() -> None:
+    """Game should allow adding players."""
+    board = Board(size=4)
+    dictionary = Dictionary("data/sowpods.txt")
+    scorer = Scorer(min_word_length=3)
+    game = Game(board=board, dictionary=dictionary, scorer=scorer)
+    
+    player1 = Player(player_id="p1", name="Alice")
+    player2 = Player(player_id="p2", name="Bob")
+    
+    game.add_player(player1)
+    game.add_player(player2)
+    
+    assert len(game.get_players()) == 2
+    assert player1 in game.get_players()
+    assert player2 in game.get_players()
+
+
+def test_game_cannot_exceed_max_players() -> None:
+    """Game should not allow more than max_players."""
+    board = Board(size=4)
+    dictionary = Dictionary("data/sowpods.txt")
+    scorer = Scorer(min_word_length=3)
+    config = GameConfig(max_players=2)
+    game = Game(board=board, dictionary=dictionary, scorer=scorer, config=config)
+    
+    player1 = Player(player_id="p1", name="Alice")
+    player2 = Player(player_id="p2", name="Bob")
+    player3 = Player(player_id="p3", name="Charlie")
+    
+    assert game.add_player(player1) is True
+    assert game.add_player(player2) is True
+    assert game.add_player(player3) is False  # Exceeds max
+    
+    assert len(game.get_players()) == 2
+
+
+def test_multiplayer_word_submission() -> None:
+    """Each player should have their own word list."""
+    board = Board(size=4)
+    board.grid = [
+        ["C", "A", "T", "S"],
+        ["O", "R", "E", "D"],
+        ["D", "E", "S", "K"],
+        ["M", "O", "P", "S"]
+    ]
+    dictionary = Dictionary("data/sowpods.txt")
+    scorer = Scorer(min_word_length=3)
+    game = Game(board=board, dictionary=dictionary, scorer=scorer)
+    
+    player1 = Player(player_id="p1", name="Alice")
+    player2 = Player(player_id="p2", name="Bob")
+    game.add_player(player1)
+    game.add_player(player2)
+    
+    # Player 1 submits CAT
+    assert game.submit_word("CAT", player1) is True
+    assert "CAT" in player1.get_words()
+    assert "CAT" not in player2.get_words()
+    
+    # Player 2 submits CATS
+    assert game.submit_word("CATS", player2) is True
+    assert "CATS" in player2.get_words()
+    assert "CATS" not in player1.get_words()
+    
+    # Both players can submit the same word
+    assert game.submit_word("CORE", player1) is True
+    assert game.submit_word("CORE", player2) is True
+
+
+def test_player_cannot_submit_same_word_twice() -> None:
+    """A player cannot submit the same word twice."""
+    board = Board(size=4)
+    board.grid = [
+        ["C", "A", "T", "S"],
+        ["O", "R", "E", "D"],
+        ["D", "E", "S", "K"],
+        ["M", "O", "P", "S"]
+    ]
+    dictionary = Dictionary("data/sowpods.txt")
+    scorer = Scorer(min_word_length=3)
+    game = Game(board=board, dictionary=dictionary, scorer=scorer)
+    
+    player1 = Player(player_id="p1", name="Alice")
+    game.add_player(player1)
+    
+    assert game.submit_word("CAT", player1) is True
+    assert game.submit_word("CAT", player1) is False  # Duplicate
