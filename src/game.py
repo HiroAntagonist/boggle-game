@@ -132,6 +132,46 @@ class Game:
         """
         return list(self._players.values())
     
+    def get_duplicate_words(self) -> set[str]:
+        """Find words that were submitted by multiple players.
+        
+        Returns:
+            Set of words that appear in more than one player's list
+        """
+        word_counts: Dict[str, int] = {}
+        
+        # Count how many players have each word
+        for player in self._players.values():
+            for word in player.get_words():
+                word_counts[word] = word_counts.get(word, 0) + 1
+        
+        # Return words that appear more than once
+        return {word for word, count in word_counts.items() if count > 1}
+    
+    def get_player_valid_words(self, player: Player) -> List[str]:
+        """Get player's words excluding struck-out duplicates.
+        
+        Args:
+            player: The player
+            
+        Returns:
+            List of valid (non-struck-out) words
+        """
+        duplicates = self.get_duplicate_words()
+        return [word for word in player.get_words() if word not in duplicates]
+    
+    def get_player_score(self, player: Player) -> int:
+        """Calculate player's score excluding struck-out words.
+        
+        Args:
+            player: The player
+            
+        Returns:
+            Player's score (only counting unique words)
+        """
+        valid_words = self.get_player_valid_words(player)
+        return self.scorer.score_words(valid_words)
+    
     def get_submitted_words(self) -> List[str]:
         """Get list of successfully submitted words.
         
