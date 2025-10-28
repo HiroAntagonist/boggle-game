@@ -1,7 +1,7 @@
 # ABOUTME: Game class orchestrating Boggle game logic
 # ABOUTME: Combines Board, Dictionary, and Scorer for complete game flow
 
-from typing import List
+from typing import List, Dict
 from src.board import Board
 from src.dictionary import Dictionary
 from src.scorer import Scorer
@@ -32,7 +32,7 @@ class Game:
         self.scorer = scorer
         self.config = config or GameConfig()
         self._submitted_words: List[str] = []  # For backward compatibility (single player)
-        self._players: List[Player] = []
+        self._players: Dict[str, Player] = {}  # player_id -> Player
         self._rotation = 0  # 0, 1, 2, or 3 (number of 90° clockwise rotations)
     
     def submit_word(self, word: str, player: Player | None = None) -> bool:
@@ -113,12 +113,15 @@ class Game:
             player: The player to add
             
         Returns:
-            True if player was added, False if game is full
+            True if player was added, False if game is full or player already exists
         """
         if len(self._players) >= self.config.max_players:
             return False
         
-        self._players.append(player)
+        if player.player_id in self._players:
+            return False
+        
+        self._players[player.player_id] = player
         return True
     
     def get_players(self) -> List[Player]:
@@ -127,7 +130,7 @@ class Game:
         Returns:
             List of players
         """
-        return self._players.copy()
+        return list(self._players.values())
     
     def get_submitted_words(self) -> List[str]:
         """Get list of successfully submitted words.
