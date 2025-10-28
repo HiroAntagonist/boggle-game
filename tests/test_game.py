@@ -300,6 +300,23 @@ def test_game_cannot_exceed_max_players() -> None:
     assert len(game.get_players()) == 2
 
 
+def test_game_cannot_add_duplicate_player() -> None:
+    """Game should not allow adding the same player twice."""
+    board = Board(size=4)
+    dictionary = Dictionary("data/sowpods.txt")
+    scorer = Scorer(min_word_length=3)
+    game = Game(board=board, dictionary=dictionary, scorer=scorer)
+    
+    player1 = Player(player_id="p1", name="Alice")
+    player2 = Player(player_id="p1", name="Bob")  # Same ID, different name
+    
+    assert game.add_player(player1) is True
+    assert game.add_player(player2) is False  # Duplicate ID
+    
+    assert len(game.get_players()) == 1
+    assert game.get_players()[0].name == "Alice"  # First one was kept
+
+
 def test_multiplayer_word_submission() -> None:
     """Each player should have their own word list."""
     board = Board(size=4)
