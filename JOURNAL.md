@@ -1028,3 +1028,133 @@ Most importantly: **the game is fun to play!** That's the ultimate validation. F
 Ready for Week 3 - network multiplayer! 🚀
 
 ---
+
+# Week 3: Network Multiplayer
+
+## 2025-01-XX: Week 3, Day 1 - WebSocket Basics & Echo Server
+
+### What we did
+- Installed `websockets` library for async WebSocket communication
+- Built simple echo server that handles multiple clients
+- Built echo client for testing
+- Tested real-time bidirectional communication
+- Learned async/await fundamentals
+- Created src/network/ package structure
+
+### What I learned
+- **WebSockets vs HTTP**: WebSocket maintains persistent connection, HTTP is request-response
+- **`async def`**: Declares asynchronous function that returns a coroutine
+- **`await`**: Pauses execution, yields control to event loop
+- **`async for`**: Asynchronous iteration - waits for each item to arrive
+- **Event loop**: Manages concurrent operations without threads
+- **Concurrent connections**: Server handles multiple clients simultaneously
+- **`asyncio.run()`**: Starts event loop and runs async main function
+- **`websockets.serve()`**: Creates WebSocket server
+- **`websockets.connect()`**: Connects to WebSocket server
+
+### Challenges/Issues
+- Initially confused about `async for` - realized it's like `await` but for loops
+- Accidentally made duplicate commits (no harm done)
+
+### Key Commands Learned
+```bash
+uv add websockets                    # Add WebSocket library
+python src/network/echo_server.py    # Run server
+python src/network/echo_client.py    # Run client
+# Run in separate terminals to test
+```
+
+### Code Concepts
+- **Async handler pattern**: `async def handler(websocket)`
+- **Message loop**: `async for message in websocket`
+- **Send/receive**: `await websocket.send()` and `await websocket.recv()`
+- **Context managers**: `async with websockets.serve()` and `async with websockets.connect()`
+- **Forever future**: `await asyncio.Future()` keeps server running
+
+### Echo Server Architecture
+```
+Server (localhost:8765)
+    |
+    |-- Client 1 (connection 1)
+    |-- Client 2 (connection 2)
+    |-- Client 3 (connection 3)
+    
+Each connection handled concurrently!
+```
+
+### async/await Explanation
+```python
+# Regular function (synchronous)
+def process():
+    result = slow_operation()  # Blocks - nothing else runs
+    return result
+
+# Async function (asynchronous)
+async def process():
+    result = await slow_operation()  # Pauses - other code runs
+    return result
+```
+
+### async for Explained
+```python
+# Regular for (synchronous)
+for item in list:
+    print(item)  # Items already in memory
+
+# async for (asynchronous)
+async for message in websocket:
+    print(message)  # Wait for each message to arrive over network
+```
+
+**Key insight**: `async for` waits for each item to arrive, one at a time, yielding control while waiting.
+
+### WebSocket Message Flow
+```
+Client                    Server
+  |                         |
+  |--- "hello" ------------>|
+  |                         | (processes)
+  |<--- "Echo: hello" ------|
+  |                         |
+  |--- "world" ------------>|
+  |                         | (processes)
+  |<--- "Echo: world" ------|
+```
+
+### Why Async Matters for Games
+- **Multiple clients**: Handle 10+ players simultaneously
+- **No blocking**: While waiting for Player 1's message, process Player 2's
+- **Real-time**: Instant updates to all clients
+- **Scalable**: Can handle many concurrent connections efficiently
+
+### Testing Experience
+Ran two clients simultaneously:
+- Terminal 1: Server running, showing connections
+- Terminal 2: Client 1 sending "hello"
+- Terminal 3: Client 2 sending "test"
+- Both worked independently - that's the power of async!
+
+### Blockers/Questions
+- None - async fundamentals clear!
+
+### Next session
+- Day 2: Game server with rooms and player management
+- JSON protocol for structured messages
+- Broadcasting to all players in a room
+- Room creation and joining
+
+### Time spent
+~45 minutes
+
+### Reflection
+WebSockets are surprisingly straightforward once you understand async/await! The echo server is a perfect learning tool - simple enough to understand quickly, but demonstrates all the key concepts: persistent connections, concurrent handling, bidirectional communication.
+
+The `async for` concept clicked when I realized it's just "await in a loop" - waiting for each item to arrive over the network. The synchronous equivalent would block the entire server, but async lets us handle multiple clients.
+
+Seeing two clients connect simultaneously and both get echoes back independently was the "aha!" moment - that's true concurrency without threads or multiprocessing. Python's asyncio event loop handles it all.
+
+The echo server is throwaway learning code, but the concepts transfer directly to building a real game server. Next step: instead of echoing messages, we'll manage game rooms, validate moves, and broadcast game state to all players.
+
+Week 3 is going to be exciting - transforming from local multiplayer to network multiplayer is a huge leap in complexity, but also in capability. The game becomes truly multiplayer - not just multiple people on one computer, but people across the internet playing together!
+
+---
