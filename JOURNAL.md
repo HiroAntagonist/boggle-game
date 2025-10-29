@@ -868,3 +868,163 @@ The optional feature pattern is important: the game works perfectly without a ti
 Week 2 is almost complete! From single-player to multiplayer with strike-outs and timer. The game now has all the classic Boggle features. Ready for final polish!
 
 ---
+
+## 2025-01-XX: Week 2, Day 6 - Final Polish & Documentation
+
+### What we did
+- Created comprehensive README with game rules and architecture
+- Documented all features, commands, and scoring rules
+- Added project structure overview
+- Explained strike-out rule with examples
+- Documented algorithms with time complexity
+- Listed learning objectives and future enhancements
+- Verified .gitignore is complete
+- Reviewed all code for edge cases
+- Completed Week 2!
+
+### What I learned
+- **README structure**: Features → Installation → Usage → Development → Architecture
+- **Code examples in docs**: Show actual usage, not just descriptions
+- **Architecture documentation**: Explain design principles and key components
+- **Algorithm documentation**: Include time complexity analysis
+- **Future planning**: Document what's next while fresh in mind
+- **Project completeness**: README, tests, types, git history all matter
+
+### Challenges/Issues
+- None - smooth wrap-up!
+
+### Key Sections in README
+```
+Features (what it does)
+Installation (how to set up)
+How to Play (game rules)
+Commands (user reference)
+Project Structure (code organization)
+Development (for contributors)
+Architecture (design decisions)
+Algorithm Highlights (technical depth)
+```
+
+### Documentation Best Practices
+- **Start with features**: Tell users what the project does
+- **Quick start section**: Get users playing immediately
+- **Examples over descriptions**: Show, don't just tell
+- **Technical depth for developers**: Algorithm analysis, architecture
+- **Visual formatting**: Use emojis, code blocks, examples
+- **Keep it current**: Update as features change
+
+### What Makes Good Documentation
+1. **User-focused**: Answers "how do I use this?"
+2. **Developer-focused**: Answers "how does this work?"
+3. **Examples**: Real code and gameplay scenarios
+4. **Structure**: Easy to scan and find information
+5. **Complete**: Installation, usage, development, architecture
+
+### Week 2 Feature Summary
+**Day 1**: Game configuration with Pydantic validation
+**Day 2**: Multiplayer state (Player class, game manages multiple players)
+**Day 3**: Word strike-out logic (classic Boggle rule)
+**Day 4**: Multiplayer CLI with turn-based gameplay
+**Day 5**: Game timer with countdown and auto-end
+**Day 6**: Documentation and polish
+
+### Blockers/Questions
+- None - Week 2 complete!
+
+### Next Steps
+Week 3 will focus on network multiplayer and advanced features:
+- WebSocket-based multiplayer
+- Game rooms and lobbies
+- Persistent game state
+- Leaderboards
+- Web interface
+
+### Time spent
+~60 minutes
+
+### Reflection
+Week 2 transformed the game from single-player to full multiplayer with all classic Boggle features. The progression was logical: config → players → strike-outs → CLI → timer → docs. Each day built on the previous one.
+
+Writing the README forced me to think about the project holistically. What would someone need to know to play? To develop? To understand the architecture? Good documentation serves multiple audiences: users, developers, and future maintainers.
+
+The strike-out example in the README makes the rule immediately clear - better than just describing it. The algorithm section with time complexity shows technical depth. The project structure gives an overview of how everything fits together.
+
+Looking back at Week 1 and 2, the learning progression is clear:
+- Week 1: Core game mechanics (board, dictionary, scoring, single-player)
+- Week 2: Multiplayer features (players, turns, strike-outs, timer)
+
+The git history tells the story: 40+ commits, each with a clear purpose. The test coverage is comprehensive. The type checking catches errors. The code is clean and well-organized.
+
+Week 2 complete! 🎉
+
+---
+
+# Week 2 Summary
+
+## What We Built
+- **GameConfig**: Validated configuration with Pydantic
+- **Player**: Individual player state management
+- **Multiplayer Game**: Support for 2-4 players with turn-based gameplay
+- **Strike-Out Logic**: Duplicate words across players don't count
+- **Multiplayer CLI**: Interactive turn system with pass mechanics
+- **Game Timer**: Optional countdown with live display
+- **Comprehensive README**: Full documentation
+
+## Technical Achievements
+- **40+ total commits** across 12 days of development
+- **20+ test files** with comprehensive coverage
+- **Full type safety** with mypy
+- **Clean architecture** with separation of concerns
+- **Professional documentation**
+
+## Key Algorithms Implemented
+1. **DFS with backtracking** for word path validation
+2. **Fibonacci scoring** for word length
+3. **Strike-out detection** with word counting
+4. **Turn management** with modulo cycling
+5. **Timer tracking** with elapsed/remaining calculations
+
+## Python Concepts Mastered
+- Pydantic validation and frozen models
+- Optional types (`float | None`)
+- Dict vs List tradeoffs
+- Set comprehensions
+- Lambda functions
+- Time calculations
+- Property decorators
+- Dunder methods (`__eq__`, `__hash__`)
+
+## Design Patterns Used
+- **Dependency injection**: Pass components to Game
+- **Orchestration**: Game coordinates without business logic
+- **Validation layers**: Multiple checks for word submission
+- **Optional features**: Timer can be enabled/disabled
+- **Separation of concerns**: Each class has one responsibility
+
+## Lines of Code
+- **Source code**: ~800 lines
+- **Test code**: ~600 lines
+- **Total**: ~1400 lines of type-safe, tested Python
+
+## What's Next (Week 3)
+Network multiplayer with:
+- WebSocket server
+- Game rooms
+- Real-time updates
+- Web interface
+- Persistent state
+
+## Reflection on Week 2
+Week 2 was about **multiplayer transformation**. Every feature added depth to the game: players create competition, strike-outs create strategy, turns create structure, timer creates pressure.
+
+The progression from single-player (Week 1) to multiplayer (Week 2) taught important lessons about state management. Single-player is simple: one list of words, one score. Multiplayer requires managing multiple players, tracking who submitted what, detecting duplicates, cycling through turns.
+
+The strike-out rule is what makes multiplayer Boggle strategic. Without it, multiplayer would just be multiple people playing solo on the same board. With strike-outs, players must find unique words - the same core mechanic that makes Scrabble strategic.
+
+Git workflow is now second nature. Feature branches, clear commits, merges, pushes - all automatic. The commit history tells a clear story of development. Type checking catches errors before runtime. Tests verify behavior. The development process is professional.
+
+Most importantly: **the game is fun to play!** That's the ultimate validation. Family and friends can play together, the timer adds pressure, the strike-outs create competition, and the results show who found the most unique words.
+
+Ready for Week 3 - network multiplayer! 🚀
+
+---
