@@ -747,3 +747,124 @@ The modulo arithmetic for player cycling is a classic game programming pattern. 
 Week 2 progress has been amazing - went from single-player to full multiplayer with strike-outs and turn management. The game is genuinely fun to play now! Ready to add the final piece: a countdown timer for that classic Boggle pressure!
 
 ---
+
+## 2025-01-XX: Week 2, Day 5 - Game Timer
+
+### What we did
+- Implemented game timer using Python's `time` module
+- Added `start_timer()` method to begin tracking
+- Implemented `get_elapsed_time()` for time since start
+- Implemented `get_remaining_time()` for countdown
+- Added `is_time_expired()` to check if time limit exceeded
+- Integrated timer into multiplayer CLI
+- Made timer optional (can play with or without)
+- Display live countdown on each turn
+- Auto-end game when timer expires
+- Timer shows MM:SS format for readability
+
+### What I learned
+- **`time.time()`**: Returns current Unix timestamp (seconds since epoch)
+- **Time calculations**: `current - start` for elapsed, `limit - elapsed` for remaining
+- **`max(0, value)`**: Prevents negative time display
+- **Optional state**: `start_time: float | None` for optional timer
+- **None propagation**: If start_time is None, all time methods return None
+- **Type narrowing**: mypy understands `if x is None: return None` pattern
+- **Format strings**: `f"{mins}:{secs:02d}"` for zero-padded seconds
+- **Boolean short-circuit**: `remaining is None` returns False without computing
+
+### Challenges/Issues
+- Initially forgot to check for None before doing time calculations
+- Had to decide: should timer be always-on or optional? (chose optional)
+- Format decision: show seconds as float or int? (chose int for cleaner display)
+
+### Key Commands Learned
+```bash
+# All git commands are second nature now!
+```
+
+### Code Concepts
+- **Timestamp tracking**: Store `start_time` as Unix timestamp
+- **Delta calculations**: Current time minus start time
+- **Countdown math**: Limit minus elapsed
+- **None handling**: Return None if timer not started
+- **Optional features**: Feature exists but doesn't have to be used
+
+### Timer Implementation
+```python
+def start_timer(self) -> None:
+    self.start_time = time.time()
+
+def get_elapsed_time(self) -> float | None:
+    if self.start_time is None:
+        return None
+    return time.time() - self.start_time
+
+def get_remaining_time(self) -> float | None:
+    elapsed = self.get_elapsed_time()
+    if elapsed is None:
+        return None
+    return max(0, self.config.time_limit_seconds - elapsed)
+```
+
+### Timer Display Logic
+```python
+if use_timer:
+    remaining = game.get_remaining_time()
+    if remaining is not None:
+        mins = int(remaining // 60)
+        secs = int(remaining % 60)
+        print(f"⏱️  Time remaining: {mins}:{secs:02d}")
+```
+
+### Time Format Examples
+```
+⏱️  Time remaining: 2:47
+⏱️  Time remaining: 0:15
+⏰ TIME'S UP! ⏰
+```
+
+### Design Decisions
+- **Optional timer**: Player chooses at game start
+- **Classic 3-minute default**: Standard Boggle time limit
+- **Check on each turn**: Not real-time polling, checks between turns
+- **Graceful handling**: Game works perfectly without timer
+- **Auto-end on expiry**: No need to manually check, game ends automatically
+
+### Testing Approach
+- Used `time.sleep()` in tests to verify timer works
+- Short timeouts (0.1s, 1.1s) for fast tests
+- Tested None propagation for games without timer
+- Verified elapsed and remaining time calculations
+
+### Type Hints
+```python
+start_time: float | None = None      # Optional timestamp
+get_elapsed_time() -> float | None   # Returns None if not started
+is_time_expired() -> bool            # Always returns bool (False if no timer)
+```
+
+### Blockers/Questions
+- None
+
+### Next session
+- Day 6: Final polish and documentation
+- Add README with game rules
+- Clean up any edge cases
+- Final testing
+- Celebrate completion of Week 2!
+
+### Time spent
+~45 minutes
+
+### Reflection
+Adding the timer brought that classic Boggle pressure! The time module is straightforward - just store a timestamp and compare. The key design decision was making it optional - not every game needs time pressure. The None propagation pattern is elegant: if there's no start_time, all time methods gracefully return None or False.
+
+The live countdown display adds urgency without being intrusive - it shows at the start of each turn but doesn't interrupt gameplay. Using integer division and modulo for MM:SS format is a classic time formatting pattern.
+
+Testing with `time.sleep()` was interesting - usually you avoid sleeping in tests, but here it's necessary to verify timer behavior. Keeping the sleep times short (0.1s, 1.1s) keeps tests fast.
+
+The optional feature pattern is important: the game works perfectly without a timer, but the timer adds an extra dimension when wanted. This is good software design - features should be additive, not mandatory.
+
+Week 2 is almost complete! From single-player to multiplayer with strike-outs and timer. The game now has all the classic Boggle features. Ready for final polish!
+
+---
