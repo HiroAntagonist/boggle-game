@@ -416,3 +416,229 @@ Week 1 complete! I went from zero to a working single-player Boggle game with te
 Ready for Week 2: multiplayer, configuration, and more complex game state!
 
 ---
+
+## 2025-01-XX: Week 2, Day 1 - Game Configuration with Pydantic
+
+### What we did
+- Created GameConfig class using Pydantic for validated configuration
+- Added validation for board_size (4 or 5), time_limit (positive), min_word_length (positive), max_players (1-8)
+- Made config immutable with `frozen=True`
+- Integrated GameConfig into Game class with optional parameter
+- Added Pydantic as project dependency with `uv add pydantic`
+- All tests passing, type checking passing
+
+### What I learned
+- **Pydantic BaseModel**: Powerful data validation library for Python
+- **Field validators**: Custom validation logic with `@field_validator`
+- **Frozen models**: `frozen=True` makes config immutable after creation
+- **Field defaults**: Using `Field(default=...)` with descriptions
+- **model_config dict**: Configures model behavior (frozen, validate_assignment)
+- **ValidationError**: Pydantic raises this for invalid data
+- **Optional with defaults**: `config: GameConfig | None = None` then `config or GameConfig()`
+
+### Challenges/Issues
+- Initially forgot to install Pydantic - got ModuleNotFoundError
+- Fixed with `uv add pydantic` (not `--dev` since it's a runtime dependency)
+
+### Key Commands Learned
+```bash
+uv add pydantic              # Add runtime dependency
+uv add --dev pytest          # Add dev dependency (for comparison)
+```
+
+### Code Concepts
+- **Data validation at runtime**: Pydantic validates on object creation
+- **Immutability for config**: Prevents accidental changes to game settings
+- **Custom validators**: `@field_validator` decorator for complex validation
+- **Type hints with constraints**: More than just types - actual validation
+
+### Pydantic Pattern
+```python
+class GameConfig(BaseModel):
+    board_size: int = Field(default=4, description="...")
+    
+    model_config = {
+        "frozen": True,  # Immutable
+        "validate_assignment": True
+    }
+    
+    @field_validator("board_size")
+    @classmethod
+    def validate_board_size(cls, v: int) -> int:
+        if v not in (4, 5):
+            raise ValueError("board_size must be 4 or 5")
+        return v
+```
+
+### Blockers/Questions
+- None
+
+### Next session
+- Day 2: Multi-player game state with Player class
+
+### Time spent
+~45 minutes
+
+### Reflection
+Pydantic is incredibly powerful for configuration! The validation happens automatically, and the frozen model prevents bugs from accidental config changes. The Field descriptions make the code self-documenting. This is much better than manually validating each field in `__init__`. Integration with Game was smooth - optional parameter with default is a clean pattern.
+
+---
+
+## 2025-01-XX: Week 2, Day 2 - Multi-Player Game State
+
+### What we did
+- Created Player class to represent individual players (id, name, words)
+- Players can add words to their own list (no duplicates per player)
+- Implemented `__eq__` and `__hash__` based on player_id for comparability
+- Updated Game to manage multiple players using Dict[str, Player]
+- Changed from List to Dict to prevent duplicate player IDs (O(1) lookup)
+- Game.submit_word() now accepts optional Player parameter
+- Backward compatible - single-player mode still works via _submitted_words
+- Max players enforced by GameConfig
+- All tests passing, type checking passing
+
+### What I learned
+- **`__eq__` and `__hash__`**: Making custom objects comparable and hashable
+- **Dict vs List for players**: Dict prevents duplicates and gives O(1) lookup by ID
+- **Optional parameters**: `player: Player | None = None` for backward compatibility
+- **Property decorator**: `@property` for read-only attribute access
+- **Code refactoring**: Extracted `_validate_word()` to avoid duplication
+- **Backward compatibility**: Keeping old behavior while adding new features
+
+### Challenges/Issues
+- Initially used List for players - could add same player twice
+- Fixed by switching to Dict[str, Player] keyed by player_id
+- Discovered the bug by asking "what if same player ID added twice?"
+
+### Key Commands Learned
+```bash
+git diff                     # See changes before committing
+git diff src/game.py        # See changes in specific file
+```
+
+### Code Concepts
+- **`__eq__` for equality**: `player1 == player2` checks player_id
+- **`__hash__` for sets/dicts**: Allows Player in set or as dict key
+- **Dict for uniqueness**: `dict[player_id] = player` prevents duplicates automatically
+- **Optional parameters with None**: `player: Player | None = None`
+- **Refactoring for reuse**: Single validation logic used by both modes
+
+### Player Class Design
+```python
+class Player:
+    def __init__(self, player_id: str, name: str):
+        self.player_id = player_id
+        self.name = name
+        self._words: List[str] = []
+    
+    def __eq__(self, other):
+        return self.player_id == other.player_id
+    
+    def __hash__(self):
+        return hash(self.player_id)
+```
+
+### Game Multiplayer Pattern
+```python
+# Single-player (backward compatible)
+game.submit_word("CAT")  # Uses _submitted_words
+
+# Multiplayer (new)
+game.submit_word("CAT", player1)  # Uses player1._words
+```
+
+### Blockers/Questions
+- None
+
+### Next session
+- Day 3: Word strike-out logic (classic Boggle rule)
+
+### Time spent
+~45 minutes
+
+### Reflection
+The switch from List to Dict for players was a great design decision - prevents bugs and is more efficient. The `__eq__` and `__hash__` implementation makes Player objects work naturally with Python's built-in data structures. Keeping backward compatibility for single-player was important - didn't break existing tests. The optional Player parameter is a clean way to support both modes without duplicating code.
+
+---
+
+## 2025-01-XX: Week 2, Day 3 - Word Strike-Out Logic
+
+### What we did
+- Implemented classic Boggle strike-out rule: duplicate words across players don't score
+- Added `get_duplicate_words()` - finds words submitted by multiple players
+- Added `get_player_valid_words()` - returns player's words excluding duplicates
+- Added `get_player_score()` - calculates score only from unique words
+- Comprehensive tests including edge case where all players find same word
+- All tests passing, type checking passing
+
+### What I learned
+- **Word counting algorithm**: Count occurrences across all players using dict
+- **Set comprehension**: `{word for word, count in items if count > 1}`
+- **List comprehension with filter**: `[word for word in words if word not in set]`
+- **Dict.get() with default**: `word_counts.get(word, 0) + 1` to avoid KeyError
+- **Set operations**: Using set for O(1) lookup when filtering duplicates
+- **Game logic separation**: Strike-out logic separate from submission logic
+
+### Challenges/Issues
+- None - straightforward implementation
+- Note: Committed implementation before tests (should be reversed for TDD)
+
+### Key Commands Learned
+```bash
+# No new commands - continued using existing git workflow
+```
+
+### Code Concepts
+- **Frequency counting**: Building dict to count word occurrences
+- **Set for fast lookup**: `word in duplicates` is O(1) instead of O(n)
+- **Filtering with comprehensions**: Concise way to exclude items
+- **Separation of concerns**: Duplicate detection separate from scoring
+
+### Strike-Out Algorithm
+```python
+def get_duplicate_words(self) -> set[str]:
+    word_counts: Dict[str, int] = {}
+    
+    # Count occurrences
+    for player in self._players.values():
+        for word in player.get_words():
+            word_counts[word] = word_counts.get(word, 0) + 1
+    
+    # Return words that appear more than once
+    return {word for word, count in word_counts.items() if count > 1}
+
+def get_player_valid_words(self, player: Player) -> List[str]:
+    duplicates = self.get_duplicate_words()
+    return [word for word in player.get_words() if word not in duplicates]
+```
+
+### Time Complexity
+- `get_duplicate_words()`: O(n × m) where n = players, m = avg words per player
+- `get_player_valid_words()`: O(m) where m = player's word count
+- Efficient for typical Boggle games (4 players, 10-20 words each)
+
+### Example Strike-Out
+```
+Alice: CAT, DOG, FISH
+Bob:   CAT, BIRD, FISH
+Charlie: MOUSE
+
+Duplicates: {CAT, FISH}
+Alice scores: DOG only
+Bob scores: BIRD only
+Charlie scores: MOUSE
+```
+
+### Blockers/Questions
+- None
+
+### Next session
+- Day 4: Multiplayer CLI (player turns, score display, game flow)
+
+### Time spent
+~60 minutes
+
+### Reflection
+The strike-out logic is the heart of what makes Boggle competitive! The algorithm is elegant - just count occurrences and filter. Using a set for duplicates gives O(1) lookup when filtering each player's words. The separation between "what words did players submit" and "which words count for scoring" is clean. This is a great example of how simple data structures (dict for counting, set for lookup) solve the problem efficiently. Ready to build the multiplayer CLI so we can actually play with strike-outs!
+
+---
