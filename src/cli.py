@@ -241,6 +241,25 @@ def play_multiplayer_game() -> None:
             name = f"Player {i+1}"
         players.append(Player(player_id=f"p{i+1}", name=name))
     
+    # Ask about time limit
+    print("\nUse time limit?")
+    print("1. Yes - 3 minutes (classic Boggle)")
+    print("2. No - play until all players pass")
+    
+    use_timer = False
+    time_limit = 180
+    
+    while True:
+        choice = input("\nEnter 1 or 2: ").strip()
+        if choice == "1":
+            use_timer = True
+            break
+        elif choice == "2":
+            use_timer = False
+            break
+        else:
+            print("Invalid choice. Please enter 1 or 2.")
+    
     # Initialize game components
     print("\nLoading dictionary...")
     dictionary = Dictionary("data/sowpods.txt")
@@ -249,7 +268,7 @@ def play_multiplayer_game() -> None:
     board = Board(size=4)
     
     scorer = Scorer(min_word_length=3)
-    config = GameConfig(max_players=num_players)
+    config = GameConfig(max_players=num_players, time_limit_seconds=time_limit)
     game = Game(board=board, dictionary=dictionary, scorer=scorer, config=config)
     
     # Add players to game
@@ -264,17 +283,38 @@ def play_multiplayer_game() -> None:
     print("- Type 'score' to see current scores")
     print("- Type 'words' to see your words")
     print("- Type 'rotate' to rotate the board view")
-    print("- Game ends when all players pass consecutively")
+    if use_timer:
+        print(f"- You have {time_limit // 60} minutes!")
+    else:
+        print("- Game ends when all players pass consecutively")
     print()
     
     display_board(board, game.get_rotation())
+    
+    # Start timer if requested
+    if use_timer:
+        game.start_timer()
+        print(f"⏱️  Timer started! {time_limit // 60} minutes on the clock.\n")
     
     # Game loop
     current_player_idx = 0
     consecutive_passes = 0
     
     while consecutive_passes < len(players):
+        # Check if time expired
+        if use_timer and game.is_time_expired():
+            print("\n⏰ TIME'S UP! ⏰\n")
+            break
+        
         current_player = players[current_player_idx]
+        
+        # Display remaining time
+        if use_timer:
+            remaining = game.get_remaining_time()
+            if remaining is not None:
+                mins = int(remaining // 60)
+                secs = int(remaining % 60)
+                print(f"⏱️  Time remaining: {mins}:{secs:02d}")
         
         print(f"\n{'='*40}")
         print(f"{current_player.name}'s turn")
