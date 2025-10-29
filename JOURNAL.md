@@ -642,3 +642,108 @@ Charlie scores: MOUSE
 The strike-out logic is the heart of what makes Boggle competitive! The algorithm is elegant - just count occurrences and filter. Using a set for duplicates gives O(1) lookup when filtering each player's words. The separation between "what words did players submit" and "which words count for scoring" is clean. This is a great example of how simple data structures (dict for counting, set for lookup) solve the problem efficiently. Ready to build the multiplayer CLI so we can actually play with strike-outs!
 
 ---
+
+## 2025-01-XX: Week 2, Day 4 - Multiplayer CLI
+
+### What we did
+- Built interactive multiplayer CLI with turn-based gameplay
+- Added game mode selection (single player vs multiplayer)
+- Implemented turn system with pass mechanics
+- Game ends when all players pass consecutively
+- Created comprehensive multiplayer results display
+- Shows final scores sorted by rank
+- Displays each player's valid words (✓) and struck-out words (✗)
+- All commands work per-player: score, words, rotate, pass
+
+### What I learned
+- **Turn-based game loops**: Cycling through players with modulo arithmetic
+- **Consecutive pass tracking**: Counter resets on any word submission
+- **Lambda functions for sorting**: `key=lambda p: game.get_player_score(p)`
+- **enumerate with start parameter**: `enumerate(players, 1)` for ranking
+- **Modulo for cycling**: `(current_idx + 1) % len(players)` wraps around
+- **List comprehension for filtering**: `[w for w in words if w not in duplicates]`
+- **Dict vs List tradeoff**: Using dict prevented duplicate player IDs automatically
+
+### Challenges/Issues
+- Initially forgot to reset consecutive pass counter on word submission
+- Fixed duplicate player bug by switching from List to Dict for player storage
+- Had to think through when game should end (all players pass, not just one round)
+
+### Key Commands Learned
+```bash
+boggle                          # Run the game with mode selection
+# (All existing git commands becoming second nature)
+```
+
+### Code Concepts
+- **Turn management**: Track current player index, cycle with modulo
+- **Pass system**: Count consecutive passes across all players
+- **Results display**: Sort players by score, show breakdown per player
+- **Conditional formatting**: ✓ for valid words, ✗ for struck-out
+- **Game end condition**: `consecutive_passes >= len(players)`
+
+### Game Flow Algorithm
+```python
+consecutive_passes = 0
+current_player_idx = 0
+
+while consecutive_passes < len(players):
+    current_player = players[current_player_idx]
+    
+    word = get_input()
+    
+    if word == "pass":
+        consecutive_passes += 1
+        current_player_idx = (current_player_idx + 1) % len(players)
+    elif submit_word(word, current_player):
+        consecutive_passes = 0  # Reset on successful word
+    
+    # Move to next player after submission
+```
+
+### Multiplayer Results Format
+```
+FINAL SCORES:
+1. Alice: 15 points (8 words, 2 struck out)
+2. Bob: 12 points (7 words, 3 struck out)
+
+WORD BREAKDOWN:
+Alice's words:
+  ✓ CAT (3 letters) - 1 point
+  ✓ DOGS (4 letters) - 2 points
+  
+  Struck out (duplicates):
+  ✗ FISH (0 points)
+```
+
+### Bug Fix: Duplicate Players
+**Problem**: Could add same player twice (same player_id)
+**Solution**: Changed `_players: List[Player]` to `_players: Dict[str, Player]`
+**Benefit**: O(1) lookup by ID, automatic duplicate prevention
+
+### Design Decisions
+- **Pass vs Quit**: "pass" ends turn, all players passing consecutively ends game
+- **Turn display**: Clear separator showing whose turn it is
+- **Command availability**: All commands (score, words, rotate) work during any turn
+- **Results sorting**: Highest score first, natural competitive display
+
+### Blockers/Questions
+- None - multiplayer works great!
+
+### Next session
+- Day 5: Game timer and time limits
+- Add countdown timer during gameplay
+- Auto-end game when time expires
+- Display remaining time
+
+### Time spent
+~60 minutes
+
+### Reflection
+Bringing everything together into a multiplayer CLI was incredibly satisfying! The turn-based system with pass mechanics creates a natural game flow. The consecutive pass counter is elegant - it ensures the game ends when everyone is done, not just after one round. Switching to a dict for players fixed the duplicate bug and improved code quality. The results display with strike-outs makes the competitive aspect clear and exciting. 
+
+The modulo arithmetic for player cycling is a classic game programming pattern. Testing with multiple "players" (myself) revealed the importance of the consecutive pass reset - without it, the game ends too early if anyone passes once.
+
+Week 2 progress has been amazing - went from single-player to full multiplayer with strike-outs and turn management. The game is genuinely fun to play now! Ready to add the final piece: a countdown timer for that classic Boggle pressure!
+
+---
