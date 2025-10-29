@@ -260,12 +260,29 @@ def play_multiplayer_game() -> None:
         else:
             print("Invalid choice. Please enter 1 or 2.")
     
+    # Ask about board size
+    print("\nBoard size?")
+    print("1. Standard 4x4")
+    print("2. Big Boggle 5x5")
+    
+    board_size = 4
+    while True:
+        choice = input("\nEnter 1 or 2: ").strip()
+        if choice == "1":
+            board_size = 4
+            break
+        elif choice == "2":
+            board_size = 5
+            break
+        else:
+            print("Invalid choice. Please enter 1 or 2.")
+    
     # Initialize game components
     print("\nLoading dictionary...")
     dictionary = Dictionary("data/sowpods.txt")
     
-    print("Generating board...")
-    board = Board(size=4)
+    print(f"Generating {board_size}x{board_size} board...")
+    board = Board(size=board_size)
     
     scorer = Scorer(min_word_length=3)
     config = GameConfig(max_players=num_players, time_limit_seconds=time_limit)

@@ -8,12 +8,21 @@ from typing import List, Set, Tuple
 class Board:
     """Represents a Boggle game board with a grid of letter dice."""
     
-    # Standard Boggle dice (16 dice for 4x4, we'll expand for 5x5 later)
+    # Standard Boggle 4x4 dice (16 dice)
     DICE_4X4 = [
         "AAEEGN", "ABBJOO", "ACHOPS", "AFFKPS",
         "AOOTTW", "CIMOTU", "DEILRX", "DELRVY",
         "DISTTY", "EEGHNW", "EEINSU", "EHRTVW",
         "EIOSST", "ELRTTY", "HIMNQU", "HLNNRZ"
+    ]
+    
+    # Big Boggle 5x5 dice (25 dice)
+    DICE_5X5 = [
+        "AAAFRS", "AAEEEE", "AAFIRS", "ADENNN", "AEEEEM",
+        "AEEGMU", "AEGMNN", "AFIRSY", "BJKQXZ", "CCENST",
+        "CEIILT", "CEILPT", "CEIPST", "DDHNOT", "DHHLOR",
+        "DHLNOR", "DHLNOR", "EIIITT", "EMOTTT", "ENSSSU",
+        "FIPRSY", "GORRVW", "IPRRRY", "NOOTUW", "OOOTTU"
     ]
     
     def __init__(self, size: int) -> None:
@@ -32,35 +41,26 @@ class Board:
         self.grid: List[List[str]] = self._generate_grid()
     
     def _generate_grid(self) -> List[List[str]]:
-        """Generate a random board grid.
+        """Generate a random board grid using actual Boggle dice.
         
         Returns:
             A 2D list representing the board grid
         """
-        if self.size == 4:
-            # Shuffle the dice and pick one face from each
-            dice = self.DICE_4X4.copy()
-            random.shuffle(dice)
-            letters = [random.choice(die) for die in dice]
-            
-            # Arrange into 4x4 grid
-            grid = []
-            for i in range(4):
-                row = letters[i * 4:(i + 1) * 4]
-                grid.append(row)
-            return grid
-        else:
-            # For 5x5, we'll use random letters for now
-            # TODO: Add proper 5x5 Boggle dice in the future
-            letters = []
-            for _ in range(25):
-                letters.append(random.choice("ABCDEFGHIJKLMNOPQRSTUVWXYZ"))
-            
-            grid = []
-            for i in range(5):
-                row = letters[i * 5:(i + 1) * 5]
-                grid.append(row)
-            return grid
+        # Choose appropriate dice set
+        dice = self.DICE_4X4 if self.size == 4 else self.DICE_5X5
+        
+        # Shuffle the dice and pick one face from each
+        shuffled_dice = dice.copy()
+        random.shuffle(shuffled_dice)
+        letters = [random.choice(die) for die in shuffled_dice]
+        
+        # Arrange into grid
+        grid = []
+        for i in range(self.size):
+            row = letters[i * self.size:(i + 1) * self.size]
+            grid.append(row)
+        
+        return grid
     
     def has_word_path(self, word: str) -> bool:
         """Check if a word can be formed following a valid path on the board.
