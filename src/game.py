@@ -1,6 +1,7 @@
 # ABOUTME: Game class orchestrating Boggle game logic
 # ABOUTME: Combines Board, Dictionary, and Scorer for complete game flow
 
+import time
 from typing import List, Dict
 from src.board import Board
 from src.dictionary import Dictionary
@@ -34,6 +35,7 @@ class Game:
         self._submitted_words: List[str] = []  # For backward compatibility (single player)
         self._players: Dict[str, Player] = {}  # player_id -> Player
         self._rotation = 0  # 0, 1, 2, or 3 (number of 90° clockwise rotations)
+        self.start_time: float | None = None  # Game start timestamp
     
     def submit_word(self, word: str, player: Player | None = None) -> bool:
         """Submit a word for validation and scoring.
@@ -203,3 +205,39 @@ class Game:
             Rotation value: 0 (no rotation), 1 (90°), 2 (180°), or 3 (270°)
         """
         return self._rotation
+    
+    def start_timer(self) -> None:
+        """Start the game timer."""
+        self.start_time = time.time()
+    
+    def get_elapsed_time(self) -> float | None:
+        """Get elapsed time since game started.
+        
+        Returns:
+            Elapsed time in seconds, or None if timer not started
+        """
+        if self.start_time is None:
+            return None
+        return time.time() - self.start_time
+    
+    def get_remaining_time(self) -> float | None:
+        """Get remaining time until time limit expires.
+        
+        Returns:
+            Remaining time in seconds, or None if timer not started
+        """
+        elapsed = self.get_elapsed_time()
+        if elapsed is None:
+            return None
+        return max(0, self.config.time_limit_seconds - elapsed)
+    
+    def is_time_expired(self) -> bool:
+        """Check if the time limit has been exceeded.
+        
+        Returns:
+            True if time limit exceeded, False otherwise (or if no timer)
+        """
+        remaining = self.get_remaining_time()
+        if remaining is None:
+            return False
+        return remaining <= 0
