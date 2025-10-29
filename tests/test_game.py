@@ -497,3 +497,86 @@ def test_all_players_have_same_word_all_struck_out() -> None:
     assert len(game.get_player_valid_words(player1)) == 0
     assert len(game.get_player_valid_words(player2)) == 0
     assert len(game.get_player_valid_words(player3)) == 0
+
+
+def test_game_starts_timer_when_requested() -> None:
+    """Game should track start time when timer is started."""
+    board = Board(size=4)
+    dictionary = Dictionary("data/sowpods.txt")
+    scorer = Scorer(min_word_length=3)
+    game = Game(board=board, dictionary=dictionary, scorer=scorer)
+    
+    assert game.start_time is None
+    
+    game.start_timer()
+    
+    assert game.start_time is not None
+
+
+def test_game_calculates_elapsed_time() -> None:
+    """Game should calculate elapsed time since start."""
+    import time
+    
+    board = Board(size=4)
+    dictionary = Dictionary("data/sowpods.txt")
+    scorer = Scorer(min_word_length=3)
+    game = Game(board=board, dictionary=dictionary, scorer=scorer)
+    
+    game.start_timer()
+    time.sleep(0.1)  # Sleep for 100ms
+    
+    elapsed = game.get_elapsed_time()
+    assert elapsed >= 0.1
+    assert elapsed < 0.5  # Should be quick
+
+
+def test_game_calculates_remaining_time() -> None:
+    """Game should calculate remaining time from time limit."""
+    import time
+    from src.config import GameConfig
+    
+    board = Board(size=4)
+    dictionary = Dictionary("data/sowpods.txt")
+    scorer = Scorer(min_word_length=3)
+    config = GameConfig(time_limit_seconds=10)
+    game = Game(board=board, dictionary=dictionary, scorer=scorer, config=config)
+    
+    game.start_timer()
+    time.sleep(0.1)
+    
+    remaining = game.get_remaining_time()
+    assert remaining > 9.5
+    assert remaining < 10.0
+
+
+def test_game_detects_time_expired() -> None:
+    """Game should detect when time limit is exceeded."""
+    import time
+    from src.config import GameConfig
+    
+    board = Board(size=4)
+    dictionary = Dictionary("data/sowpods.txt")
+    scorer = Scorer(min_word_length=3)
+    config = GameConfig(time_limit_seconds=1)  # 1 second limit
+    game = Game(board=board, dictionary=dictionary, scorer=scorer, config=config)
+    
+    game.start_timer()
+    
+    assert game.is_time_expired() is False
+    
+    time.sleep(1.1)  # Wait for timer to expire
+    
+    assert game.is_time_expired() is True
+
+
+def test_game_without_timer_never_expires() -> None:
+    """Game without started timer should never expire."""
+    board = Board(size=4)
+    dictionary = Dictionary("data/sowpods.txt")
+    scorer = Scorer(min_word_length=3)
+    game = Game(board=board, dictionary=dictionary, scorer=scorer)
+    
+    # Timer never started
+    assert game.is_time_expired() is False
+    assert game.get_elapsed_time() is None
+    assert game.get_remaining_time() is None
