@@ -91,3 +91,52 @@ def create_game(request: CreateGameRequest = CreateGameRequest()) -> CreateGameR
         created_at=games[game_id]["created_at"],
         status="waiting"
     )
+
+
+@app.post("/games/{game_id}/players", response_model=JoinGameResponse, status_code=status.HTTP_201_CREATED)
+def join_game(game_id: str, request: JoinGameRequest) -> JoinGameResponse:
+    """Join an existing game.
+
+    Args:
+        game_id: Unique game identifier
+        request: Player information
+
+    Returns:
+        Player details and list of all players
+
+    Raises:
+        HTTPException: 404 if game not found, 400 if game is full
+    """
+    # Check if game exists
+    if game_id not in games:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Game {game_id} not found"
+        )
+
+    game_state = games[game_id]
+
+    # Check if game is full
+    if len(game_state["players"]) >= game_state["config"].max_players:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Game is full"
+        )
+
+    # Generate player ID
+    player_id = str(uuid.uuid4())[:8]
+
+    # Create player
+    player = Player(player_id=player_id, name=request.player_name)
+
+    # Add player to game
+    game_state["players"][player_id] = player
+
+    # Get list of all player names
+    player_names = [p.name for p in game_state["players"].values()]
+
+    return JoinGameResponse(
+        player_id=player_id,
+        player_name=request.player_name,
+        players=player_names
+    )
