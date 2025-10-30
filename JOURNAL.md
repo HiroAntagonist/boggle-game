@@ -1539,3 +1539,146 @@ The final results display with strike-outs is satisfying - you can see exactly w
 Week 3 Day 3 complete! We have a working network multiplayer Boggle game! 🎉
 
 ---
+
+## 2025-10-29: Week 3, Day 4 (Restart) - Introduction to FastAPI and REST APIs
+
+### What we did
+- Switched from Claude web chat to Claude Code terminal experience
+- Created comprehensive CLAUDE.md documentation for the project
+- Recognized we skipped REST APIs and went straight to WebSockets
+- Started Week 3 properly: implementing REST API with FastAPI
+- Created feature branch `feature/fastapi-rest-api`
+- Installed FastAPI, uvicorn, and httpx dependencies
+- Designed REST API endpoints (POST /games, POST /games/{id}/players, etc.)
+- Created Pydantic models for request/response validation
+- Implemented 2 endpoints with TDD:
+  - POST /games - Create new game
+  - POST /games/{game_id}/players - Join game
+- All tests passing, mypy type checking passing
+
+### What I learned
+
+**FastAPI Fundamentals:**
+- FastAPI automatically validates requests using Pydantic models
+- Auto-generated API documentation at `/docs` (Swagger UI)
+- Path parameters: `{game_id}` in URL becomes function parameter automatically
+- Status codes: 201 Created, 404 Not Found, 400 Bad Request
+- TestClient for testing APIs without running the server
+
+**REST API Design:**
+- RESTful resources and HTTP verbs (POST, GET, PUT, DELETE)
+- Proper status codes for different scenarios
+- Request/response models with Pydantic
+- Error handling with HTTPException
+
+**Pydantic Models:**
+- Field validation (min/max values, string length, etc.)
+- Default values in models
+- Type-safe request/response structures
+- Automatic JSON serialization/deserialization
+
+**TDD with FastAPI:**
+- Write tests first using TestClient
+- Tests fail (RED)
+- Implement endpoint (GREEN)
+- All tests pass
+- This cycle ensures we only build what's needed
+
+**Key Code Patterns:**
+```python
+# Path parameters automatically extracted
+@app.post("/games/{game_id}/players")
+def join_game(game_id: str, request: JoinGameRequest):
+    # game_id comes from URL, request from JSON body
+    pass
+
+# Default values allow optional request bodies
+def create_game(request: CreateGameRequest = CreateGameRequest()):
+    # Can call POST /games with no body (uses defaults)
+    # Or POST /games with JSON body (overrides defaults)
+    pass
+
+# Proper error handling
+if game_id not in games:
+    raise HTTPException(status_code=404, detail="Game not found")
+```
+
+### Challenges/Issues
+- Initially confused about why we were going "backwards" to REST APIs
+- Understood that WebSockets were Week 4, and we skipped Week 3
+- Learning the difference between path parameters and request body
+- Understanding how FastAPI automatically maps URL paths to function parameters
+
+### Key Commands Learned
+```bash
+uv add fastapi "uvicorn[standard]"  # Install FastAPI
+uv add --dev httpx                  # Install HTTP client for testing
+pytest tests/test_api.py -v         # Run API tests
+mypy src/api_server.py              # Type check API code
+git checkout -b feature/name        # Create feature branch
+```
+
+### Code Concepts
+
+**Path Parameters:**
+- URL: `/games/{game_id}/players`
+- FastAPI extracts `game_id` from URL
+- Passes it as function argument
+- Names must match exactly
+
+**Pydantic Field Validation:**
+```python
+board_size: int = Field(default=4, ge=4, le=5)
+# ge = greater than or equal (min)
+# le = less than or equal (max)
+```
+
+**In-Memory State:**
+```python
+games: Dict[str, Dict] = {}  # game_id -> game_state
+# In production, this would be a database
+```
+
+**HTTP Status Codes:**
+- 200 OK - Successful GET
+- 201 Created - Successful POST (resource created)
+- 400 Bad Request - Client error (e.g., room full)
+- 404 Not Found - Resource doesn't exist
+- 422 Unprocessable Entity - Validation error
+
+### Blockers/Questions
+- None! FastAPI is very intuitive once you understand the patterns
+
+### Next session
+- Implement remaining 3 endpoints:
+  - GET /games/{game_id} - Get game state
+  - POST /games/{game_id}/start - Start game
+  - POST /games/{game_id}/words - Submit word
+  - GET /games/{game_id}/results - Get final results
+- Then we can integrate with our existing game logic
+- Finally add WebSockets on top of REST API
+
+### Time spent
+~1.5 hours
+
+### Reflection
+
+This was a great learning day! Going back to implement REST APIs properly was the right decision. I now understand:
+
+1. **Why REST APIs matter**: They're the foundation of web services. Even if we add WebSockets later, REST APIs are essential for CRUD operations (Create, Read, Update, Delete).
+
+2. **FastAPI is magical**: The automatic parameter extraction, validation, and documentation generation is amazing. Coming from C and Go, Python's type hints + Pydantic make APIs so much easier to build correctly.
+
+3. **TDD really works**: Writing tests first forced me to think about the API design from the client's perspective. The tests document how the API should behave.
+
+4. **Path parameters are elegant**: The way `{game_id}` in the URL automatically becomes `game_id` in the function is beautiful. No manual parsing needed.
+
+5. **Status codes matter**: Using the right HTTP status code (201 vs 200, 404 vs 400) communicates intent clearly to API clients.
+
+The switch to Claude Code terminal is working well. Being able to ask questions during the session (like "what does line 45 mean?") without triggering code changes is helpful for learning.
+
+Looking forward to completing the REST API tomorrow and then integrating WebSockets on top of this solid foundation. The architecture is becoming clearer: REST for basic operations, WebSockets for real-time updates.
+
+Week 3 Day 4 complete! 🚀
+
+---
