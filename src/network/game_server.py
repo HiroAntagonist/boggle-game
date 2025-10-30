@@ -77,8 +77,6 @@ class GameServer:
                 await self.handle_start_game(player_id)
             elif message_type == MessageType.SUBMIT_WORD:
                 await self.handle_submit_word(player_id, message)
-            elif message_type == MessageType.PASS_TURN:
-                await self.handle_pass_turn(player_id)
             else:
                 await self.send_error(websocket, f"Unknown message type: {message_type}")
                 
@@ -103,7 +101,10 @@ class GameServer:
         player_name = message.get("player_name", "Player")
         
         # Create room with config
-        config = GameConfig(max_players=message.get("max_players", 4))
+        config = GameConfig(
+            max_players=message.get("max_players", 4),
+            time_limit_seconds=message.get("time_limit", 180)
+        )
         room = GameRoom(room_id, config)
         self.rooms[room_id] = room
         
@@ -118,7 +119,7 @@ class GameServer:
         })
         await websocket.send(response)
         
-        print(f"Room created: {room_id} by {player_name}")
+        print(f"Room created: {room_id} by {player_name} (time limit: {config.time_limit_seconds}s)")
     
     async def handle_join_room(
         self,
@@ -163,6 +164,11 @@ class GameServer:
         await self.broadcast_to_room(room_id, broadcast, exclude=player_id)
         
         print(f"{player_name} joined room {room_id}")
+        
+        # Auto-start if room is full
+        if len(room.players) == room.config.max_players:
+            print(f"Room {room_id} is full - auto-starting game")
+            await self.handle_start_game(player_id)
     
     async def handle_start_game(self, player_id: str) -> None:
         """Handle game start request.
@@ -177,6 +183,10 @@ class GameServer:
         room = self.rooms[room_id]
         room.start_game(self.dictionary, self.scorer)
         
+        # Start timer if configured
+        if room.game:
+            room.game.start_timer()
+        
         # Broadcast game started
         assert room.game is not None
         board_data = [[cell for cell in row] for row in room.game.board.grid]
@@ -184,11 +194,14 @@ class GameServer:
         message = encode_message(MessageType.GAME_STARTED, {
             "board": board_data,
             "players": [p.name for p in room.players.values()],
-            "current_turn": room.get_current_player_id()
+            "time_limit": room.config.time_limit_seconds
         })
         await self.broadcast_to_room(room_id, message)
         
         print(f"Game started in room {room_id}")
+        
+        # Start timer task to end game when time expires
+        asyncio.create_task(self.monitor_game_timer(room_id))
     
     async def handle_submit_word(self, player_id: str, message: Dict) -> None:
         """Handle word submission.
@@ -205,14 +218,10 @@ class GameServer:
         if not room.game or not room.is_started:
             return
         
-        # Check if it's this player's turn
-        if room.get_current_player_id() != player_id:
-            return
-        
         word = message.get("word", "").upper()
         player = room.players[player_id]
         
-        # Try to submit word
+        # Try to submit word (no turn checking - concurrent submission)
         if room.game.submit_word(word, player):
             score = room.game.scorer.score_word(word)
             
@@ -316,6 +325,50 @@ class GameServer:
         """
         message = encode_message(MessageType.ERROR, {"error": error})
         await websocket.send(message)
+    
+    async def monitor_game_timer(self, room_id: str) -> None:
+        """Monitor game timer and end game when time expires.
+        
+        Args:
+            room_id: Room to monitor
+        """
+        room = self.rooms.get(room_id)
+        if not room or not room.game:
+            return
+        
+        time_limit = room.config.time_limit_seconds
+        
+        # Wait for time to expire
+        await asyncio.sleep(time_limit)
+        
+        # Check if room still exists and game is still running
+        room = self.rooms.get(room_id)
+        if not room or not room.game or not room.is_started:
+            return
+        
+        print(f"Time expired for room {room_id}")
+        
+        # Calculate final scores
+        players_scores = []
+        for player in room.players.values():
+            score = room.game.get_player_score(player)
+            valid_words = room.game.get_player_valid_words(player)
+            players_scores.append({
+                "name": player.name,
+                "score": score,
+                "words": list(player.get_words()),
+                "valid_words": valid_words
+            })
+        
+        # Broadcast game ended
+        message = encode_message(MessageType.GAME_ENDED, {
+            "players": players_scores,
+            "duplicates": list(room.game.get_duplicate_words())
+        })
+        await self.broadcast_to_room(room_id, message)
+        
+        # Mark game as ended
+        room.is_started = False
 
 
 async def main() -> None:
