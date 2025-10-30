@@ -1334,3 +1334,208 @@ Room cleanup is important - memory leaks would happen if we kept empty rooms for
 Next step is building the client - that's when everything comes together and we can actually test the full game flow! The server is just infrastructure; the client is the user-facing experience.
 
 ---
+
+## 2025-01-XX: Week 3, Day 3 - Network Client with CLI & Timer
+
+### What we did
+- Built GameClient class for WebSocket connection
+- Created interactive CLI with main menu, lobby, and game loop
+- Solved async input problem by switching to aioconsole
+- Implemented concurrent word submission (removed turn system)
+- Added configurable game timer
+- Implemented auto-start when room is full
+- Added game ended handling with final scores display
+- Fixed race conditions with defense-in-depth state checking
+- Removed all debug logging
+- Tested full multiplayer game flow
+
+### What I learned
+- **The async input problem**: Python's `input()` blocks the event loop completely
+- **aioconsole library**: Provides `ainput()` for proper async input
+- **Why run_in_executor doesn't work well**: Threading + timeouts = race conditions
+- **Defense in depth**: Check state both periodically AND before processing
+- **Race condition example**: Game starts between input completion and command processing
+- **asyncio.create_task()**: Background tasks for timer monitoring
+- **Clean code wins**: Simple aioconsole solution vs complex threading hacks
+
+### Challenges/Issues
+- Initially used `run_in_executor` with `input()` - caused blocking issues
+- Timeout approach missed input completions
+- Race condition: lobby commands processed after game started
+- Prompts not displaying after server messages
+- Had to understand the fundamental incompatibility of sync input with async code
+
+### Key Commands Learned
+```bash
+uv add aioconsole                         # Add async console library
+python src/network/game_server.py         # Run server
+python src/network/network_cli.py         # Run client
+```
+
+### Code Concepts
+- **Proper async input**: `await aioconsole.ainput("> ")`
+- **Background tasks**: `asyncio.create_task(monitor_timer())`
+- **State checking**: Verify game state before processing commands
+- **Concurrent loops**: receive_messages running while game_loop gets input
+- **Task cancellation**: Cancel input task when game state changes
+
+### The Async Input Problem - Explained
+
+#### Problem:
+```python
+# This BLOCKS everything - event loop can't process server messages
+command = input("> ")
+```
+
+#### Attempted Fix 1 (run_in_executor):
+```python
+# Run input in thread pool
+loop = asyncio.get_event_loop()
+command = await loop.run_in_executor(None, lambda: input("> "))
+```
+**Issues**: Still complex, timeout logic needed, race conditions
+
+#### Clean Solution (aioconsole):
+```python
+# Native async input - plays nice with event loop
+command = await aioconsole.ainput("> ")
+```
+**Benefits**: Simple, no threads, no timeouts, just works!
+
+### Game Loop Architecture
+
+```
+run_client()
+    ├── connect to server
+    ├── create_task(receive_messages())  ← Background: listens for server
+    └── main_menu()
+            ├── create_room_flow()
+            │       └── lobby()
+            │               └── game_loop()  ← Foreground: gets user input
+            └── join_room_flow()
+                    └── lobby()
+                            └── game_loop()
+```
+
+Two concurrent async tasks:
+1. **receive_messages()**: Always listening for server messages
+2. **game_loop()**: Getting user input and sending commands
+
+### Lobby Loop Pattern
+
+```python
+while client.connected and not client.in_game:
+    # Create input task
+    input_task = asyncio.create_task(aioconsole.ainput("\n> "))
+    
+    # Wait for input OR game state change
+    while not input_task.done() and not client.in_game:
+        await asyncio.sleep(0.1)  # Check state every 0.1s
+    
+    # If game started, cancel input and exit
+    if client.in_game:
+        input_task.cancel()
+        break
+    
+    # Process command
+    command = input_task.result()
+    
+    # Double-check state before processing (defense in depth!)
+    if client.in_game:
+        break
+```
+
+### Game Loop (Final Clean Version)
+
+```python
+while client.connected and client.in_game:
+    command = await aioconsole.ainput("\n> ")
+    command = command.strip().lower()
+    
+    if command == "board":
+        client.display_board()
+    elif command == "quit":
+        await client.disconnect()
+        break
+    else:
+        await client.submit_word(command)
+```
+
+**So simple!** No threads, no executors, no timeouts, no tasks.
+
+### Timer Implementation
+
+**Server side:**
+```python
+async def handle_start_game(player_id):
+    room.game.start_timer()
+    asyncio.create_task(monitor_game_timer(room_id))  # Background task
+
+async def monitor_game_timer(room_id):
+    await asyncio.sleep(time_limit)
+    # Calculate scores and broadcast GAME_ENDED
+```
+
+**Client side:**
+```python
+def handle_game_ended(message):
+    self.in_game = False  # Exits game_loop
+    # Display final scores with strike-outs
+```
+
+### Features Added
+1. **Configurable timer**: User chooses time limit when creating room
+2. **Auto-start**: Game starts automatically when room is full
+3. **Concurrent submission**: No turns, everyone submits simultaneously
+4. **Final results**: Beautiful display with valid and struck-out words
+5. **Defense in depth**: Multiple state checks prevent race conditions
+
+### Race Condition Example
+
+```
+Timeline without defense:
+1. Player in lobby, waiting for input
+2. Other player types "start"
+3. Server sends GAME_STARTED
+4. receive_messages sets in_game = True
+5. Player presses Enter on "bot"
+6. Lobby processes "bot" as command ❌ WRONG!
+
+Timeline with defense:
+1-5. Same as above
+6. Before processing, check: if in_game: break ✅ CORRECT!
+```
+
+### Design Decisions
+- **Removed turns**: Concurrent submission is more fun and natural
+- **Auto-start**: Better UX - no waiting when room is full
+- **Configurable timer**: Easier testing with short times (30s vs 3min)
+- **aioconsole over threading**: Clean code trumps clever hacks
+- **Periodic + pre-process checks**: Defense in depth for race conditions
+
+### Blockers/Questions
+- None - game works great!
+
+### Next session
+- Day 4: Polish and additional features?
+- Or start Week 4?
+
+### Time spent
+~3 hours (including debugging async input issues)
+
+### Reflection
+This was the hardest day yet, but also the most rewarding! The async input problem was a real challenge. We tried threading with `run_in_executor`, timeout-based polling, task management - all complex and buggy. The breakthrough was realizing we needed a library designed for this: `aioconsole`.
+
+The key insight: **don't fight the framework**. Python's `input()` is fundamentally synchronous. Wrapping it in threads and tasks is fighting against its nature. Using a library built for async input (`aioconsole`) works with the framework.
+
+The race condition debugging was excellent learning. The issue where lobby commands were processed after game start seemed mysterious at first, but tracing through the timeline made it clear: we need to check state BOTH periodically (to catch changes while waiting) AND before processing (to catch changes that just happened).
+
+The game is now fully functional over the network! Two people on different computers can play Boggle together in real-time. That's incredible progress from where we started. The WebSocket communication is solid, the game logic works perfectly, and the CLI is responsive.
+
+Removing turns and making submission concurrent was a great decision - it's more fun and removes a lot of complexity. The auto-start feature makes the UX smooth. The configurable timer makes testing much faster.
+
+The final results display with strike-outs is satisfying - you can see exactly which words you found and which got struck out. The game feels complete and polished.
+
+Week 3 Day 3 complete! We have a working network multiplayer Boggle game! 🎉
+
+---
