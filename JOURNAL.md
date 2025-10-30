@@ -1158,3 +1158,179 @@ The echo server is throwaway learning code, but the concepts transfer directly t
 Week 3 is going to be exciting - transforming from local multiplayer to network multiplayer is a huge leap in complexity, but also in capability. The game becomes truly multiplayer - not just multiple people on one computer, but people across the internet playing together!
 
 ---
+
+## 2025-01-XX: Week 3, Day 2 - Game Server with Rooms
+
+### What we did
+- Designed JSON message protocol with MessageType enum
+- Created protocol.py with encode_message() and decode_message()
+- Built GameRoom class for managing individual game sessions
+- Built GameServer class that manages multiple rooms
+- Implemented player registration and tracking
+- Added room creation and joining logic
+- Implemented game start with board generation
+- Added word submission and validation
+- Built turn management system
+- Implemented broadcasting to all players in a room
+- Added automatic room cleanup when empty
+- Fixed WebSocket type issues (str vs bytes, legacy imports)
+
+### What I learned
+- **Message protocol design**: Use enums for type safety, JSON for structure
+- **Room architecture**: Server manages multiple independent game rooms
+- **Player tracking**: Two mappings - `player_id -> Player` and `player_id -> room_id`
+- **Broadcasting pattern**: Send to all connections in a room except sender
+- **asyncio.gather()**: Send to multiple WebSockets concurrently
+- **Type handling**: WebSocket messages can be str or bytes
+- **Type ignores**: Sometimes necessary for imperfect library type stubs
+- **Cleanup patterns**: Remove empty rooms automatically
+- **UUID generation**: `uuid.uuid4()` for unique IDs, `[:8]` for short room codes
+
+### Challenges/Issues
+- WebSocket library changed API: `websockets.server` → `websockets.legacy.server`
+- Messages can be str or bytes - needed isinstance() checks
+- json.loads() returns Any - needed explicit type annotation
+- websockets.serve() type stub mismatch - used `# type: ignore[arg-type]`
+- Missing Player import in game_server.py
+
+### Key Commands Learned
+```bash
+python src/network/game_server.py    # Run the game server
+# Server loads dictionary and waits for connections
+```
+
+### Code Concepts
+- **Message protocol**: Structured communication with type safety
+- **Room management**: Dictionary of room_id -> GameRoom
+- **Player-to-room mapping**: Track which room each player is in
+- **Broadcasting**: Send message to multiple recipients
+- **Concurrent sends**: asyncio.gather() for parallel operations
+- **Connection tracking**: Store WebSocket for each player
+
+### Message Protocol Design
+```python
+# Define all message types as enum
+class MessageType(str, Enum):
+    CREATE_ROOM = "create_room"
+    ROOM_CREATED = "room_created"
+    # ... more types
+
+# Encode with type safety
+def encode_message(type: MessageType, data: Dict) -> str:
+    return json.dumps({"type": type.value, **data})
+
+# Decode with error handling
+def decode_message(msg: str) -> Dict[str, Any]:
+    result: Dict[str, Any] = json.loads(msg)
+    return result
+```
+
+### GameRoom Architecture
+```python
+class GameRoom:
+    players: Dict[str, Player]           # player_id -> Player
+    connections: Dict[str, WebSocket]    # player_id -> WebSocket
+    game: Game | None                    # Actual game instance
+    is_started: bool                     # Game state
+    current_turn_index: int              # Whose turn
+```
+
+### Server Message Handling
+```python
+async def handle_client(websocket):
+    player_id = uuid.uuid4()
+    
+    async for message in websocket:
+        # Route based on message type
+        if type == CREATE_ROOM:
+            handle_create_room(...)
+        elif type == SUBMIT_WORD:
+            handle_submit_word(...)
+```
+
+### Broadcasting Pattern
+```python
+async def broadcast_to_room(room_id, message, exclude=None):
+    room = self.rooms[room_id]
+    websockets_to_send = [
+        ws for pid, ws in room.connections.items()
+        if pid != exclude
+    ]
+    await asyncio.gather(
+        *[ws.send(message) for ws in websockets_to_send],
+        return_exceptions=True
+    )
+```
+
+### Type Issues Fixed
+1. **Import path**: `websockets.server` → `websockets.legacy.server`
+2. **str vs bytes**: Added `isinstance()` checks
+3. **json.loads() return type**: Explicit annotation
+4. **Missing imports**: Added Player import
+5. **Type stub mismatch**: Added `# type: ignore[arg-type]`
+
+### Server Architecture
+```
+GameServer
+    ├── rooms: Dict[room_id, GameRoom]
+    ├── player_to_room: Dict[player_id, room_id]
+    ├── dictionary: Dictionary (shared)
+    └── scorer: Scorer (shared)
+
+Each GameRoom:
+    ├── players: Dict[player_id, Player]
+    ├── connections: Dict[player_id, WebSocket]
+    ├── game: Game (board, validation, scoring)
+    └── current_turn_index: int
+```
+
+### Message Flow Example
+```
+Client                    Server
+  |                         |
+  |-- CREATE_ROOM --------->|
+  |                         | (creates room "abc123")
+  |<-- ROOM_CREATED --------|
+  |                         |
+  |-- START_GAME ---------->|
+  |                         | (generates board, starts game)
+  |<-- GAME_STARTED --------|
+  |                         |
+  |-- SUBMIT_WORD "CAT" --->|
+  |                         | (validates, updates score)
+  |<-- WORD_ACCEPTED -------|
+```
+
+### Design Decisions
+- **Short room IDs**: `uuid.uuid4()[:8]` for easy sharing
+- **Automatic cleanup**: Empty rooms deleted immediately
+- **Shared resources**: One dictionary/scorer for all rooms (memory efficient)
+- **Turn tracking by index**: Cycle through players with modulo
+- **Exclude sender**: Broadcast to others but not the sender
+
+### Blockers/Questions
+- None - server working well!
+
+### Next session
+- Day 3: Network client with CLI
+- Connect to server and send/receive messages
+- Interactive lobby and game interface
+- Handle concurrent receive loop and user input
+
+### Time spent
+~90 minutes
+
+### Reflection
+Building the game server was complex but incredibly rewarding! The architecture with GameServer managing multiple GameRooms is clean and scalable. Each room is independent - different games can be at different stages simultaneously.
+
+The message protocol with enums is type-safe and extensible. Using JSON makes debugging easy (can see exactly what's being sent). The broadcasting pattern with asyncio.gather() is elegant - send to all clients concurrently without blocking.
+
+The type issues were a good learning experience. Third-party libraries don't always have perfect type stubs. The websockets library changed its API structure, and mypy caught it immediately. Learning when to use `# type: ignore` is important - it's not cheating, it's acknowledging that you know more than the type checker in specific cases.
+
+The player-to-room mapping is crucial for routing messages correctly. When a player submits a word, we need to know which room they're in to validate it and broadcast to the right people.
+
+Room cleanup is important - memory leaks would happen if we kept empty rooms forever. Automatic cleanup on last player disconnect keeps the server clean.
+
+Next step is building the client - that's when everything comes together and we can actually test the full game flow! The server is just infrastructure; the client is the user-facing experience.
+
+---
