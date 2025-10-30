@@ -1,0 +1,76 @@
+# ABOUTME: Pydantic models for FastAPI request/response validation
+# ABOUTME: Defines data structures for REST API endpoints
+
+from pydantic import BaseModel, Field
+from typing import List, Dict
+
+
+class CreateGameRequest(BaseModel):
+    """Request model for creating a new game."""
+    board_size: int = Field(default=4, ge=4, le=5, description="Board size (4 or 5)")
+    time_limit_seconds: int = Field(default=180, gt=0, description="Game time limit in seconds")
+    max_players: int = Field(default=4, ge=1, le=8, description="Maximum number of players")
+
+
+class CreateGameResponse(BaseModel):
+    """Response model after creating a game."""
+    game_id: str = Field(description="Unique game identifier")
+    board: List[List[str]] = Field(description="Game board grid")
+    created_at: str = Field(description="ISO timestamp of game creation")
+    status: str = Field(description="Game status (waiting, in_progress, finished)")
+
+
+class JoinGameRequest(BaseModel):
+    """Request model for joining a game."""
+    player_name: str = Field(min_length=1, max_length=50, description="Player's display name")
+
+
+class JoinGameResponse(BaseModel):
+    """Response model after joining a game."""
+    player_id: str = Field(description="Unique player identifier")
+    player_name: str = Field(description="Player's display name")
+    players: List[str] = Field(description="List of all player names in game")
+
+
+class GameStateResponse(BaseModel):
+    """Response model for getting game state."""
+    game_id: str
+    board: List[List[str]]
+    players: List[str]
+    status: str
+    time_remaining: int | None = Field(description="Seconds remaining, None if not started")
+    words_by_player: Dict[str, List[str]] = Field(description="Player ID to their submitted words")
+
+
+class StartGameResponse(BaseModel):
+    """Response model after starting a game."""
+    game_id: str
+    status: str
+    start_time: str = Field(description="ISO timestamp of game start")
+
+
+class SubmitWordRequest(BaseModel):
+    """Request model for submitting a word."""
+    player_id: str = Field(description="Player's unique identifier")
+    word: str = Field(min_length=1, description="Word to submit")
+
+
+class SubmitWordResponse(BaseModel):
+    """Response model after word submission."""
+    valid: bool = Field(description="Whether the word was accepted")
+    score: int = Field(description="Points earned (0 if invalid)")
+    message: str = Field(description="Feedback message")
+
+
+class PlayerResult(BaseModel):
+    """Result for a single player."""
+    name: str
+    score: int
+    words: List[str] = Field(description="All words submitted")
+    valid_words: List[str] = Field(description="Valid words after strike-out")
+
+
+class GameResultsResponse(BaseModel):
+    """Response model for game results."""
+    players: List[PlayerResult]
+    duplicates: List[str] = Field(description="Words that were struck out")

@@ -5,7 +5,9 @@ description = "Multiplayer Boggle game - learning project"
 requires-python = ">=3.12"
 dependencies = [
     "aioconsole>=0.8.2",
+    "fastapi>=0.120.2",
     "pydantic>=2.12.3",
+    "uvicorn[standard]>=0.38.0",
     "websockets>=15.0.1",
 ]
 
@@ -17,6 +19,7 @@ dev = [
     "pytest>=8.3.4",
     "pytest-watch>=4.2.0",
     "mypy>=1.14.1",
+    "httpx>=0.28.1",
 ]
 
 [tool.hatch.build.targets.wheel]
