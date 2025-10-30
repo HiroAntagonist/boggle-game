@@ -30,7 +30,11 @@ async def echo_client() -> None:
             print(f"Sent: {message}")
             
             # Receive response
-            response = await websocket.recv()
+            response_raw = await websocket.recv()
+            if isinstance(response_raw, bytes):
+                response = response_raw.decode('utf-8')
+            else:
+                response = response_raw
             print(f"Server: {response}")
 
 

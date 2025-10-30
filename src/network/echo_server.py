@@ -3,7 +3,7 @@
 
 import asyncio
 import websockets
-from websockets.server import WebSocketServerProtocol
+from websockets.legacy.server import WebSocketServerProtocol
 
 
 async def echo_handler(websocket: WebSocketServerProtocol) -> None:
@@ -16,8 +16,14 @@ async def echo_handler(websocket: WebSocketServerProtocol) -> None:
     
     try:
         async for message in websocket:
-            print(f"Received: {message}")
-            response = f"Echo: {message}"
+            # Handle both str and bytes
+            if isinstance(message, bytes):
+                message_str = message.decode('utf-8')
+            else:
+                message_str = message
+            
+            print(f"Received: {message_str}")
+            response = f"Echo: {message_str}"
             await websocket.send(response)
             print(f"Sent: {response}")
     except websockets.exceptions.ConnectionClosed:
@@ -31,7 +37,7 @@ async def main() -> None:
     
     print(f"Starting echo server on {host}:{port}")
     
-    async with websockets.serve(echo_handler, host, port):
+    async with websockets.serve(echo_handler, host, port):  # type: ignore[arg-type]
         print("Echo server is running. Press Ctrl+C to stop.")
         # Keep server running forever
         await asyncio.Future()
