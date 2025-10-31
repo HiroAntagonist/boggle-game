@@ -1,10 +1,12 @@
 # ABOUTME: FastAPI REST API server for Boggle game
 # ABOUTME: Manages game state and provides HTTP endpoints for game operations
 
-from fastapi import FastAPI, HTTPException, status
-from typing import Dict
+from fastapi import FastAPI, HTTPException, status, WebSocket, WebSocketDisconnect
+from typing import Dict, Set
 import uuid
 from datetime import datetime, timezone
+import asyncio
+import json
 
 from src.api_models import (
     CreateGameRequest,
@@ -32,6 +34,47 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Connection manager for WebSockets
+class ConnectionManager:
+    """Manages WebSocket connections for real-time gameplay."""
+
+    def __init__(self) -> None:
+        # game_id -> set of WebSocket connections
+        self.active_connections: Dict[str, Set[WebSocket]] = {}
+
+    async def connect(self, websocket: WebSocket, game_id: str) -> None:
+        """Accept and track a WebSocket connection."""
+        await websocket.accept()
+        if game_id not in self.active_connections:
+            self.active_connections[game_id] = set()
+        self.active_connections[game_id].add(websocket)
+
+    def disconnect(self, websocket: WebSocket, game_id: str) -> None:
+        """Remove a WebSocket connection."""
+        if game_id in self.active_connections:
+            self.active_connections[game_id].discard(websocket)
+            if not self.active_connections[game_id]:
+                del self.active_connections[game_id]
+
+    async def broadcast(self, message: str, game_id: str, exclude: WebSocket | None = None) -> None:
+        """Broadcast a message to all connections in a game."""
+        if game_id not in self.active_connections:
+            return
+
+        disconnected = set()
+        for connection in self.active_connections[game_id]:
+            if connection == exclude:
+                continue
+            try:
+                await connection.send_text(message)
+            except Exception:
+                disconnected.add(connection)
+
+        # Clean up disconnected clients
+        for connection in disconnected:
+            self.disconnect(connection, game_id)
+
+
 # In-memory storage for games
 # In a real application, this would be a database
 games: Dict[str, Dict] = {}
@@ -39,6 +82,9 @@ games: Dict[str, Dict] = {}
 # Shared game resources
 dictionary = Dictionary("data/sowpods.txt")
 scorer = Scorer(min_word_length=3)
+
+# WebSocket connection manager
+manager = ConnectionManager()
 
 
 @app.post("/games", response_model=CreateGameResponse, status_code=status.HTTP_201_CREATED)
@@ -351,3 +397,119 @@ def get_game_results(game_id: str) -> GameResultsResponse:
         players=player_results,
         duplicates=duplicates
     )
+
+
+@app.websocket("/ws/{game_id}/{player_id}")
+async def websocket_endpoint(websocket: WebSocket, game_id: str, player_id: str) -> None:
+    """WebSocket endpoint for real-time game updates.
+
+    Args:
+        websocket: WebSocket connection
+        game_id: Game identifier
+        player_id: Player identifier
+
+    Handles:
+        - Real-time word submissions
+        - Game state broadcasts
+        - Timer updates
+        - Player disconnections
+    """
+    # Verify game exists
+    if game_id not in games:
+        await websocket.close(code=1008, reason="Game not found")
+        return
+
+    game_state = games[game_id]
+
+    # Verify player is in game
+    if player_id not in game_state["players"]:
+        await websocket.close(code=1008, reason="Player not in game")
+        return
+
+    # Accept connection
+    await manager.connect(websocket, game_id)
+
+    # Notify others that player connected
+    player = game_state["players"][player_id]
+    await manager.broadcast(
+        json.dumps({"type": "player_connected", "player_name": player.name}),
+        game_id,
+        exclude=websocket
+    )
+
+    try:
+        while True:
+            # Receive message from client
+            data = await websocket.receive_text()
+            message = json.loads(data)
+
+            message_type = message.get("type")
+
+            if message_type == "submit_word":
+                # Handle word submission
+                word = message.get("word", "").upper()
+                game = game_state["game"]
+
+                # Validate and submit word
+                is_valid = game.submit_word(word, player)
+
+                # Calculate score
+                score = 0
+                status_msg = ""
+                if is_valid:
+                    score = scorer.score_word(word)
+                    status_msg = f"Valid! +{score} points"
+                else:
+                    # Determine why invalid
+                    if len(word) < game.config.min_word_length:
+                        status_msg = f"Too short (min {game.config.min_word_length})"
+                    elif not dictionary.is_valid_word(word):
+                        status_msg = "Not in dictionary"
+                    elif not game.board.has_word_path(word):
+                        status_msg = "Not on board"
+                    else:
+                        status_msg = "Already submitted"
+
+                # Send response to submitter
+                await websocket.send_text(json.dumps({
+                    "type": "word_result",
+                    "word": word,
+                    "valid": is_valid,
+                    "score": score,
+                    "message": status_msg
+                }))
+
+                # Broadcast to others if valid
+                if is_valid:
+                    await manager.broadcast(
+                        json.dumps({
+                            "type": "word_submitted",
+                            "player_name": player.name,
+                            "word": word,
+                            "score": score
+                        }),
+                        game_id,
+                        exclude=websocket
+                    )
+
+            elif message_type == "get_state":
+                # Send current game state
+                time_remaining = None
+                if game_state["status"] == "in_progress":
+                    remaining = game_state["game"].get_remaining_time()
+                    time_remaining = int(remaining) if remaining is not None else None
+
+                await websocket.send_text(json.dumps({
+                    "type": "game_state",
+                    "status": game_state["status"],
+                    "time_remaining": time_remaining,
+                    "player_count": len(game_state["players"])
+                }))
+
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, game_id)
+        # Notify others that player disconnected
+        await manager.broadcast(
+            json.dumps({"type": "player_disconnected", "player_name": player.name}),
+            game_id
+        )
