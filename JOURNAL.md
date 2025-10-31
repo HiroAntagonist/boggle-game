@@ -2003,3 +2003,222 @@ Looking forward to adding relationships tomorrow and then authentication!
 Week 5 Day 1 complete! 🚀
 
 ---
+
+## 2025-10-31: Week 5, Day 2 - Database Relationships (One-to-Many & Many-to-Many)
+
+### What we did
+
+**Completed database relationships with TDD:**
+1. Added `Game` model with one-to-many relationship to User (creator)
+2. Added `GamePlayer` join table for many-to-many User↔Game relationships
+3. Enabled foreign key constraints for SQLite (not enabled by default!)
+4. Wrote 11 comprehensive tests covering relationships and CRUD
+5. All 100 tests passing, type checking clean
+6. Merged feature branch into main and pushed to remote
+
+**Key accomplishments:**
+- Learned dependency injection pattern (how pytest fixtures work)
+- Understood the three relationship types (1:1, 1:many, many:many)
+- Implemented cascade deletes (delete game → delete all GamePlayer records)
+- Used `Text` type for JSON storage (board_state, words_found)
+- Made nullable columns optional with proper type hints
+
+### What I learned
+
+**Database Relationships:**
+- **One-to-Many**: One user creates many games (`Game.creator_id` → `User.id`)
+- **Many-to-Many**: Many users play many games (via `GamePlayer` join table)
+- **Join Tables**: Intermediate tables that connect two other tables
+- **Foreign Keys**: Columns that reference another table's primary key
+- **Referential Integrity**: Database prevents invalid references (can't create game with fake user_id)
+
+**SQLAlchemy Relationships:**
+- `relationship()` doesn't create columns, it tells SQLAlchemy how to JOIN
+- `back_populates` creates bidirectional navigation (user.created_games ↔ game.creator)
+- `cascade="all, delete-orphan"` for automatic cleanup
+- `foreign_keys` parameter disambiguates multiple relationships to same table
+
+**Dependency Injection:**
+- Give components what they need from outside (don't create internally)
+- Makes testing easy (inject mocks instead of real implementations)
+- pytest fixtures are a dependency injection framework
+- Test declares what it needs → pytest injects it automatically
+
+**SQLite Quirks:**
+- Foreign keys disabled by default (must use `PRAGMA foreign_keys=ON`)
+- Applied via `@event.listens_for(engine, "connect")` hook
+- Needed in both production (database.py) and tests (test fixture)
+
+### Challenges/Issues
+
+**1. Foreign key test initially failed**
+- SQLite doesn't enforce foreign keys by default
+- Fixed by enabling `PRAGMA foreign_keys=ON` in both database.py and test fixture
+
+**2. Type annotations for database functions**
+- `get_db()` needed return type: `Generator[Session, None, None]`
+- `set_sqlite_pragma()` parameters needed `Any` type (low-level DBAPI objects)
+
+### Key Commands Learned
+
+```bash
+python -m src.init_db              # Initialize database (create tables)
+pytest tests/test_database.py -v   # Run database tests
+mypy src/                          # Type check source code
+git merge feature/branch --no-ff   # Merge with explicit merge commit
+git branch -d feature/branch       # Delete merged branch
+```
+
+### Code added
+
+**src/models.py:**
+- `Game` model (118 lines):
+  - UUID primary key
+  - Foreign key to User (creator_id)
+  - Status, board_size, time_limit, board_state
+  - created_at, started_at, ended_at timestamps
+  - Relationships to User and GamePlayer
+
+- `GamePlayer` model (83 lines):
+  - UUID primary key
+  - Foreign keys to both Game and User
+  - score, words_found (JSON), joined_at
+  - Relationships to Game and User
+
+**tests/test_database.py:**
+- 11 new tests (313 lines):
+  - test_create_game
+  - test_game_creator_relationship
+  - test_game_foreign_key_constraint
+  - test_retrieve_game_by_id
+  - test_update_game_status
+  - test_add_player_to_game
+  - test_multiple_players_in_game
+  - test_gameplayer_relationships
+  - test_user_can_join_multiple_games
+  - test_update_player_score_and_words
+  - test_cascade_delete_game_players
+
+**Total tests**: 100 passing (16 database, 84 game/API/WebSocket)
+
+### Database schema
+
+```
+users (id UUID PK, username, email, password_hash, created_at)
+  ↓ one-to-many (creator)
+games (id UUID PK, creator_id FK→users, status, board_size, time_limit,
+       board_state TEXT, created_at, started_at, ended_at)
+  ↓ one-to-many
+game_players (id UUID PK, game_id FK→games, user_id FK→users,
+              score, words_found TEXT, joined_at)
+```
+
+**Relationships:**
+- `user.created_games` → list of games created by user
+- `game.creator` → User who created the game
+- `game.players` → list of GamePlayer records for this game
+- `game_player.game` → the Game this player is in
+- `game_player.user` → the User who is playing
+
+### Example usage
+
+```python
+# Create user and game
+user = User(username="alice", email="alice@example.com", password_hash="hashed")
+db.add(user)
+db.commit()
+
+game = Game(creator_id=user.id, board_size=4)
+db.add(game)
+db.commit()
+
+# Add player to game
+game_player = GamePlayer(game_id=game.id, user_id=user.id, score=0)
+db.add(game_player)
+db.commit()
+
+# Navigate relationships
+print(game.creator.username)  # "alice"
+print(len(game.players))      # 1
+print(user.created_games[0].id == game.id)  # True
+
+# Update player score
+game_player.score = 42
+game_player.words_found = json.dumps(["CAT", "DOG", "HOUSE"])
+db.commit()
+```
+
+### Dependency injection example
+
+```python
+# WITHOUT dependency injection (BAD)
+def test_create_user():
+    # Test creates its own database - duplicated setup code
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(bind=engine)
+    session = sessionmaker(bind=engine)()
+    # ... do test ...
+    session.close()
+
+# WITH dependency injection (GOOD)
+@pytest.fixture
+def db_session():
+    # Fixture creates database once
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(bind=engine)
+    session = sessionmaker(bind=engine)()
+    yield session  # INJECT into test
+    session.close()
+
+def test_create_user(db_session):  # Dependency INJECTED by pytest
+    # Test just uses the database, doesn't create it
+    user = User(username="alice")
+    db_session.add(user)
+    db_session.commit()
+```
+
+### Blockers/Questions
+
+None! Everything working smoothly.
+
+### Next session
+
+**Week 5 Part 2: Authentication** (user registration, login, JWT tokens)
+
+1. Install authentication libraries: `uv add bcrypt python-jose[cryptography] passlib[bcrypt]`
+2. Implement password hashing (never store plain passwords!)
+3. Create POST /auth/register endpoint
+4. Create POST /auth/login endpoint (returns JWT token)
+5. Create JWT token generation/validation
+6. Protect endpoints with authentication
+7. Test all auth flows
+
+### Time spent
+
+~2 hours (includes dependency injection explanation, TDD workflow, git merge)
+
+### Reflection
+
+**Excellent progress on database fundamentals!** Key takeaways:
+
+1. **TDD worked perfectly**: Wrote tests first, saw them pass with minimal code. The test for foreign key constraints caught the SQLite quirk immediately.
+
+2. **Relationships are powerful**: Being able to navigate `game.creator.username` or `user.created_games` makes code readable and maintainable. SQLAlchemy handles all the JOINs automatically.
+
+3. **Dependency injection demystified**: The explanation of how pytest fixtures implement DI pattern was a breakthrough. Now it's clear WHY fixtures are valuable (not just HOW to use them).
+
+4. **Type safety matters**: mypy caught missing type annotations. The discipline of typing everything pays off in fewer runtime errors.
+
+5. **Git workflow smooth**: Feature branch → merge → push. Clean history with conventional commits.
+
+The database foundation is now complete:
+- ✅ User accounts (Week 5 Day 1)
+- ✅ Game instances (Week 5 Day 2)
+- ✅ Player participation (Week 5 Day 2)
+- ⏳ Authentication (Week 5 Day 3)
+
+Next step is securing the API with authentication. Users will register, login, and get JWT tokens. The database models are ready - we just need the auth endpoints!
+
+Week 5 Day 2 complete! 🚀
+
+---
