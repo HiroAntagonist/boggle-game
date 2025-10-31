@@ -1,8 +1,9 @@
 # ABOUTME: Database setup and configuration
 # ABOUTME: Creates database engine and session management
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
+from typing import Any, Generator
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import sessionmaker, DeclarativeBase, Session
 
 # DATABASE URL
 # Format: sqlite:///path/to/file.db
@@ -15,6 +16,16 @@ DATABASE_URL = "sqlite:///game.db"
 # Think of it as opening a connection to a file
 # echo=True prints all SQL commands (helpful for learning!)
 engine = create_engine(DATABASE_URL, echo=True)
+
+
+# ENABLE FOREIGN KEY CONSTRAINTS FOR SQLITE
+# SQLite doesn't enforce foreign keys by default, we must enable them
+@event.listens_for(engine, "connect")
+def set_sqlite_pragma(dbapi_conn: Any, connection_record: Any) -> None:
+    """Enable foreign key constraints for SQLite."""
+    cursor = dbapi_conn.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
 
 # SESSION FACTORY
 # A session is like a "workspace" for database operations
@@ -32,7 +43,7 @@ class Base(DeclarativeBase):
 
 
 # HELPER FUNCTION
-def get_db():
+def get_db() -> Generator[Session, None, None]:
     """Get a database session.
 
     Usage:

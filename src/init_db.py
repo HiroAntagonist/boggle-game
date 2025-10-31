@@ -2,7 +2,7 @@
 # ABOUTME: Run this script to set up the database
 
 from src.database import engine, Base
-from src.models import User  # Import models so SQLAlchemy knows about them
+from src.models import User, Game, GamePlayer  # Import models so SQLAlchemy knows about them
 
 
 def init_db() -> None:
