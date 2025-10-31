@@ -1682,3 +1682,133 @@ Looking forward to completing the REST API tomorrow and then integrating WebSock
 Week 3 Day 4 complete! 🚀
 
 ---
+
+## Week 3 Day 5 - Hybrid Architecture & Cleanup
+
+**Date**: 2025-10-30
+**Focus**: Complete REST API, add WebSocket integration, architectural cleanup
+
+### What we built
+
+1. **Completed REST API endpoints** (TDD)
+   - GET /games/{game_id} - Get current game state
+   - POST /games/{game_id}/start - Start game timer
+   - POST /games/{game_id}/words - Submit word (later removed)
+   - GET /games/{game_id}/results - Get final results with strike-outs
+   - Total: 6 REST endpoints, 20 tests passing
+
+2. **Added WebSocket support for real-time gameplay**
+   - Created ConnectionManager for WebSocket client management
+   - WS /ws/{game_id}/{player_id} endpoint
+   - Real-time word submission with instant feedback
+   - Broadcast word submissions to all players in game
+   - Player connect/disconnect notifications
+   - 4 WebSocket tests passing
+
+3. **Architectural simplification** (CRITICAL LEARNING)
+   - Identified code duplication: word submission in both REST and WebSocket
+   - Decided on clean architecture: REST for CRUD, WebSocket for gameplay
+   - Deleted REST word submission endpoint (POST /games/{id}/words)
+   - Deleted entire src/network/ directory (old standalone WebSocket server)
+   - Removed 1,401 lines of duplicate code!
+   - Final: 5 REST + 1 WebSocket endpoint, 19 API tests, 84 total tests
+
+### Key technical concepts
+
+**Hybrid Architecture Pattern**:
+- REST API: Stateless CRUD operations (create, join, start, get state, results)
+- WebSocket: Stateful real-time gameplay (word submission, live updates)
+- Single FastAPI server supporting both protocols
+- Shared game state dictionary (single source of truth)
+- Common pattern in production apps (Slack, Discord, multiplayer games)
+
+**WebSocket Connection Management**:
+- ConnectionManager class tracks active connections per game
+- accept() → connect() → receive loop → disconnect()
+- Broadcast messages to all clients in a game
+- Graceful handling of disconnections
+- Clean up disconnected clients automatically
+
+**Architectural Decision Making**:
+- Recognized duplication between REST and WebSocket word submission
+- Questioned whether duplication was intentional
+- Proposed clean separation of concerns
+- Systematically removed all duplicate code
+- This is professional engineering: question, clarify, simplify
+
+### Challenges overcome
+
+**None!** This session was smooth because:
+1. TDD made adding endpoints predictable (RED → GREEN → REFACTOR)
+2. FastAPI's WebSocket support is well-designed
+3. We caught architectural issues early and fixed them
+4. Having a clear plan made execution straightforward
+
+### Mistakes and learnings
+
+**Initial mistake**: Created duplicate word submission endpoints (REST + WebSocket)
+
+**Why it happened**: Built REST API first (for learning), then added WebSockets, creating overlap
+
+**How we fixed it**:
+1. I spotted the duplication and questioned it
+2. Decided on clean architecture: REST = CRUD, WebSocket = gameplay
+3. Systematically deleted duplicate code
+4. Removed entire old network/ directory
+5. Result: -1,401 lines, zero duplication
+
+**Lesson learned**: Always question duplication. If two parts of the code do the same thing, one should be deleted. Clean architecture has clear boundaries between components.
+
+### Code statistics
+
+**Before cleanup**:
+- 6 REST endpoints + duplicate network code
+- 24 API tests (20 REST + 4 WebSocket)
+- src/network/ with 8 files
+- Duplicate word submission logic
+
+**After cleanup**:
+- 5 REST endpoints + 1 WebSocket endpoint
+- 19 API tests (15 REST + 4 WebSocket)
+- No src/network/ directory
+- Zero duplication
+- **-1,401 lines deleted**
+
+**Total tests**: 84 passing (65 game logic + 19 API)
+
+### Next session
+
+Week 5 starts next! According to learning plan:
+1. Database (SQLite + SQLAlchemy)
+2. Authentication (User registration/login with JWT)
+3. Deployment (Render or Fly.io)
+
+Before starting Week 5, need to verify we completed Week 3-4:
+- ✓ REST API design and implementation
+- ✓ WebSocket real-time gameplay
+- ✓ Hybrid architecture
+- ✓ Clean separation of concerns
+
+### Time spent
+
+~2.5 hours
+
+### Reflection
+
+**This was an excellent session!** Three key takeaways:
+
+1. **Questioning is essential**: When I asked "is duplicate word submission by design?", we uncovered a real architectural issue. Never be afraid to question the design, even (especially!) when working with AI. Good engineers push back on bad designs.
+
+2. **Clean architecture matters**: Having clear boundaries (REST = CRUD, WebSocket = gameplay) makes the codebase easier to understand and maintain. The -1,401 lines deleted is a feature, not a loss.
+
+3. **TDD accelerates development**: Once I understood the RED-GREEN-REFACTOR cycle, adding 4 new REST endpoints was fast and confident. Tests document behavior and catch regressions.
+
+4. **Hybrid architectures are powerful**: REST + WebSockets is a common real-world pattern. REST for stable CRUD operations, WebSockets for real-time features. Now I understand why apps like Slack use this pattern.
+
+The learning plan is working great. Week 1-2 gave us solid game logic. Week 3-4 gave us client-server architecture. Week 5 will add persistence and deployment. The incremental approach (CLI → REST → WebSocket → Database → Deploy) makes complex concepts manageable.
+
+Looking forward to Week 5 and getting this deployed to the cloud!
+
+Week 3 Day 5 complete! 🚀
+
+---
