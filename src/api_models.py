@@ -49,19 +49,6 @@ class StartGameResponse(BaseModel):
     start_time: str = Field(description="ISO timestamp of game start")
 
 
-class SubmitWordRequest(BaseModel):
-    """Request model for submitting a word."""
-    player_id: str = Field(description="Player's unique identifier")
-    word: str = Field(min_length=1, description="Word to submit")
-
-
-class SubmitWordResponse(BaseModel):
-    """Response model after word submission."""
-    valid: bool = Field(description="Whether the word was accepted")
-    score: int = Field(description="Points earned (0 if invalid)")
-    message: str = Field(description="Feedback message")
-
-
 class PlayerResult(BaseModel):
     """Result for a single player."""
     name: str

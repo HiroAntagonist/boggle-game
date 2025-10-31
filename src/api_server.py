@@ -15,8 +15,6 @@ from src.api_models import (
     JoinGameResponse,
     GameStateResponse,
     StartGameResponse,
-    SubmitWordRequest,
-    SubmitWordResponse,
     GameResultsResponse,
     PlayerResult,
 )
@@ -277,76 +275,6 @@ def start_game(game_id: str) -> StartGameResponse:
         game_id=game_id,
         status="in_progress",
         start_time=start_time
-    )
-
-
-@app.post("/games/{game_id}/words", response_model=SubmitWordResponse)
-def submit_word(game_id: str, request: SubmitWordRequest) -> SubmitWordResponse:
-    """Submit a word to a game.
-
-    Args:
-        game_id: Unique game identifier
-        request: Word submission with player ID and word
-
-    Returns:
-        Validation result with score and message
-
-    Raises:
-        HTTPException: 404 if game not found, 400 if game not started or invalid player
-    """
-    # Check if game exists
-    if game_id not in games:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Game {game_id} not found"
-        )
-
-    game_state = games[game_id]
-
-    # Check if game is started
-    if game_state["status"] != "in_progress":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Game not started"
-        )
-
-    # Check if player exists in game
-    if request.player_id not in game_state["players"]:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Player not in game"
-        )
-
-    player = game_state["players"][request.player_id]
-    game = game_state["game"]
-
-    # Submit word to game
-    word_upper = request.word.upper()
-    is_valid = game.submit_word(word_upper, player)
-
-    # Calculate score and message
-    score = 0
-    message = ""
-    if is_valid:
-        score = scorer.score_word(word_upper)
-        message = f"Valid word! +{score} points"
-    else:
-        # Determine why word is invalid
-        if len(word_upper) < game.config.min_word_length:
-            message = f"Word must be at least {game.config.min_word_length} letters"
-        elif not dictionary.is_valid_word(word_upper):
-            message = "Word not in dictionary"
-        elif not game.board.has_word_path(word_upper):
-            message = "Word cannot be formed on board"
-        elif word_upper in player.get_words():
-            message = "Already submitted this word"
-        else:
-            message = "Invalid word"
-
-    return SubmitWordResponse(
-        valid=is_valid,
-        score=score,
-        message=message
     )
 
 
