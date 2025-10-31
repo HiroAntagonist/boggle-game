@@ -140,3 +140,214 @@ def join_game(game_id: str, request: JoinGameRequest) -> JoinGameResponse:
         player_name=request.player_name,
         players=player_names
     )
+
+
+@app.get("/games/{game_id}", response_model=GameStateResponse)
+def get_game_state(game_id: str) -> GameStateResponse:
+    """Get current state of a game.
+
+    Args:
+        game_id: Unique game identifier
+
+    Returns:
+        Current game state including board, players, and status
+
+    Raises:
+        HTTPException: 404 if game not found
+    """
+    # Check if game exists
+    if game_id not in games:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Game {game_id} not found"
+        )
+
+    game_state = games[game_id]
+
+    # Convert board to list of lists
+    board = game_state["game"].board
+    board_data = [[cell for cell in row] for row in board.grid]
+
+    # Get player names
+    player_names = [p.name for p in game_state["players"].values()]
+
+    # Get time remaining (None if game not started)
+    time_remaining = None
+    if game_state["status"] == "in_progress":
+        remaining = game_state["game"].get_remaining_time()
+        time_remaining = int(remaining) if remaining is not None else None
+
+    # Get words by player
+    words_by_player = {}
+    for player_id, player in game_state["players"].items():
+        words_by_player[player_id] = player.get_words()
+
+    return GameStateResponse(
+        game_id=game_id,
+        board=board_data,
+        status=game_state["status"],
+        players=player_names,
+        time_remaining=time_remaining,
+        words_by_player=words_by_player
+    )
+
+
+@app.post("/games/{game_id}/start", response_model=StartGameResponse)
+def start_game(game_id: str) -> StartGameResponse:
+    """Start a game.
+
+    Args:
+        game_id: Unique game identifier
+
+    Returns:
+        Game start confirmation with timestamp
+
+    Raises:
+        HTTPException: 404 if game not found, 400 if already started
+    """
+    # Check if game exists
+    if game_id not in games:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Game {game_id} not found"
+        )
+
+    game_state = games[game_id]
+
+    # Check if game is already started
+    if game_state["status"] == "in_progress":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Game already started"
+        )
+
+    # Start the game
+    game_state["status"] = "in_progress"
+    game_state["game"].start_timer()
+    start_time = datetime.now(timezone.utc).isoformat()
+    game_state["start_time"] = start_time
+
+    return StartGameResponse(
+        game_id=game_id,
+        status="in_progress",
+        start_time=start_time
+    )
+
+
+@app.post("/games/{game_id}/words", response_model=SubmitWordResponse)
+def submit_word(game_id: str, request: SubmitWordRequest) -> SubmitWordResponse:
+    """Submit a word to a game.
+
+    Args:
+        game_id: Unique game identifier
+        request: Word submission with player ID and word
+
+    Returns:
+        Validation result with score and message
+
+    Raises:
+        HTTPException: 404 if game not found, 400 if game not started or invalid player
+    """
+    # Check if game exists
+    if game_id not in games:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Game {game_id} not found"
+        )
+
+    game_state = games[game_id]
+
+    # Check if game is started
+    if game_state["status"] != "in_progress":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Game not started"
+        )
+
+    # Check if player exists in game
+    if request.player_id not in game_state["players"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Player not in game"
+        )
+
+    player = game_state["players"][request.player_id]
+    game = game_state["game"]
+
+    # Submit word to game
+    word_upper = request.word.upper()
+    is_valid = game.submit_word(word_upper, player)
+
+    # Calculate score and message
+    score = 0
+    message = ""
+    if is_valid:
+        score = scorer.score_word(word_upper)
+        message = f"Valid word! +{score} points"
+    else:
+        # Determine why word is invalid
+        if len(word_upper) < game.config.min_word_length:
+            message = f"Word must be at least {game.config.min_word_length} letters"
+        elif not dictionary.is_valid_word(word_upper):
+            message = "Word not in dictionary"
+        elif not game.board.has_word_path(word_upper):
+            message = "Word cannot be formed on board"
+        elif word_upper in player.get_words():
+            message = "Already submitted this word"
+        else:
+            message = "Invalid word"
+
+    return SubmitWordResponse(
+        valid=is_valid,
+        score=score,
+        message=message
+    )
+
+
+@app.get("/games/{game_id}/results", response_model=GameResultsResponse)
+def get_game_results(game_id: str) -> GameResultsResponse:
+    """Get final game results with scores and strike-outs.
+
+    Args:
+        game_id: Unique game identifier
+
+    Returns:
+        Results for all players including valid words and duplicates
+
+    Raises:
+        HTTPException: 404 if game not found
+    """
+    # Check if game exists
+    if game_id not in games:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Game {game_id} not found"
+        )
+
+    game_state = games[game_id]
+    game = game_state["game"]
+
+    # Get duplicate words (struck out)
+    duplicates = list(game.get_duplicate_words())
+
+    # Build results for each player
+    player_results = []
+    for player_id, player in game_state["players"].items():
+        all_words = player.get_words()
+        valid_words = game.get_player_valid_words(player)
+        score = game.get_player_score(player)
+
+        player_results.append(PlayerResult(
+            name=player.name,
+            score=score,
+            words=all_words,
+            valid_words=valid_words
+        ))
+
+    # Sort by score descending
+    player_results.sort(key=lambda p: p.score, reverse=True)
+
+    return GameResultsResponse(
+        players=player_results,
+        duplicates=duplicates
+    )
