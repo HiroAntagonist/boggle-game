@@ -1539,3 +1539,467 @@ The final results display with strike-outs is satisfying - you can see exactly w
 Week 3 Day 3 complete! We have a working network multiplayer Boggle game! 🎉
 
 ---
+
+## 2025-10-29: Week 3, Day 4 (Restart) - Introduction to FastAPI and REST APIs
+
+### What we did
+- Switched from Claude web chat to Claude Code terminal experience
+- Created comprehensive CLAUDE.md documentation for the project
+- Recognized we skipped REST APIs and went straight to WebSockets
+- Started Week 3 properly: implementing REST API with FastAPI
+- Created feature branch `feature/fastapi-rest-api`
+- Installed FastAPI, uvicorn, and httpx dependencies
+- Designed REST API endpoints (POST /games, POST /games/{id}/players, etc.)
+- Created Pydantic models for request/response validation
+- Implemented 2 endpoints with TDD:
+  - POST /games - Create new game
+  - POST /games/{game_id}/players - Join game
+- All tests passing, mypy type checking passing
+
+### What I learned
+
+**FastAPI Fundamentals:**
+- FastAPI automatically validates requests using Pydantic models
+- Auto-generated API documentation at `/docs` (Swagger UI)
+- Path parameters: `{game_id}` in URL becomes function parameter automatically
+- Status codes: 201 Created, 404 Not Found, 400 Bad Request
+- TestClient for testing APIs without running the server
+
+**REST API Design:**
+- RESTful resources and HTTP verbs (POST, GET, PUT, DELETE)
+- Proper status codes for different scenarios
+- Request/response models with Pydantic
+- Error handling with HTTPException
+
+**Pydantic Models:**
+- Field validation (min/max values, string length, etc.)
+- Default values in models
+- Type-safe request/response structures
+- Automatic JSON serialization/deserialization
+
+**TDD with FastAPI:**
+- Write tests first using TestClient
+- Tests fail (RED)
+- Implement endpoint (GREEN)
+- All tests pass
+- This cycle ensures we only build what's needed
+
+**Key Code Patterns:**
+```python
+# Path parameters automatically extracted
+@app.post("/games/{game_id}/players")
+def join_game(game_id: str, request: JoinGameRequest):
+    # game_id comes from URL, request from JSON body
+    pass
+
+# Default values allow optional request bodies
+def create_game(request: CreateGameRequest = CreateGameRequest()):
+    # Can call POST /games with no body (uses defaults)
+    # Or POST /games with JSON body (overrides defaults)
+    pass
+
+# Proper error handling
+if game_id not in games:
+    raise HTTPException(status_code=404, detail="Game not found")
+```
+
+### Challenges/Issues
+- Initially confused about why we were going "backwards" to REST APIs
+- Understood that WebSockets were Week 4, and we skipped Week 3
+- Learning the difference between path parameters and request body
+- Understanding how FastAPI automatically maps URL paths to function parameters
+
+### Key Commands Learned
+```bash
+uv add fastapi "uvicorn[standard]"  # Install FastAPI
+uv add --dev httpx                  # Install HTTP client for testing
+pytest tests/test_api.py -v         # Run API tests
+mypy src/api_server.py              # Type check API code
+git checkout -b feature/name        # Create feature branch
+```
+
+### Code Concepts
+
+**Path Parameters:**
+- URL: `/games/{game_id}/players`
+- FastAPI extracts `game_id` from URL
+- Passes it as function argument
+- Names must match exactly
+
+**Pydantic Field Validation:**
+```python
+board_size: int = Field(default=4, ge=4, le=5)
+# ge = greater than or equal (min)
+# le = less than or equal (max)
+```
+
+**In-Memory State:**
+```python
+games: Dict[str, Dict] = {}  # game_id -> game_state
+# In production, this would be a database
+```
+
+**HTTP Status Codes:**
+- 200 OK - Successful GET
+- 201 Created - Successful POST (resource created)
+- 400 Bad Request - Client error (e.g., room full)
+- 404 Not Found - Resource doesn't exist
+- 422 Unprocessable Entity - Validation error
+
+### Blockers/Questions
+- None! FastAPI is very intuitive once you understand the patterns
+
+### Next session
+- Implement remaining 3 endpoints:
+  - GET /games/{game_id} - Get game state
+  - POST /games/{game_id}/start - Start game
+  - POST /games/{game_id}/words - Submit word
+  - GET /games/{game_id}/results - Get final results
+- Then we can integrate with our existing game logic
+- Finally add WebSockets on top of REST API
+
+### Time spent
+~1.5 hours
+
+### Reflection
+
+This was a great learning day! Going back to implement REST APIs properly was the right decision. I now understand:
+
+1. **Why REST APIs matter**: They're the foundation of web services. Even if we add WebSockets later, REST APIs are essential for CRUD operations (Create, Read, Update, Delete).
+
+2. **FastAPI is magical**: The automatic parameter extraction, validation, and documentation generation is amazing. Coming from C and Go, Python's type hints + Pydantic make APIs so much easier to build correctly.
+
+3. **TDD really works**: Writing tests first forced me to think about the API design from the client's perspective. The tests document how the API should behave.
+
+4. **Path parameters are elegant**: The way `{game_id}` in the URL automatically becomes `game_id` in the function is beautiful. No manual parsing needed.
+
+5. **Status codes matter**: Using the right HTTP status code (201 vs 200, 404 vs 400) communicates intent clearly to API clients.
+
+The switch to Claude Code terminal is working well. Being able to ask questions during the session (like "what does line 45 mean?") without triggering code changes is helpful for learning.
+
+Looking forward to completing the REST API tomorrow and then integrating WebSockets on top of this solid foundation. The architecture is becoming clearer: REST for basic operations, WebSockets for real-time updates.
+
+Week 3 Day 4 complete! 🚀
+
+---
+
+## Week 3 Day 5 - Hybrid Architecture & Cleanup
+
+**Date**: 2025-10-30
+**Focus**: Complete REST API, add WebSocket integration, architectural cleanup
+
+### What we built
+
+1. **Completed REST API endpoints** (TDD)
+   - GET /games/{game_id} - Get current game state
+   - POST /games/{game_id}/start - Start game timer
+   - POST /games/{game_id}/words - Submit word (later removed)
+   - GET /games/{game_id}/results - Get final results with strike-outs
+   - Total: 6 REST endpoints, 20 tests passing
+
+2. **Added WebSocket support for real-time gameplay**
+   - Created ConnectionManager for WebSocket client management
+   - WS /ws/{game_id}/{player_id} endpoint
+   - Real-time word submission with instant feedback
+   - Broadcast word submissions to all players in game
+   - Player connect/disconnect notifications
+   - 4 WebSocket tests passing
+
+3. **Architectural simplification** (CRITICAL LEARNING)
+   - Identified code duplication: word submission in both REST and WebSocket
+   - Decided on clean architecture: REST for CRUD, WebSocket for gameplay
+   - Deleted REST word submission endpoint (POST /games/{id}/words)
+   - Deleted entire src/network/ directory (old standalone WebSocket server)
+   - Removed 1,401 lines of duplicate code!
+   - Final: 5 REST + 1 WebSocket endpoint, 19 API tests, 84 total tests
+
+### Key technical concepts
+
+**Hybrid Architecture Pattern**:
+- REST API: Stateless CRUD operations (create, join, start, get state, results)
+- WebSocket: Stateful real-time gameplay (word submission, live updates)
+- Single FastAPI server supporting both protocols
+- Shared game state dictionary (single source of truth)
+- Common pattern in production apps (Slack, Discord, multiplayer games)
+
+**WebSocket Connection Management**:
+- ConnectionManager class tracks active connections per game
+- accept() → connect() → receive loop → disconnect()
+- Broadcast messages to all clients in a game
+- Graceful handling of disconnections
+- Clean up disconnected clients automatically
+
+**Architectural Decision Making**:
+- Recognized duplication between REST and WebSocket word submission
+- Questioned whether duplication was intentional
+- Proposed clean separation of concerns
+- Systematically removed all duplicate code
+- This is professional engineering: question, clarify, simplify
+
+### Challenges overcome
+
+**None!** This session was smooth because:
+1. TDD made adding endpoints predictable (RED → GREEN → REFACTOR)
+2. FastAPI's WebSocket support is well-designed
+3. We caught architectural issues early and fixed them
+4. Having a clear plan made execution straightforward
+
+### Mistakes and learnings
+
+**Initial mistake**: Created duplicate word submission endpoints (REST + WebSocket)
+
+**Why it happened**: Built REST API first (for learning), then added WebSockets, creating overlap
+
+**How we fixed it**:
+1. I spotted the duplication and questioned it
+2. Decided on clean architecture: REST = CRUD, WebSocket = gameplay
+3. Systematically deleted duplicate code
+4. Removed entire old network/ directory
+5. Result: -1,401 lines, zero duplication
+
+**Lesson learned**: Always question duplication. If two parts of the code do the same thing, one should be deleted. Clean architecture has clear boundaries between components.
+
+### Code statistics
+
+**Before cleanup**:
+- 6 REST endpoints + duplicate network code
+- 24 API tests (20 REST + 4 WebSocket)
+- src/network/ with 8 files
+- Duplicate word submission logic
+
+**After cleanup**:
+- 5 REST endpoints + 1 WebSocket endpoint
+- 19 API tests (15 REST + 4 WebSocket)
+- No src/network/ directory
+- Zero duplication
+- **-1,401 lines deleted**
+
+**Total tests**: 84 passing (65 game logic + 19 API)
+
+### Next session
+
+Week 5 starts next! According to learning plan:
+1. Database (SQLite + SQLAlchemy)
+2. Authentication (User registration/login with JWT)
+3. Deployment (Render or Fly.io)
+
+Before starting Week 5, need to verify we completed Week 3-4:
+- ✓ REST API design and implementation
+- ✓ WebSocket real-time gameplay
+- ✓ Hybrid architecture
+- ✓ Clean separation of concerns
+
+### Time spent
+
+~2.5 hours
+
+### Reflection
+
+**This was an excellent session!** Three key takeaways:
+
+1. **Questioning is essential**: When I asked "is duplicate word submission by design?", we uncovered a real architectural issue. Never be afraid to question the design, even (especially!) when working with AI. Good engineers push back on bad designs.
+
+2. **Clean architecture matters**: Having clear boundaries (REST = CRUD, WebSocket = gameplay) makes the codebase easier to understand and maintain. The -1,401 lines deleted is a feature, not a loss.
+
+3. **TDD accelerates development**: Once I understood the RED-GREEN-REFACTOR cycle, adding 4 new REST endpoints was fast and confident. Tests document behavior and catch regressions.
+
+4. **Hybrid architectures are powerful**: REST + WebSockets is a common real-world pattern. REST for stable CRUD operations, WebSockets for real-time features. Now I understand why apps like Slack use this pattern.
+
+The learning plan is working great. Week 1-2 gave us solid game logic. Week 3-4 gave us client-server architecture. Week 5 will add persistence and deployment. The incremental approach (CLI → REST → WebSocket → Database → Deploy) makes complex concepts manageable.
+
+Looking forward to Week 5 and getting this deployed to the cloud!
+
+Week 3 Day 5 complete! 🚀
+
+---
+
+## Week 5 Day 1 - Database Fundamentals & SQLAlchemy
+
+**Date**: 2025-10-30
+**Focus**: Learn databases from scratch, set up SQLAlchemy, create User model with UUIDs
+
+### What we built
+
+1. **Database setup** (`src/database.py`)
+   - SQLAlchemy engine and session management
+   - Database URL configuration (SQLite)
+   - Base class for all models
+   - `get_db()` helper function with proper cleanup
+
+2. **User model with UUID security** (`src/models.py`)
+   - UUID primary key instead of auto-increment integers
+   - username (unique, max 50 chars)
+   - email (unique, max 100 chars)
+   - password_hash (will implement hashing in Part 2)
+   - created_at timestamp (auto-generated)
+
+3. **Database initialization** (`src/init_db.py`)
+   - Script to create all tables
+   - Safe to run multiple times
+   - Shows generated SQL with echo=True
+
+4. **Comprehensive tests** (`tests/test_database.py`)
+   - Test fixture for database sessions
+   - Create user test (UUID auto-generation)
+   - Retrieve user test
+   - Unique username constraint test
+   - Unique email constraint test
+   - UUID randomness verification
+
+### Key technical concepts learned
+
+**Database Fundamentals:**
+- **Database vs Memory**: RAM is fast but volatile, databases persist to disk
+- **SQL**: Structured Query Language for talking to databases (CREATE, INSERT, SELECT, UPDATE, DELETE)
+- **Tables**: Like spreadsheets with rows and columns
+- **Primary Key**: Unique identifier for each row
+- **Constraints**: UNIQUE, NOT NULL, etc.
+
+**ORMs (Object-Relational Mapping):**
+- Translates Python objects ↔ SQL automatically
+- Write Python code instead of SQL strings
+- SQLAlchemy is the most powerful Python ORM
+- Type-safe with Mapped[] annotations
+
+**Migrations:**
+- Scripts that change database structure over time
+- Like git for your database schema
+- Can upgrade (add columns) or downgrade (remove columns)
+- Track database changes incrementally
+
+**SQLite vs PostgreSQL:**
+- SQLite: File-based, perfect for learning, no server needed
+- PostgreSQL: Production-grade, requires server setup
+- We use SQLite for simplicity
+
+**Sessions:**
+- A "workspace" for database operations
+- Open session → do work → commit → close session
+- Like a transaction in traditional databases
+
+**Pytest Fixtures:**
+- Setup/teardown automation for tests
+- Dependency injection pattern
+- Each test gets fresh, isolated database
+- `yield` allows cleanup after test runs
+- Scope controls when fixture runs (function/module/session)
+
+### Critical architectural decision: UUID vs Auto-increment IDs
+
+**Problem identified**: Auto-increment IDs (1, 2, 3...) are a security risk
+- Enumeration attacks: Attacker can guess all user IDs
+- Information leakage: IDs reveal user count and join order
+- Easy to scrape: Loop through /users/1, /users/2, etc.
+
+**Solution chosen**: UUID primary keys
+- Format: `550e8400-e29b-41d4-a716-446655440000`
+- Random, not guessable
+- Industry standard (Stripe, Auth0, GitHub)
+- 36 characters vs 4 bytes (tradeoff: size for security)
+
+**Implementation**:
+```python
+id: Mapped[str] = mapped_column(
+    String(36),
+    primary_key=True,
+    default=lambda: str(uuid.uuid4())
+)
+```
+
+This was Amritansh's question - excellent security awareness!
+
+### Challenges overcome
+
+**None!** The session was designed for slow, concept-first learning:
+1. Explained every concept before coding
+2. Wrote heavily commented code
+3. Ran init_db to see SQL generation
+4. Tests verified everything works
+5. Amritansh asked great questions about security
+
+### Mistakes and learnings
+
+**Initial plan**: Use auto-increment integers (simpler)
+
+**Amritansh's insight**: "Can IDs be guessable? Is that a security risk?"
+
+**Correct answer**: YES! Changed to UUIDs immediately.
+
+**Lesson learned**: Always question security implications. Auto-increment IDs are convenient but expose information. UUIDs are the professional choice for public APIs.
+
+### Code statistics
+
+**New files created:**
+- `src/database.py` - 55 lines (database setup)
+- `src/models.py` - 62 lines (User model)
+- `src/init_db.py` - 20 lines (initialization script)
+- `tests/test_database.py` - 155 lines (5 comprehensive tests)
+
+**Total tests**: 89 passing (84 game + 5 database)
+
+**Database file**: `game.db` (20KB, contains users table)
+
+### Concepts explained
+
+**What is a database?**
+- Whiteboard (RAM) vs Filing Cabinet (Database)
+- Persistent storage that survives server restarts
+
+**What is SQL?**
+- Language for databases (like English for humans)
+- CREATE TABLE, INSERT, SELECT, UPDATE, DELETE
+
+**What is an ORM?**
+- Python objects → SQL translator
+- Write `user = User(...)` instead of SQL strings
+- Type-safe with modern Python
+
+**What are migrations?**
+- Git for database schema
+- Track changes over time
+- Can rollback if needed
+
+**What are fixtures?**
+- Setup/teardown automation
+- Dependency injection
+- Test isolation (each test gets fresh database)
+
+### Next session
+
+Continue Week 5 Part 1:
+1. Add Game model (stores game state)
+2. Add GamePlayer model (links users to games)
+3. Learn about relationships (foreign keys, one-to-many)
+4. Test the relationships
+
+Then Week 5 Part 2:
+- Password hashing with bcrypt
+- User registration endpoint
+- User login endpoint
+- JWT tokens for authentication
+
+### Time spent
+
+~3 hours (slow, concept-focused learning)
+
+### Reflection
+
+**Excellent first day with databases!** Three key takeaways:
+
+1. **Concept-first teaching worked perfectly**: By explaining databases, SQL, ORMs, and migrations BEFORE writing code, everything made sense. Amritansh understood WHY we're doing each step, not just HOW.
+
+2. **Security mindset is strong**: The question about auto-increment IDs being guessable shows real engineering thinking. Most tutorials skip this and use integers. We chose the professional approach (UUIDs) from day one.
+
+3. **ORMs are magical but understandable**: SQLAlchemy translates Python classes into SQL CREATE TABLE statements automatically. Seeing the generated SQL with `echo=True` helped demystify the "magic."
+
+4. **Fixtures are powerful**: The `@pytest.fixture` pattern for database sessions ensures test isolation. Each test gets a fresh, empty database. This prevents tests from interfering with each other.
+
+The learning plan is working. Week 1-2 gave us game logic. Week 3-4 gave us APIs and WebSockets. Week 5 is giving us persistence and authentication. The building blocks are coming together.
+
+Database concepts (tables, constraints, sessions, ORMs) are transferable to any backend framework. This foundation applies to Django, Rails, Node.js, Go, etc. Amritansh now understands databases at a fundamental level.
+
+Looking forward to adding relationships tomorrow and then authentication!
+
+Week 5 Day 1 complete! 🚀
+
+---
