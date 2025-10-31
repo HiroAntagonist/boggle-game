@@ -1812,3 +1812,194 @@ Looking forward to Week 5 and getting this deployed to the cloud!
 Week 3 Day 5 complete! 🚀
 
 ---
+
+## Week 5 Day 1 - Database Fundamentals & SQLAlchemy
+
+**Date**: 2025-10-30
+**Focus**: Learn databases from scratch, set up SQLAlchemy, create User model with UUIDs
+
+### What we built
+
+1. **Database setup** (`src/database.py`)
+   - SQLAlchemy engine and session management
+   - Database URL configuration (SQLite)
+   - Base class for all models
+   - `get_db()` helper function with proper cleanup
+
+2. **User model with UUID security** (`src/models.py`)
+   - UUID primary key instead of auto-increment integers
+   - username (unique, max 50 chars)
+   - email (unique, max 100 chars)
+   - password_hash (will implement hashing in Part 2)
+   - created_at timestamp (auto-generated)
+
+3. **Database initialization** (`src/init_db.py`)
+   - Script to create all tables
+   - Safe to run multiple times
+   - Shows generated SQL with echo=True
+
+4. **Comprehensive tests** (`tests/test_database.py`)
+   - Test fixture for database sessions
+   - Create user test (UUID auto-generation)
+   - Retrieve user test
+   - Unique username constraint test
+   - Unique email constraint test
+   - UUID randomness verification
+
+### Key technical concepts learned
+
+**Database Fundamentals:**
+- **Database vs Memory**: RAM is fast but volatile, databases persist to disk
+- **SQL**: Structured Query Language for talking to databases (CREATE, INSERT, SELECT, UPDATE, DELETE)
+- **Tables**: Like spreadsheets with rows and columns
+- **Primary Key**: Unique identifier for each row
+- **Constraints**: UNIQUE, NOT NULL, etc.
+
+**ORMs (Object-Relational Mapping):**
+- Translates Python objects ↔ SQL automatically
+- Write Python code instead of SQL strings
+- SQLAlchemy is the most powerful Python ORM
+- Type-safe with Mapped[] annotations
+
+**Migrations:**
+- Scripts that change database structure over time
+- Like git for your database schema
+- Can upgrade (add columns) or downgrade (remove columns)
+- Track database changes incrementally
+
+**SQLite vs PostgreSQL:**
+- SQLite: File-based, perfect for learning, no server needed
+- PostgreSQL: Production-grade, requires server setup
+- We use SQLite for simplicity
+
+**Sessions:**
+- A "workspace" for database operations
+- Open session → do work → commit → close session
+- Like a transaction in traditional databases
+
+**Pytest Fixtures:**
+- Setup/teardown automation for tests
+- Dependency injection pattern
+- Each test gets fresh, isolated database
+- `yield` allows cleanup after test runs
+- Scope controls when fixture runs (function/module/session)
+
+### Critical architectural decision: UUID vs Auto-increment IDs
+
+**Problem identified**: Auto-increment IDs (1, 2, 3...) are a security risk
+- Enumeration attacks: Attacker can guess all user IDs
+- Information leakage: IDs reveal user count and join order
+- Easy to scrape: Loop through /users/1, /users/2, etc.
+
+**Solution chosen**: UUID primary keys
+- Format: `550e8400-e29b-41d4-a716-446655440000`
+- Random, not guessable
+- Industry standard (Stripe, Auth0, GitHub)
+- 36 characters vs 4 bytes (tradeoff: size for security)
+
+**Implementation**:
+```python
+id: Mapped[str] = mapped_column(
+    String(36),
+    primary_key=True,
+    default=lambda: str(uuid.uuid4())
+)
+```
+
+This was Amritansh's question - excellent security awareness!
+
+### Challenges overcome
+
+**None!** The session was designed for slow, concept-first learning:
+1. Explained every concept before coding
+2. Wrote heavily commented code
+3. Ran init_db to see SQL generation
+4. Tests verified everything works
+5. Amritansh asked great questions about security
+
+### Mistakes and learnings
+
+**Initial plan**: Use auto-increment integers (simpler)
+
+**Amritansh's insight**: "Can IDs be guessable? Is that a security risk?"
+
+**Correct answer**: YES! Changed to UUIDs immediately.
+
+**Lesson learned**: Always question security implications. Auto-increment IDs are convenient but expose information. UUIDs are the professional choice for public APIs.
+
+### Code statistics
+
+**New files created:**
+- `src/database.py` - 55 lines (database setup)
+- `src/models.py` - 62 lines (User model)
+- `src/init_db.py` - 20 lines (initialization script)
+- `tests/test_database.py` - 155 lines (5 comprehensive tests)
+
+**Total tests**: 89 passing (84 game + 5 database)
+
+**Database file**: `game.db` (20KB, contains users table)
+
+### Concepts explained
+
+**What is a database?**
+- Whiteboard (RAM) vs Filing Cabinet (Database)
+- Persistent storage that survives server restarts
+
+**What is SQL?**
+- Language for databases (like English for humans)
+- CREATE TABLE, INSERT, SELECT, UPDATE, DELETE
+
+**What is an ORM?**
+- Python objects → SQL translator
+- Write `user = User(...)` instead of SQL strings
+- Type-safe with modern Python
+
+**What are migrations?**
+- Git for database schema
+- Track changes over time
+- Can rollback if needed
+
+**What are fixtures?**
+- Setup/teardown automation
+- Dependency injection
+- Test isolation (each test gets fresh database)
+
+### Next session
+
+Continue Week 5 Part 1:
+1. Add Game model (stores game state)
+2. Add GamePlayer model (links users to games)
+3. Learn about relationships (foreign keys, one-to-many)
+4. Test the relationships
+
+Then Week 5 Part 2:
+- Password hashing with bcrypt
+- User registration endpoint
+- User login endpoint
+- JWT tokens for authentication
+
+### Time spent
+
+~3 hours (slow, concept-focused learning)
+
+### Reflection
+
+**Excellent first day with databases!** Three key takeaways:
+
+1. **Concept-first teaching worked perfectly**: By explaining databases, SQL, ORMs, and migrations BEFORE writing code, everything made sense. Amritansh understood WHY we're doing each step, not just HOW.
+
+2. **Security mindset is strong**: The question about auto-increment IDs being guessable shows real engineering thinking. Most tutorials skip this and use integers. We chose the professional approach (UUIDs) from day one.
+
+3. **ORMs are magical but understandable**: SQLAlchemy translates Python classes into SQL CREATE TABLE statements automatically. Seeing the generated SQL with `echo=True` helped demystify the "magic."
+
+4. **Fixtures are powerful**: The `@pytest.fixture` pattern for database sessions ensures test isolation. Each test gets a fresh, empty database. This prevents tests from interfering with each other.
+
+The learning plan is working. Week 1-2 gave us game logic. Week 3-4 gave us APIs and WebSockets. Week 5 is giving us persistence and authentication. The building blocks are coming together.
+
+Database concepts (tables, constraints, sessions, ORMs) are transferable to any backend framework. This foundation applies to Django, Rails, Node.js, Go, etc. Amritansh now understands databases at a fundamental level.
+
+Looking forward to adding relationships tomorrow and then authentication!
+
+Week 5 Day 1 complete! 🚀
+
+---
