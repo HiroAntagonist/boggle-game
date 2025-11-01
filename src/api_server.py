@@ -1,10 +1,12 @@
 # ABOUTME: FastAPI REST API server for Boggle game
 # ABOUTME: Manages game state and provides HTTP endpoints for game operations
 
-from fastapi import FastAPI, HTTPException, status, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, status, WebSocket, WebSocketDisconnect, Depends
 from typing import Dict, Set
+from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import asyncio
 import json
 
@@ -17,6 +19,10 @@ from src.api_models import (
     StartGameResponse,
     GameResultsResponse,
     PlayerResult,
+    RegisterRequest,
+    RegisterResponse,
+    LoginRequest,
+    LoginResponse,
 )
 from src.board import Board
 from src.dictionary import Dictionary
@@ -24,6 +30,9 @@ from src.scorer import Scorer
 from src.game import Game
 from src.player import Player
 from src.config import GameConfig
+from src.database import get_db
+from src.models import User
+from src.auth import hash_password, verify_password, create_access_token
 
 
 app = FastAPI(
@@ -441,3 +450,88 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str, player_id: str)
             json.dumps({"type": "player_disconnected", "player_name": player.name}),
             game_id
         )
+
+
+# ============================================================================
+# AUTHENTICATION ENDPOINTS
+# ============================================================================
+
+
+@app.post("/auth/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
+def register(request: RegisterRequest, db: Session = Depends(get_db)) -> RegisterResponse:
+    """Register a new user account.
+
+    Creates a new user with hashed password. Username and email must be unique.
+    """
+    # Check if username already exists
+    existing_user = db.query(User).filter(User.username == request.username).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username already registered"
+        )
+
+    # Check if email already exists
+    existing_email = db.query(User).filter(User.email == request.email).first()
+    if existing_email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
+
+    # Hash password
+    hashed_password = hash_password(request.password)
+
+    # Create new user
+    new_user = User(
+        username=request.username,
+        email=request.email,
+        password_hash=hashed_password
+    )
+
+    # Save to database
+    try:
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username or email already registered"
+        )
+
+    return RegisterResponse(
+        user_id=new_user.id,
+        username=new_user.username,
+        message="User registered successfully"
+    )
+
+
+@app.post("/auth/login", response_model=LoginResponse)
+def login(request: LoginRequest, db: Session = Depends(get_db)) -> LoginResponse:
+    """Login and get JWT access token.
+
+    Validates credentials and returns a JWT token that expires in 30 days.
+    """
+    # Find user by username
+    user = db.query(User).filter(User.username == request.username).first()
+
+    # Verify user exists and password is correct
+    if not user or not verify_password(request.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or password"
+        )
+
+    # Create JWT token with user info
+    token_data = {
+        "user_id": user.id,
+        "username": user.username
+    }
+    access_token = create_access_token(token_data, expires_delta=timedelta(days=30))
+
+    return LoginResponse(
+        access_token=access_token,
+        token_type="bearer"
+    )

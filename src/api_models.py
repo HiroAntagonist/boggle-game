@@ -61,3 +61,34 @@ class GameResultsResponse(BaseModel):
     """Response model for game results."""
     players: List[PlayerResult]
     duplicates: List[str] = Field(description="Words that were struck out")
+
+
+# ============================================================================
+# AUTHENTICATION MODELS
+# ============================================================================
+
+
+class RegisterRequest(BaseModel):
+    """Request model for user registration."""
+    username: str = Field(min_length=3, max_length=50)
+    email: str = Field(pattern=r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
+    password: str = Field(min_length=8)
+
+
+class RegisterResponse(BaseModel):
+    """Response model after successful registration."""
+    user_id: str
+    username: str
+    message: str
+
+
+class LoginRequest(BaseModel):
+    """Request model for user login."""
+    username: str
+    password: str
+
+
+class LoginResponse(BaseModel):
+    """Response model after successful login."""
+    access_token: str
+    token_type: str = "bearer"

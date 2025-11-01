@@ -6,6 +6,31 @@ This file tracks known issues, shortcuts, and improvements we want to make later
 
 ## High Priority
 
+### 1. Auth API Test Database Setup (Week 5)
+
+**Issue**: Test fixture for auth API endpoints doesn't properly create database tables
+
+**Current state**:
+- Auth module tests (password hashing, JWT tokens) all pass (10/10)
+- Auth endpoints implemented (POST /auth/register, POST /auth/login)
+- API endpoint tests written but fail with "no such table: users"
+- Issue is with test database fixture setup, not the actual endpoints
+
+**Why it's a problem**:
+- Can't verify registration/login endpoints work correctly
+- Manual testing with `/docs` required instead of automated tests
+- Breaks TDD workflow
+
+**What needs to be done**:
+1. Fix test fixture in `tests/test_auth_api.py` to properly create all tables
+2. Ensure models are loaded before `Base.metadata.create_all()`
+3. Verify dependency injection of test database works with FastAPI
+4. Run all 9 auth API tests and verify they pass
+
+**Workaround**: Use FastAPI `/docs` interface to manually test endpoints
+
+**Priority**: High - needed before deploying authentication
+
 ### 1. WebSocket Message Validation (Week 3-4)
 
 **Issue**: WebSocket messages use informal JSON with no type validation
