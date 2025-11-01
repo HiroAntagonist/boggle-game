@@ -227,4 +227,40 @@ class WordResultMessage(BaseModel):
 
 ---
 
-**Last Updated**: 2025-10-30 (Week 3 Day 5)
+## Deployment Strategy
+
+### Fly.io + PostgreSQL Migration Plan
+
+**Decision Made**: 2025-10-31 (Week 5 Day 3)
+
+**Platform**: Fly.io with PostgreSQL database
+
+**Rationale**:
+- ✅ Free PostgreSQL included (vs $7/month on Render)
+- ✅ Better for learning Docker and production deployment
+- ✅ Geographic distribution for global users
+- ✅ Industry-standard stack (Docker + PostgreSQL)
+- ✅ More control and flexibility for future scaling
+
+**Migration Steps (Week 6)**:
+1. Add PostgreSQL support to codebase (keep SQLite for local dev)
+2. Install `psycopg2-binary` for PostgreSQL driver
+3. Make database URL configurable via environment variable
+4. Test locally with PostgreSQL
+5. Create `Dockerfile` for containerization
+6. Create `fly.toml` configuration file
+7. Deploy to Fly.io with `flyctl deploy`
+8. Move SECRET_KEY to environment variables
+9. Set up Alembic for database migrations
+10. Test production deployment end-to-end
+
+**Prerequisites**:
+- Install Docker Desktop (for local testing)
+- Install Fly.io CLI: `brew install flyctl` (Mac) or `curl -L https://fly.io/install.sh | sh`
+- Create Fly.io account (free tier)
+
+**Estimated effort**: 3-4 hours (learning + implementation)
+
+---
+
+**Last Updated**: 2025-10-31 (Week 5 Day 3)
