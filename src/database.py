@@ -25,12 +25,14 @@ engine = create_engine(DATABASE_URL, echo=True)
 
 # ENABLE FOREIGN KEY CONSTRAINTS FOR SQLITE
 # SQLite doesn't enforce foreign keys by default, we must enable them
-@event.listens_for(engine, "connect")
-def set_sqlite_pragma(dbapi_conn: Any, connection_record: Any) -> None:
-    """Enable foreign key constraints for SQLite."""
-    cursor = dbapi_conn.cursor()
-    cursor.execute("PRAGMA foreign_keys=ON")
-    cursor.close()
+# PostgreSQL enforces foreign keys by default, so we only do this for SQLite
+if DATABASE_URL.startswith("sqlite"):
+    @event.listens_for(engine, "connect")
+    def set_sqlite_pragma(dbapi_conn: Any, connection_record: Any) -> None:
+        """Enable foreign key constraints for SQLite."""
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 
 # SESSION FACTORY
 # A session is like a "workspace" for database operations

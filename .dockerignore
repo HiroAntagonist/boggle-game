@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+tests/
+
+# Database files (don't copy local database to container)
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment files (secrets handled differently in production)
+.env
+.env.local
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Documentation
+*.md
+docs/
+
+# CI/CD
+.github/
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Jupyter notebooks
+*.ipynb
+.ipynb_checkpoints/
