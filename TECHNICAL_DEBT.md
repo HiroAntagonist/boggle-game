@@ -108,34 +108,70 @@ class WordResultMessage(BaseModel):
 
 ## Medium Priority (continued)
 
-### 4. WebSocket Database Integration (Week 5 Day 4)
+### 4. Game Lifecycle & Resilience Design (Week 5 Day 5)
 
-**Issue**: WebSocket endpoint still uses in-memory `games` dict
+**Issue**: Need comprehensive design for game finalization, scoring, and failure handling
 
 **Current state**:
-- REST endpoints all use database (POST /games, GET /games/{id}, etc.)
-- WebSocket `/ws/{game_id}/{player_id}` still uses in-memory storage
-- 3 WebSocket tests failing, 123 other tests passing
+- Games can start but have no automatic finalization
+- Provisional scores stored in DB on each word submission (`GamePlayer.score`)
+- Results endpoint uses provisional scores (doesn't account for cross-player duplicates)
+- No handling of disconnection/reconnection scenarios
+- No cleanup of "zombie" games (started but never finished)
+- Timer calculations exist but no auto-finalization when timer expires
 
-**Why it's a problem**:
-- Inconsistent with REST API
-- WebSocket games don't persist
-- Can't reconnect to games after server restart
+**Design questions to resolve**:
 
-**What needs to be done**:
-1. Decide on approach:
-   - Option A: Keep Game objects in memory during active games, sync to DB periodically
-   - Option B: Reconstruct Game objects from DB on each message (simpler but slower)
-   - Option C: Move validation logic out of Game class into standalone functions
-2. Update WebSocket endpoint to load game state from database
-3. Update WebSocket endpoint to persist word submissions to GamePlayer.words_found
-4. Update WebSocket endpoint to persist scores to GamePlayer.score
-5. Handle timer state (either in-memory or calculate from started_at + time_limit)
-6. Update 3 failing WebSocket tests
+**A. Score Finalization Strategy:**
+- When should final scores be calculated?
+  - On timer expiration (automatic)?
+  - On manual game end (POST /games/{id}/end)?
+  - Lazy in results endpoint (calculate on-demand)?
+- Should we preserve both provisional and final scores?
+- How do we handle the results endpoint for in-progress vs finished games?
 
-**Estimated effort**: 3-4 hours
+**B. Client Disconnect/Reconnect:**
+- Current: Reload words from DB, rebuild Player object, ignore stored score
+- Questions:
+  - Should we display provisional score to reconnected players?
+  - Do we recalculate score from words_found or trust DB?
+  - How do we sync in-memory state with DB state?
+  - What happens if player reconnects after game ends?
 
-**Note**: Deferred from Day 4 to focus on REST API migration first
+**C. Zombie Game Cleanup:**
+- Games stuck in "in_progress" state due to:
+  - Server crash during game
+  - All players disconnect before timer expires
+  - Timer expires but no finalization logic
+- Solutions:
+  - Background task to monitor and clean up old games?
+  - Periodic cleanup job?
+  - Lazy finalization on access?
+  - TTL-based cleanup?
+
+**D. Timer Expiration & Auto-Finalization:**
+- Need background task to monitor game timers
+- When timer expires:
+  - Calculate duplicates across all players
+  - Recalculate final scores (excluding duplicates)
+  - Update GamePlayer.score with final values
+  - Set Game.status = "finished"
+  - Broadcast game_ended message to connected players
+- What if no players are connected when timer expires?
+
+**E. Server Crash Recovery:**
+- What happens to in-progress games after server restart?
+- Can players reconnect and continue?
+- Should we auto-fail crashed games?
+- How do we distinguish crashed games from legitimate in-progress games?
+
+**Related to**:
+- Item #3 (Automatic Timer Broadcasts)
+- Item #5 (Authorization & Game Privacy)
+
+**Estimated effort**: 4-6 hours design + implementation
+
+**Recommendation**: Design comprehensive game lifecycle state machine before implementing piecemeal solutions
 
 ---
 
@@ -257,6 +293,32 @@ class WordResultMessage(BaseModel):
 **Files changed**:
 - `tests/test_auth_api.py` - Added StaticPool to test fixture
 - All 17 auth API tests now pass
+
+---
+
+### 2. WebSocket Database Integration (Week 5 Day 5) - COMPLETED 2025-10-31
+
+**Issue**: WebSocket endpoint used in-memory `games` dict while REST endpoints used database
+
+**Resolution**: Implemented hybrid approach - reconstruct in-memory Game/Board/Player objects from database on WebSocket connection for fast validation, persist word submissions and scores back to database.
+
+**Implementation**:
+- Load game and player from database on WebSocket connect
+- Reconstruct Board from JSON board_state
+- Create in-memory Game/Board/Player objects for validation
+- Persist word submissions to GamePlayer.words_found JSON array
+- Update GamePlayer.score on each valid word submission
+- Calculate time remaining from database timestamps (with timezone handling)
+
+**Files changed**:
+- `src/api_server.py` - WebSocket endpoint refactored (lines 441-593)
+- `tests/test_websocket.py` - Added auth headers to start_game calls
+- All 130 tests now pass (100%)
+
+**Design decisions**:
+- Provisional scores: Stored in DB during gameplay, don't account for cross-player duplicates
+- Final scoring: Deferred to results endpoint or finalization logic (see item #4)
+- Reconnection: Reload words from DB, rebuild Player object (score sync TBD)
 
 ---
 
