@@ -71,3 +71,31 @@ wheels/
 
 # uv
 .uv/
+
+# iOS / Xcode
+## User settings
+xcuserdata/
+*.xcuserstate
+*.xcuserdatad
+
+## Build artifacts
+DerivedData/
+build/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+## Swift Package Manager
+.swiftpm/
+.build/
+
+## CocoaPods (if we use it later)
+Pods/
+*.xcworkspace
+!BoggleApp/*.xcworkspace
+
+## Fastlane (if we use it later)
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
