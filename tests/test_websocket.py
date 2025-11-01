@@ -196,3 +196,55 @@ def test_websocket_multiplayer_broadcast(client: TestClient) -> None:
                 bob_broadcast = json.loads(bob_ws.receive_text())
                 assert bob_broadcast["type"] == "word_submitted"
                 assert bob_broadcast["player_name"] == "alice"  # Should show username
+
+
+def test_websocket_invalid_message_format(client: TestClient) -> None:
+    """Test that invalid WebSocket messages are rejected with error."""
+    token = create_test_user_and_login(client)
+
+    # Create and setup game
+    create_response = client.post("/games", headers=auth_headers(token))
+    game_id = create_response.json()["game_id"]
+
+    join_response = client.post(f"/games/{game_id}/players", headers=auth_headers(token), json={"player_name": "Alice"})
+    player_id = join_response.json()["player_id"]
+
+    client.post(f"/games/{game_id}/start", headers=auth_headers(token))
+
+    # Connect via WebSocket
+    with client.websocket_connect(f"/ws/{game_id}/{player_id}") as websocket:
+        # Send invalid message (missing required field)
+        websocket.send_text(json.dumps({"type": "submit_word"}))  # Missing "word" field
+
+        # Receive error response
+        data = websocket.receive_text()
+        message = json.loads(data)
+
+        assert message["type"] == "error"
+        assert "Invalid message format" in message["message"]
+
+
+def test_websocket_invalid_word_length(client: TestClient) -> None:
+    """Test that word validation catches length constraints."""
+    token = create_test_user_and_login(client)
+
+    # Create and setup game
+    create_response = client.post("/games", headers=auth_headers(token))
+    game_id = create_response.json()["game_id"]
+
+    join_response = client.post(f"/games/{game_id}/players", headers=auth_headers(token), json={"player_name": "Alice"})
+    player_id = join_response.json()["player_id"]
+
+    client.post(f"/games/{game_id}/start", headers=auth_headers(token))
+
+    # Connect via WebSocket
+    with client.websocket_connect(f"/ws/{game_id}/{player_id}") as websocket:
+        # Send word that's too long (> 20 characters)
+        websocket.send_text(json.dumps({"type": "submit_word", "word": "A" * 21}))
+
+        # Receive error response
+        data = websocket.receive_text()
+        message = json.loads(data)
+
+        assert message["type"] == "error"
+        assert "Invalid message format" in message["message"]

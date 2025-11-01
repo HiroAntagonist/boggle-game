@@ -500,8 +500,13 @@ async def websocket_endpoint(
         await manager.connect(websocket, game_id)
 
         # Notify others that player connected
+        from src.ws_models import PlayerConnectedMessage
+        connect_msg = PlayerConnectedMessage(
+            type="player_connected",
+            player_name=user.username
+        )
         await manager.broadcast(
-            json.dumps({"type": "player_connected", "player_name": user.username}),
+            connect_msg.model_dump_json(),
             game_id,
             exclude=websocket
         )
@@ -509,13 +514,24 @@ async def websocket_endpoint(
         while True:
             # Receive message from client
             data = await websocket.receive_text()
-            message = json.loads(data)
+            raw_message = json.loads(data)
 
-            message_type = message.get("type")
+            message_type = raw_message.get("type")
 
             if message_type == "submit_word":
+                # Validate incoming message
+                from src.ws_models import SubmitWordMessage, WordResultMessage, WordSubmittedMessage
+                try:
+                    submit_msg = SubmitWordMessage(**raw_message)
+                except Exception as e:
+                    await websocket.send_text(json.dumps({
+                        "type": "error",
+                        "message": f"Invalid message format: {str(e)}"
+                    }))
+                    continue
+
                 # Handle word submission
-                word = message.get("word", "").upper()
+                word = submit_msg.word.upper()
 
                 # Validate and submit word using Game object
                 is_valid = game.submit_word(word, player)
@@ -544,29 +560,42 @@ async def websocket_endpoint(
                     else:
                         status_msg = "Already submitted"
 
-                # Send response to submitter
-                await websocket.send_text(json.dumps({
-                    "type": "word_result",
-                    "word": word,
-                    "valid": is_valid,
-                    "score": score,
-                    "message": status_msg
-                }))
+                # Send response to submitter using validated model
+                response = WordResultMessage(
+                    type="word_result",
+                    word=word,
+                    valid=is_valid,
+                    score=score,
+                    message=status_msg
+                )
+                await websocket.send_text(response.model_dump_json())
 
                 # Broadcast to others if valid
                 if is_valid:
+                    broadcast = WordSubmittedMessage(
+                        type="word_submitted",
+                        player_name=user.username,
+                        word=word,
+                        score=score
+                    )
                     await manager.broadcast(
-                        json.dumps({
-                            "type": "word_submitted",
-                            "player_name": user.username,
-                            "word": word,
-                            "score": score
-                        }),
+                        broadcast.model_dump_json(),
                         game_id,
                         exclude=websocket
                     )
 
             elif message_type == "get_state":
+                # Validate incoming message
+                from src.ws_models import GetStateMessage, GameStateMessage
+                try:
+                    get_state_msg = GetStateMessage(**raw_message)
+                except Exception as e:
+                    await websocket.send_text(json.dumps({
+                        "type": "error",
+                        "message": f"Invalid message format: {str(e)}"
+                    }))
+                    continue
+
                 # Send current game state from database
                 time_remaining = None
                 if db_game.status == "in_progress" and db_game.started_at and db_game.time_limit:
@@ -582,18 +611,24 @@ async def websocket_endpoint(
                 # Get current player count from database
                 player_count = db.query(GamePlayer).filter(GamePlayer.game_id == game_id).count()
 
-                await websocket.send_text(json.dumps({
-                    "type": "game_state",
-                    "status": db_game.status,
-                    "time_remaining": time_remaining,
-                    "player_count": player_count
-                }))
+                state_response = GameStateMessage(
+                    type="game_state",
+                    status=db_game.status,
+                    time_remaining=time_remaining,
+                    player_count=player_count
+                )
+                await websocket.send_text(state_response.model_dump_json())
 
     except WebSocketDisconnect:
         manager.disconnect(websocket, game_id)
         # Notify others that player disconnected
+        from src.ws_models import PlayerDisconnectedMessage
+        disconnect_msg = PlayerDisconnectedMessage(
+            type="player_disconnected",
+            player_name=user.username
+        )
         await manager.broadcast(
-            json.dumps({"type": "player_disconnected", "player_name": user.username}),
+            disconnect_msg.model_dump_json(),
             game_id
         )
 

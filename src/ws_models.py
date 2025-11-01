@@ -1,0 +1,115 @@
+# ABOUTME: Pydantic models for WebSocket message validation
+# ABOUTME: Defines typed messages for real-time game communication
+
+from pydantic import BaseModel, Field
+from typing import Literal
+
+
+# ============================================================================
+# CLIENT → SERVER MESSAGES
+# ============================================================================
+
+class SubmitWordMessage(BaseModel):
+    """Client request to submit a word for validation.
+
+    Example:
+        {"type": "submit_word", "word": "CAT"}
+    """
+    type: Literal["submit_word"]
+    word: str = Field(min_length=1, max_length=20, description="Word to validate")
+
+
+class GetStateMessage(BaseModel):
+    """Client request for current game state.
+
+    Example:
+        {"type": "get_state"}
+    """
+    type: Literal["get_state"]
+
+
+# ============================================================================
+# SERVER → CLIENT MESSAGES
+# ============================================================================
+
+class WordResultMessage(BaseModel):
+    """Server response to word submission.
+
+    Sent to the player who submitted the word.
+
+    Example:
+        {
+            "type": "word_result",
+            "word": "CAT",
+            "valid": true,
+            "score": 1,
+            "message": "Valid! +1 points"
+        }
+    """
+    type: Literal["word_result"]
+    word: str = Field(description="The word that was submitted")
+    valid: bool = Field(description="Whether the word was valid")
+    score: int = Field(ge=0, description="Points awarded (0 if invalid)")
+    message: str = Field(description="Human-readable validation message")
+
+
+class WordSubmittedMessage(BaseModel):
+    """Server broadcast when a player submits a valid word.
+
+    Sent to all other players (not the submitter).
+
+    Example:
+        {
+            "type": "word_submitted",
+            "player_name": "alice",
+            "word": "CAT",
+            "score": 1
+        }
+    """
+    type: Literal["word_submitted"]
+    player_name: str = Field(description="Username of player who submitted")
+    word: str = Field(description="The word that was submitted")
+    score: int = Field(ge=0, description="Points awarded")
+
+
+class GameStateMessage(BaseModel):
+    """Server response with current game state.
+
+    Example:
+        {
+            "type": "game_state",
+            "status": "in_progress",
+            "time_remaining": 150,
+            "player_count": 2
+        }
+    """
+    type: Literal["game_state"]
+    status: str = Field(description="Game status (waiting, in_progress, finished)")
+    time_remaining: int | None = Field(description="Seconds remaining, None if no timer")
+    player_count: int = Field(ge=0, description="Number of players in game")
+
+
+class PlayerConnectedMessage(BaseModel):
+    """Server broadcast when a player connects.
+
+    Example:
+        {
+            "type": "player_connected",
+            "player_name": "bob"
+        }
+    """
+    type: Literal["player_connected"]
+    player_name: str = Field(description="Username of connected player")
+
+
+class PlayerDisconnectedMessage(BaseModel):
+    """Server broadcast when a player disconnects.
+
+    Example:
+        {
+            "type": "player_disconnected",
+            "player_name": "bob"
+        }
+    """
+    type: Literal["player_disconnected"]
+    player_name: str = Field(description="Username of disconnected player")
