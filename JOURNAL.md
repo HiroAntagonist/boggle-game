@@ -2456,3 +2456,341 @@ We're 80% done with authentication! Just need to wire up the JWT tokens to prote
 Week 5 Day 3 complete! 🚀
 
 ---
+
+## 2025-10-31: Week 5, Day 4 - Complete Authentication & Database Preparation
+
+### What we did
+
+**Authentication System - COMPLETED! ✅**
+
+1. **Fixed Auth API Test Fixture** (the blocker from Day 3)
+   - Root cause: SQLite in-memory databases create separate instances per connection
+   - Solution: Added `poolclass=StaticPool` to ensure all connections share same DB
+   - All 17 auth API tests now passing!
+
+2. **Created JWT Authentication Dependency**
+   - Implemented `get_current_user_from_db()` with factory pattern
+   - Handles JWT token validation and user lookup
+   - Uses FastAPI dependency injection properly (respects `app.dependency_overrides`)
+   - Added 4 tests for protected endpoints (valid token, missing token, invalid token, expired token)
+
+3. **Protected Game Endpoints**
+   - `POST /games` now requires authentication
+   - `POST /games/{game_id}/players` now requires authentication
+   - Authenticated user becomes game creator/player
+   - Added tests for both protected endpoints
+
+4. **Environment Configuration**
+   - Installed `python-dotenv` for environment variables
+   - Generated secure 256-bit `SECRET_KEY` and moved to `.env` file
+   - Made `DATABASE_URL` configurable (ready for PostgreSQL)
+   - Created `.env.example` template with documentation
+   - Never commit `.env` to git (contains secrets!)
+
+**Database Model Updates:**
+
+5. **Enhanced Game Model**
+   - Added `max_players` column (capacity checking)
+   - Added `min_word_length` column (word validation)
+   - Recreated database with new schema
+
+6. **Database Storage Design**
+   - Created comprehensive design document (`docs/database-game-storage-design.md`)
+   - Analyzed current in-memory storage (`games: Dict`)
+   - Designed migration strategy to use database for game persistence
+   - Games will survive server restarts!
+   - Historical data for features, analytics, leaderboards
+
+**Documentation Created:**
+
+7. **Testing Database Issues**
+   - Created `docs/testing-database-issues.md`
+   - Deep dive into SQLite `StaticPool` fix
+   - Explanation of FastAPI dependency injection and `app.dependency_overrides`
+   - Factory pattern for avoiding circular imports
+   - Debugging tips for future issues
+
+8. **Updated Technical Debt**
+   - Moved auth test fixture to "Completed Items"
+   - Updated deployment strategy notes
+
+### What I learned
+
+**Critical Testing Concepts:**
+
+1. **SQLite In-Memory Database Isolation**
+   - By default, each connection gets a separate in-memory database
+   - `StaticPool` forces all connections to share the same instance
+   - Only needed for testing - production databases don't have this issue
+   - Visual: Without StaticPool → 3 connections = 3 separate DBs
+   - With StaticPool → 3 connections = 1 shared DB ✅
+
+2. **FastAPI Dependency Injection Deep Dive**
+   - `app.dependency_overrides` only works when FastAPI resolves dependencies
+   - Manually calling functions (like `get_db()` or `SessionLocal()`) bypasses it!
+   - Must use `Depends()` to let FastAPI handle dependency resolution
+   - Factory pattern solves circular import issues
+
+3. **Factory Pattern for Dependencies**
+   ```python
+   def make_dependency():
+       from module import needed_function  # Import inside factory
+
+       def dependency(param = Depends(needed_function)):
+           # Use param
+           pass
+
+       return dependency
+
+   my_dependency = make_dependency()  # Call once at module load
+   ```
+   - Delays imports until runtime (avoids circular imports)
+   - Returns a function that FastAPI can use
+   - FastAPI still resolves `Depends(needed_function)` properly
+
+4. **Database Growth Concerns** (Amritansh's excellent questions!)
+   - Q: Won't the database grow forever with old games?
+   - A: Yes, but that's GOOD! Storage is cheap, data is valuable
+   - 1 million games ≈ 5 GB (very manageable)
+   - Most apps keep historical data indefinitely
+   - Instagram/Twitter keep billions of records
+   - Only delete if you have a "good problem" (millions of users!)
+
+   - Q: Won't transaction logs grow even if we delete?
+   - A: PostgreSQL automatically cleans up WAL logs after checkpoints
+   - Managed platforms (Fly.io) handle this automatically
+   - Not a concern until very high write volume (millions/hour)
+
+**Authentication Flow - Full Picture:**
+
+```
+Registration:
+POST /auth/register → Check duplicates → Hash password → Save to DB → Return user_id
+
+Login:
+POST /auth/login → Find user → Verify password → Create JWT token → Return token
+
+Creating Game (Protected):
+POST /games + Authorization: Bearer <token>
+  → Extract token → Validate signature → Decode payload → Get user_id
+  → Query user from DB → Create game → Return game_id
+
+Joining Game (Protected):
+POST /games/{id}/players + Authorization: Bearer <token>
+  → Validate token → Get user → Create GamePlayer → Return player_id
+```
+
+**Testing Strategy Learned:**
+
+1. Write tests first (TDD) - reveals integration issues early
+2. Use proper fixtures for database setup
+3. Always use `StaticPool` for SQLite in-memory tests
+4. Import all models before `Base.metadata.create_all()`
+5. Clean up: `Base.metadata.drop_all()` + `app.dependency_overrides.clear()`
+6. Trust FastAPI's dependency injection - don't fight it!
+
+### Challenges/Issues
+
+**Challenge 1: Test Database Tables Not Created**
+- Symptom: "no such table: users" error in tests
+- Investigation: Tried 4-5 different approaches before finding root cause
+- Root cause: SQLite in-memory database isolation (each connection = new DB)
+- Solution: `poolclass=StaticPool` in test engine configuration
+- Learning: Read SQLAlchemy pooling docs carefully!
+
+**Challenge 2: Dependency Injection Not Working**
+- Symptom: Tests use production DB instead of test DB
+- Investigation: Tried manual session creation, calling get_db() directly
+- Root cause: Bypassing FastAPI's dependency injection system
+- Solution: Factory pattern + proper use of `Depends(get_db)`
+- Learning: When framework provides a mechanism, USE IT (don't fight it)
+
+Both times I said "there's something black in the dal" - I was overcomplicating the solution!
+
+### Files created/modified
+
+**New Files:**
+- `.env` - Environment variables (SECRET_KEY, DATABASE_URL) - NOT committed
+- `.env.example` - Template for environment configuration - committed
+- `docs/testing-database-issues.md` - Complete explanation of both DB test issues
+- `docs/database-game-storage-design.md` - Plan for database refactoring
+
+**Modified Files:**
+- `src/auth.py` - Added get_current_user_from_db() with factory pattern, environment loading
+- `src/database.py` - Made DATABASE_URL configurable from environment
+- `src/api_server.py` - Protected game endpoints with authentication
+- `src/api_models.py` - Added UserResponse model
+- `src/models.py` - Added max_players and min_word_length columns
+- `tests/test_auth_api.py` - Fixed fixture with StaticPool, added 17 passing tests
+- `TECHNICAL_DEBT.md` - Moved auth test issue to completed
+- `pyproject.toml` + `uv.lock` - Added python-dotenv dependency
+
+### Test results
+
+**Before today:** 10 auth module tests passing, 9 auth API tests failing
+**After today:** 27 auth tests passing (10 module + 17 API)
+
+**Total project tests:** 127 tests passing
+- 10 auth module tests
+- 17 auth API tests
+- 16 database tests
+- 15 API tests
+- 4 WebSocket tests
+- 65 game logic tests
+
+**Type checking:** ✅ mypy passes with no issues
+
+### Key code snippets
+
+**Test fixture with StaticPool:**
+```python
+from sqlalchemy.pool import StaticPool
+
+@pytest.fixture
+def client():
+    engine = create_engine(
+        "sqlite:///:memory:",
+        poolclass=StaticPool,  # CRITICAL: Share same DB across connections
+        connect_args={"check_same_thread": False}
+    )
+    Base.metadata.create_all(bind=engine)
+    # ... rest of fixture
+```
+
+**Factory pattern for dependency:**
+```python
+def make_get_current_user_from_db() -> Any:
+    from src.database import get_db  # Import inside factory
+    from src.models import User
+
+    def get_current_user_from_db(
+        credentials = Depends(security),
+        db: Session = Depends(get_db)  # FastAPI resolves this!
+    ) -> Any:
+        # Validate token, query user
+        return user
+
+    return get_current_user_from_db
+
+get_current_user_from_db = make_get_current_user_from_db()
+```
+
+**Protected endpoint:**
+```python
+@app.post("/games")
+def create_game(
+    request: CreateGameRequest,
+    current_user: User = Depends(get_current_user_from_db)  # ← Requires auth!
+):
+    # current_user is automatically injected if token is valid
+    # Creates 401 if token missing/invalid
+```
+
+**Environment configuration:**
+```python
+from dotenv import load_dotenv
+import os
+
+load_dotenv()  # Load .env file
+
+SECRET_KEY = os.getenv("SECRET_KEY")
+if SECRET_KEY is None:
+    raise ValueError("SECRET_KEY not set in environment")
+
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./boggle.db")
+```
+
+### Security practices implemented
+
+✅ **Password hashing**: bcrypt with automatic salt generation
+✅ **JWT tokens**: 30-day expiration, HS256 signing
+✅ **Environment variables**: Secrets never committed to git
+✅ **Protected endpoints**: Authentication required for game creation/joining
+✅ **UUID user IDs**: Not guessable/enumerable
+✅ **Token validation**: Signature verification, expiration checking
+✅ **HTTPBearer security**: Standard Authorization header format
+✅ **Database session security**: Proper dependency injection prevents leaks
+
+### Next session
+
+**Database Refactoring (Week 5 Part 4):**
+
+Currently: Games stored in memory (`games: Dict[str, Dict] = {}`)
+Target: Games persisted in database (survive server restarts)
+
+Plan:
+1. Refactor `POST /games` to create Game record in database
+2. Refactor `POST /games/{id}/players` to create GamePlayer records
+3. Refactor `POST /games/{id}/start` to update Game status
+4. Refactor `GET /games/{id}` to query from database
+5. Refactor `GET /games/{id}/results` to query GamePlayer records
+6. Handle WebSocket word submission with database updates
+7. Update all tests for database-backed games
+8. Verify games persist after server restart
+
+Design document already created: `docs/database-game-storage-design.md`
+
+**After Database Refactoring:**
+- Week 6: Deployment to Fly.io with PostgreSQL
+- Docker containerization
+- Production environment setup
+- Database migrations with Alembic
+
+### Blockers/Questions
+
+None! All blockers from Day 3 resolved.
+
+### Time spent
+
+~3 hours (test fixture debugging, factory pattern implementation, environment setup, documentation)
+
+### Reflection
+
+**Major breakthrough day!** Solved both critical testing issues and completed authentication.
+
+**Key Insights:**
+
+1. **Debugging is about finding root causes, not adding workarounds**
+   - Spent time understanding SQLAlchemy pooling
+   - Spent time understanding FastAPI dependency injection
+   - Both problems had simple solutions once root cause identified
+   - Rushing to "fixes" would have created more problems
+
+2. **Framework design decisions matter**
+   - FastAPI's dependency injection is elegant and powerful
+   - Fighting against it (manual calls) breaks things
+   - Working with it (factory pattern) solves problems cleanly
+
+3. **Database growth concerns are valid but not urgent**
+   - Amritansh's questions about DB size and transaction logs were excellent
+   - Shows good systems thinking
+   - Answer: Storage is cheap, data is valuable, keep everything
+   - Only optimize if you have millions of users (good problem!)
+
+4. **Documentation pays off**
+   - Created `docs/testing-database-issues.md` for future reference
+   - These issues are subtle and easy to forget
+   - Now we have a reference for similar problems
+
+5. **Test-Driven Development reveals integration issues early**
+   - Both database issues found because we wrote tests first
+   - Better to find these in development than production!
+   - TDD takes more time upfront but saves debugging later
+
+**Authentication Status:**
+- ✅ Password hashing (bcrypt)
+- ✅ JWT token generation/validation
+- ✅ Registration endpoint
+- ✅ Login endpoint
+- ✅ Protected endpoints (games require authentication)
+- ✅ Environment variable configuration
+- ✅ Test database fixture working
+- ✅ All 27 auth tests passing
+- ⏳ Database refactoring (games to DB instead of memory)
+- ⏳ Cloud deployment
+
+**We're ready for production deployment!** Once we refactor game storage to use the database, we can deploy to Fly.io with PostgreSQL.
+
+Week 5 Day 4 complete! 🎉
+
+---
