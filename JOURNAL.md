@@ -3059,3 +3059,359 @@ We now have a production-ready multiplayer Boggle game with authentication, auth
 Week 5 Day 5 complete!
 
 ---
+
+## Week 6 Day 1: Docker & Fly.io Deployment (November 1, 2025)
+
+### Goal
+Deploy the Boggle API to Fly.io with PostgreSQL database in production.
+
+### What We Built
+
+**Docker Containerization:**
+1. Created comprehensive Dockerfile with multi-stage build strategy
+2. Added docker-entrypoint.sh for automatic database initialization
+3. Tested locally with both SQLite and PostgreSQL
+
+**Fly.io Deployment:**
+1. Created Fly.io app: `boggle-game-ar`
+2. Provisioned PostgreSQL cluster: `boggle-db`
+3. Configured secrets and environment variables
+4. Deployed successfully to https://boggle-game-ar.fly.dev
+
+**Database Compatibility:**
+1. Updated database.py to conditionally apply SQLite PRAGMA
+2. Added psycopg2-binary for PostgreSQL support
+3. Ensured same code works with both SQLite and PostgreSQL
+
+### Challenges Faced
+
+#### Challenge 1: PostgreSQL Connection String Format
+
+**Problem:** After deployment, app kept crashing with:
+```
+sqlalchemy.exc.NoSuchModuleError: Can't load plugin: sqlalchemy.dialects:postgres
+```
+
+**Root Cause Analysis:**
+- Fly.io's `postgres attach` command set: `postgres://...`
+- SQLAlchemy 2.0+ requires: `postgresql://...`
+- The scheme `postgres://` is deprecated and no longer recognized
+
+**Solution:**
+```bash
+flyctl secrets set DATABASE_URL="postgresql://user:pass@host:5432/db"
+```
+
+**Learning:** Always verify connection string formats when working with different tools. Fly.io uses the old scheme, but modern SQLAlchemy requires the new one.
+
+#### Challenge 2: Database Initialization on Startup
+
+**Problem:** Need to create database tables automatically when container starts, but Dockerfile only ran uvicorn.
+
+**Analysis:**
+- Can't run init_db during Docker build (no DATABASE_URL at build time)
+- Must run init_db at container startup (runtime, when secrets available)
+- Need to run before uvicorn starts
+
+**Solution:** Created docker-entrypoint.sh:
+```bash
+#!/bin/bash
+set -e
+echo "Initializing database..."
+python -m src.init_db
+echo "Starting uvicorn..."
+exec uvicorn src.api_server:app --host 0.0.0.0 --port 8000
+```
+
+**Learning:** Use entrypoint scripts for runtime initialization that requires environment variables or secrets.
+
+### Key Technical Insights
+
+#### 1. Docker Multi-Stage Build Strategy
+
+**Layer Caching Optimization:**
+```dockerfile
+# Copy dependencies FIRST (changes rarely)
+COPY pyproject.toml ./
+RUN pip install ...
+
+# Copy code LAST (changes frequently)
+COPY src/ ./src/
+```
+
+**Why This Matters:**
+- Docker caches layers from top to bottom
+- If pyproject.toml doesn't change, dependencies layer is reused
+- Only code layers rebuild on changes (much faster!)
+
+#### 2. SQLite vs PostgreSQL Compatibility
+
+**Key Difference - Foreign Keys:**
+```python
+# SQLite doesn't enforce foreign keys by default
+if DATABASE_URL.startswith("sqlite"):
+    @event.listens_for(engine, "connect")
+    def set_sqlite_pragma(dbapi_conn, connection_record):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+```
+
+**Learning:** SQLite and PostgreSQL have different defaults. Write conditional code for database-specific features.
+
+#### 3. Fly.io Architecture
+
+**Key Concepts:**
+- **Machines:** Individual VM instances running your app
+- **Regions:** Physical locations (sjc = San Jose)
+- **Secrets:** Encrypted environment variables
+- **Internal Network:** Apps communicate via `.internal` or `.flycast` domains
+
+**Deployment Flow:**
+1. Build Docker image (on Fly.io's builders)
+2. Push to Fly.io registry
+3. Create/update machines with new image
+4. Machines pull image and start
+
+#### 4. Connection String Anatomy
+
+```
+postgresql://user:password@host:port/database?sslmode=disable
+         │       │         │    │      │              │
+       scheme   auth     host  port  dbname       options
+```
+
+**Schemes:**
+- `postgresql://` - Modern SQLAlchemy 2.0+
+- `postgres://` - Legacy (still used by many tools)
+- `sqlite:///` - SQLite relative path
+- `sqlite:////` - SQLite absolute path
+
+### Dockerfile Best Practices Learned
+
+1. **Use Specific Base Images**
+   - `python:3.12-slim` not `python:latest`
+   - Ensures reproducible builds
+
+2. **Install System Dependencies First**
+   ```dockerfile
+   RUN apt-get update && apt-get install -y \
+       libpq-dev gcc \
+       && rm -rf /var/lib/apt/lists/*
+   ```
+   - Combine into single RUN (fewer layers)
+   - Clean up apt cache (smaller image)
+
+3. **Don't Copy Unnecessary Files**
+   - Use `.dockerignore` to exclude tests, .git, etc.
+   - Keeps image small and build fast
+
+4. **Use `--system` with uv in Containers**
+   - No need for venv inside container
+   - Container itself is isolated environment
+
+5. **Set PYTHONUNBUFFERED=1**
+   - See logs in real-time
+   - Critical for debugging production issues
+
+6. **Use exec form for CMD**
+   ```dockerfile
+   CMD ["./docker-entrypoint.sh"]  # Good (exec form)
+   CMD ./docker-entrypoint.sh       # Bad (shell form)
+   ```
+   - Exec form allows proper signal handling (SIGTERM for graceful shutdown)
+
+### Fly.io Learnings
+
+1. **Secrets vs Environment Variables**
+   - Secrets: Encrypted, for sensitive data (DATABASE_URL, SECRET_KEY)
+   - Env vars: Public, set in fly.toml (PORT, PYTHONUNBUFFERED)
+
+2. **Database Attachment**
+   ```bash
+   flyctl postgres attach --app myapp mydb
+   ```
+   - Automatically creates database
+   - Automatically creates user
+   - Automatically sets DATABASE_URL secret
+   - But uses deprecated `postgres://` scheme (need to fix!)
+
+3. **Free Tier Limits**
+   - 256MB RAM per machine
+   - Shared CPU
+   - 1GB PostgreSQL storage
+   - More than enough for learning/small projects
+
+4. **Machine Auto-Start/Stop**
+   - Can auto-stop when idle (save resources)
+   - Can auto-start on HTTP request
+   - We disabled for consistent availability
+
+### Testing Strategy
+
+**Verified Deployment:**
+1. ✅ HTTP 200 from /docs endpoint
+2. ✅ User registration works
+3. ✅ Login returns JWT token
+4. ✅ Authenticated game creation works
+5. ✅ Data persists in PostgreSQL
+
+**Testing Commands:**
+```bash
+# Test API is responding
+curl -s -o /dev/null -w "%{http_code}" https://boggle-game-ar.fly.dev/docs
+
+# Test registration
+curl -X POST https://boggle-game-ar.fly.dev/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"test","email":"test@example.com","password":"pass123"}'
+
+# Test login
+curl -X POST https://boggle-game-ar.fly.dev/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"test","password":"pass123"}'
+
+# Test authenticated endpoint
+curl -X POST https://boggle-game-ar.fly.dev/games \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"board_size":4,"time_limit_seconds":180,"max_players":4}'
+```
+
+### What Worked Well
+
+1. **Systematic Debugging**
+   - Read error messages carefully (they contained the solution!)
+   - Tested hypothesis (connection string format) and verified
+   - Didn't add workarounds, fixed root cause
+
+2. **Incremental Approach**
+   - First: Docker locally with SQLite ✓
+   - Then: Docker locally with PostgreSQL ✓
+   - Finally: Deploy to Fly.io with PostgreSQL ✓
+   - Each step validated before moving forward
+
+3. **Clear Documentation**
+   - Comprehensive comments in Dockerfile
+   - Detailed commit message explaining what/why
+   - fly.toml documented for future reference
+
+### What To Remember
+
+1. **SQLAlchemy Connection Strings**
+   - Always use `postgresql://` not `postgres://`
+   - Fly.io attach gives old format - must fix manually
+
+2. **Runtime Initialization**
+   - Use entrypoint scripts for database setup
+   - Can't do it in Dockerfile (no secrets at build time)
+   - Always use `set -e` in bash scripts (fail fast)
+
+3. **Docker Build Context**
+   - Everything in directory is sent to Docker daemon
+   - Use .dockerignore to exclude unnecessary files
+   - Reduces build time and image size
+
+4. **Fly.io Billing Required**
+   - Even for free tier, must add payment method
+   - Database provisioning requires billing setup
+   - No charges for staying within free tier limits
+
+### Project Status Update
+
+**Deployment Complete:**
+- ✅ Docker containerization with PostgreSQL support
+- ✅ Fly.io production deployment
+- ✅ PostgreSQL database in production
+- ✅ Automatic schema initialization
+- ✅ HTTPS with custom domain
+- ✅ All endpoints tested and working
+- ⏸️ Alembic migrations (future enhancement)
+
+**Live URLs:**
+- Production API: https://boggle-game-ar.fly.dev
+- API Documentation: https://boggle-game-ar.fly.dev/docs
+
+**Architecture:**
+```
+[Internet] → [Fly.io Proxy (HTTPS)] → [App Machine (uvicorn)]
+                                          ↓
+                                    [PostgreSQL Cluster]
+                                    (internal network)
+```
+
+### Next Steps (Optional Enhancements)
+
+1. **Database Migrations**
+   - Add Alembic for schema versioning
+   - Track schema changes in version control
+
+2. **Health Checks**
+   - Add `/health` endpoint
+   - Configure Fly.io health checks in fly.toml
+
+3. **Monitoring**
+   - Set up error tracking (Sentry)
+   - Configure log aggregation
+
+4. **CI/CD**
+   - Automated testing on push
+   - Automated deployment on main branch merge
+
+5. **Database Backups**
+   - Configure automated PostgreSQL backups
+   - Test restore procedure
+
+### Reflection
+
+**Major Milestone Achieved!** The Boggle API is now live in production with a real PostgreSQL database.
+
+**Key Learnings:**
+
+1. **Docker is About Reproducibility**
+   - Same container runs identically everywhere
+   - "Works on my machine" becomes "works in any container"
+   - Build once, deploy anywhere
+
+2. **Read Error Messages Carefully**
+   - "Can't load plugin: sqlalchemy.dialects:postgres"
+   - This literally told us the problem (postgres vs postgresql)
+   - Solution was in the error message all along
+
+3. **Secrets Management is Critical**
+   - Never commit secrets to git
+   - Use platform secret managers (Fly.io secrets)
+   - Reference via environment variables only
+
+4. **Database Portability Requires Thought**
+   - SQLite and PostgreSQL have different behaviors
+   - Write conditional code for database-specific features
+   - Test with both databases before production
+
+5. **Entrypoint Scripts are Powerful**
+   - Initialize runtime resources (database, caches)
+   - Run migrations or setup
+   - Then exec into main process (proper signal handling)
+
+**What Surprised Me:**
+
+- Fly.io still uses deprecated `postgres://` scheme
+- Database attachment is automatic but needs manual fix
+- Docker layer caching is really important for iteration speed
+- Entrypoint scripts must use `exec` for proper process management
+
+**Production Ready!**
+
+We now have:
+- ✅ Containerized application
+- ✅ Production PostgreSQL database
+- ✅ Encrypted secrets management
+- ✅ HTTPS with automatic redirect
+- ✅ Tested authentication flow
+- ✅ Verified data persistence
+
+The Boggle API is officially deployed and production-ready! 🚀🎉
+
+Week 6 Day 1 complete!
+
+---
