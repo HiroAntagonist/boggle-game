@@ -6,47 +6,7 @@ This file tracks known issues, shortcuts, and improvements we want to make later
 
 ## High Priority
 
-### 1. WebSocket Message Validation (Week 3-4)
-
-**Issue**: WebSocket messages use informal JSON with no type validation
-
-**Current state**:
-- Messages are plain JSON dicts: `{"type": "submit_word", "word": "CAT"}`
-- No Pydantic models for WebSocket messages
-- No validation of incoming messages
-- Easy to make mistakes with field names/types
-
-**Why it's a problem**:
-- No type safety
-- Client must guess message structure
-- Hard to document
-- Easy to introduce bugs
-
-**What needs to be done**:
-1. Create `src/ws_models.py` with Pydantic models for all WebSocket messages:
-   - Client → Server: `SubmitWordMessage`, `GetStateMessage`
-   - Server → Client: `WordResultMessage`, `WordSubmittedMessage`, `GameStateMessage`, etc.
-2. Add validation in `api_server.py` WebSocket handler
-3. Update tests to use typed messages
-
-**Estimated effort**: 1-2 hours
-
-**Example**:
-```python
-# ws_models.py
-class SubmitWordMessage(BaseModel):
-    type: Literal["submit_word"]
-    word: str = Field(min_length=1, max_length=20)
-
-class WordResultMessage(BaseModel):
-    type: Literal["word_result"]
-    word: str
-    valid: bool
-    score: int
-    message: str
-```
-
-**Reference**: See REST API models in `src/api_models.py` for the pattern to follow
+None currently! All high-priority items completed.
 
 ---
 
@@ -319,6 +279,34 @@ class WordResultMessage(BaseModel):
 - Provisional scores: Stored in DB during gameplay, don't account for cross-player duplicates
 - Final scoring: Deferred to results endpoint or finalization logic (see item #4)
 - Reconnection: Reload words from DB, rebuild Player object (score sync TBD)
+
+---
+
+### 3. WebSocket Message Validation (Week 5 Day 5) - COMPLETED 2025-10-31
+
+**Issue**: WebSocket messages used informal JSON with no type validation
+
+**Resolution**: Created Pydantic models for all WebSocket message types, providing type safety and automatic validation.
+
+**Implementation**:
+- Created `src/ws_models.py` with Pydantic models for all message types:
+  - Client → Server: `SubmitWordMessage`, `GetStateMessage`
+  - Server → Client: `WordResultMessage`, `WordSubmittedMessage`, `GameStateMessage`, `PlayerConnectedMessage`, `PlayerDisconnectedMessage`
+- Updated WebSocket handler to validate incoming messages with try/catch
+- Use `model_dump_json()` for type-safe outgoing messages
+- Added error responses for invalid message format
+
+**Files changed**:
+- `src/ws_models.py` - New file with 7 Pydantic models
+- `src/api_server.py` - WebSocket handler validates all messages
+- `tests/test_websocket.py` - Added validation tests
+- All 132 tests passing (100%)
+
+**Benefits**:
+- Type safety for WebSocket messages
+- Clear API contract documentation via Pydantic models
+- Better error messages for clients (field validation, length constraints)
+- Validation happens automatically - can't forget to validate
 
 ---
 
