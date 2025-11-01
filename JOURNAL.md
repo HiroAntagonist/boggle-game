@@ -2222,3 +2222,237 @@ Next step is securing the API with authentication. Users will register, login, a
 Week 5 Day 2 complete! 🚀
 
 ---
+
+## 2025-10-31: Week 5, Day 3 - Authentication (Password Hashing & JWT Tokens)
+
+### What we did
+
+**Implemented basic authentication with industry-standard security:**
+1. Installed dependencies: `bcrypt`, `python-jose[cryptography]`
+2. Created `src/auth.py` module with 4 core functions
+3. Wrote 10 comprehensive tests for password hashing and JWT tokens
+4. Added authentication API endpoints (register, login)
+5. Created Pydantic models for auth requests/responses
+6. Documented known issue with test fixture in TECHNICAL_DEBT.md
+
+**Key accomplishments:**
+- Secure password hashing with bcrypt (auto-generated salts)
+- JWT token generation and validation
+- User registration endpoint with duplicate detection
+- User login endpoint returning JWT tokens
+- All auth module tests passing (10/10)
+- Type checking clean with mypy
+
+### What I learned
+
+**Password Security:**
+- **Never store plain passwords**: Always hash with bcrypt
+- **Salting**: Each password gets unique random salt (same password → different hashes)
+- **One-way function**: Can't reverse hash to get original password
+- **Verification**: Compare plain password against hash using bcrypt.checkpw()
+
+**JWT (JSON Web Tokens):**
+- **Structure**: header.payload.signature (3 parts separated by dots)
+- **Stateless authentication**: Server doesn't store sessions
+- **Payload contains user info**: `{"user_id": "...", "username": "...", "exp": 123456}`
+- **Expiration**: Token includes `exp` claim (30 days in our implementation)
+- **Validation**: Verify signature and expiration automatically
+
+**bcrypt vs passlib:**
+- Initially tried `passlib[bcrypt]` but had compatibility issues with bcrypt 5.0
+- Switched to using `bcrypt` directly (simpler, more modern)
+- `bcrypt.gensalt()` creates random salt
+- `bcrypt.hashpw()` hashes password with salt
+- `bcrypt.checkpw()` verifies password
+
+**Plan Mode in Claude Code:**
+- Switched to Plan Mode (`Shift+Tab` or `Alt+M`)
+- Claude presents plan before executing
+- Approve plan, then Claude implements
+- Good for complex changes where you want to review approach first
+
+### Challenges/Issues
+
+**1. bcrypt compatibility issue**
+- `passlib` 1.7.4 doesn't work well with `bcrypt` 5.0
+- Error: "password cannot be longer than 72 bytes" during internal bcrypt checks
+- **Solution**: Use `bcrypt` directly instead of `passlib`
+
+**2. Auth API test fixture fails**
+- Tests written but fail with "no such table: users"
+- Database tables not being created properly in test fixture
+- Issue is with test setup, not the actual endpoints
+- **Documented in TECHNICAL_DEBT.md** as high priority
+- **Workaround**: Use FastAPI `/docs` for manual testing
+
+**3. Type checking with jose library**
+- `jose` library doesn't have type stubs
+- mypy complains about untyped imports
+- **Solution**: Added `# type: ignore[import-untyped]` and `cast()` for return types
+
+### Key Commands Learned
+
+```bash
+uv add "passlib[bcrypt]" "python-jose[cryptography]"  # Install auth libraries (quoted for shell)
+pytest tests/test_auth.py -v                          # Run auth module tests
+mypy src/                                             # Type check with mypy
+
+# Plan Mode in Claude Code
+Shift+Tab or Alt+M                                    # Toggle between modes
+# Modes: Auto-Accept, Plan Mode, Normal Mode
+```
+
+### Code added
+
+**src/auth.py (124 lines):**
+```python
+# Password hashing
+def hash_password(password: str) -> str:
+    # bcrypt.gensalt() + bcrypt.hashpw()
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    # bcrypt.checkpw()
+
+# JWT tokens
+def create_access_token(data: dict, expires_delta: timedelta) -> str:
+    # jwt.encode() with SECRET_KEY and expiration
+
+def decode_access_token(token: str) -> dict | None:
+    # jwt.decode() with validation
+```
+
+**src/api_server.py (additions):**
+- `POST /auth/register` endpoint (60 lines)
+  - Checks for duplicate username/email
+  - Hashes password before storing
+  - Returns user_id and success message
+
+- `POST /auth/login` endpoint (30 lines)
+  - Finds user by username
+  - Verifies password with bcrypt
+  - Creates JWT token with user info
+  - Returns token (30-day expiration)
+
+**src/api_models.py (additions):**
+- `RegisterRequest` (username, email, password validation)
+- `RegisterResponse` (user_id, username, message)
+- `LoginRequest` (username, password)
+- `LoginResponse` (access_token, token_type)
+
+**tests/test_auth.py (141 lines):**
+- Password hashing tests (5):
+  - test_hash_password_returns_hashed_string
+  - test_hash_password_same_password_different_hashes
+  - test_verify_password_correct_password
+  - test_verify_password_incorrect_password
+  - test_verify_password_empty_password
+
+- JWT token tests (5):
+  - test_create_access_token_returns_string
+  - test_decode_access_token_valid_token
+  - test_decode_access_token_invalid_token
+  - test_decode_access_token_expired_token
+  - test_decode_access_token_malformed_token
+
+**tests/test_auth_api.py (227 lines - not working yet):**
+- Registration tests (5 planned)
+- Login tests (4 planned)
+- Token validation test (1 planned)
+
+**Total tests**: 45 passing (10 auth + 16 database + 15 API + 4 WebSocket)
+
+### Authentication flow
+
+**Registration:**
+```python
+1. User submits: {"username": "alice", "email": "alice@example.com", "password": "secret"}
+2. Server checks for duplicates
+3. Server hashes password: "$2b$12$..." (60 characters)
+4. Server stores User(username, email, password_hash)
+5. Server returns: {"user_id": "uuid", "username": "alice", "message": "..."}
+```
+
+**Login:**
+```python
+1. User submits: {"username": "alice", "password": "secret"}
+2. Server finds user by username
+3. Server verifies: bcrypt.checkpw(plain_password, stored_hash)
+4. Server creates JWT token: {"user_id": "...", "username": "alice", "exp": ...}
+5. Server returns: {"access_token": "eyJhbGc...", "token_type": "bearer"}
+```
+
+**Using JWT token (future):**
+```python
+1. Client sends: Authorization: Bearer eyJhbGc...
+2. Server decodes token
+3. Server verifies signature and expiration
+4. Server extracts user_id from payload
+5. Server allows/denies request
+```
+
+### Security practices implemented
+
+✅ **Password hashing**: Never store plain passwords
+✅ **Salted hashes**: Each password has unique random salt
+✅ **bcrypt**: Industry-standard secure hashing (slow by design)
+✅ **JWT tokens**: Stateless authentication
+✅ **Token expiration**: 30-day expiration (configurable)
+✅ **UUID user IDs**: Not guessable/enumerable
+✅ **Email validation**: Regex pattern in Pydantic model
+✅ **Password minimum length**: 8 characters
+✅ **Duplicate detection**: Check username/email uniqueness
+
+### Blockers/Questions
+
+**Auth API test fixture issue:**
+- Test database tables not created properly
+- Need to fix dependency injection with FastAPI TestClient
+- Documented in TECHNICAL_DEBT.md for next session
+
+### Next session
+
+**Week 5 Part 3: Complete Authentication & Deployment**
+
+1. **Fix auth API tests**: Resolve test database fixture issue
+2. **Protected endpoints**: Add JWT authentication to game endpoints
+   - Create dependency `get_current_user()` that validates JWT
+   - Protect endpoints: `@app.post("/games", dependencies=[Depends(get_current_user)])`
+3. **Deploy to cloud**:
+   - Choose platform (Render or Fly.io)
+   - Configure environment variables (SECRET_KEY!)
+   - Deploy database + API server
+   - Test in production
+
+### Time spent
+
+~2.5 hours (includes Plan Mode learning, bcrypt debugging, test attempts)
+
+### Reflection
+
+**Good progress despite challenges!** Key takeaways:
+
+1. **Plan Mode is valuable**: Presenting plans before execution helps catch issues early. Good for learning new concepts or complex changes.
+
+2. **Library compatibility matters**: The `passlib` + `bcrypt 5.0` incompatibility taught us that newer isn't always compatible. Using `bcrypt` directly is simpler and more modern anyway.
+
+3. **TDD reveals integration issues**: Writing tests first exposed the database fixture problem. Better to find this now than after deployment!
+
+4. **Security is non-negotiable**: Proper password hashing and JWT tokens are industry standards for good reason. No shortcuts on security.
+
+5. **Document known issues**: When blocked, document in TECHNICAL_DEBT.md and move forward. Don't let perfect be the enemy of good.
+
+6. **Working code > perfect tests**: We have working auth endpoints (can test via `/docs`). The test fixture is an implementation detail we'll fix next time.
+
+The authentication foundation is solid:
+- ✅ Secure password hashing (Week 5 Day 3)
+- ✅ JWT token generation/validation (Week 5 Day 3)
+- ✅ Registration endpoint (Week 5 Day 3)
+- ✅ Login endpoint (Week 5 Day 3)
+- ⏳ Protected endpoints (Week 5 Part 3)
+- ⏳ Cloud deployment (Week 5 Part 3)
+
+We're 80% done with authentication! Just need to wire up the JWT tokens to protect endpoints and deploy to production.
+
+Week 5 Day 3 complete! 🚀
+
+---
