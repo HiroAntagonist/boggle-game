@@ -137,6 +137,174 @@ None currently! All high-priority items completed.
 
 ## Low Priority
 
+### 7. Database Migrations with Alembic (Week 6 Day 1)
+
+**Issue**: No database migration tooling for schema changes in production
+
+**Current state**:
+- Using `Base.metadata.create_all(bind=engine)` in docker-entrypoint.sh
+- Works great for initial deployment and empty databases
+- No way to safely update schema in production without losing data
+- Schema changes require manual SQL or dropping/recreating tables
+
+**What's missing**:
+- Alembic migration framework
+- Version-controlled schema changes
+- Upgrade/downgrade scripts for each change
+- Migration tracking in database
+
+**Why it's needed**:
+- Safe schema updates in production (no data loss)
+- Track schema changes over time
+- Rollback capability if migrations fail
+- Team synchronization on schema versions
+- Standard practice for production applications
+
+**What needs to be done**:
+1. Install Alembic: `uv add alembic`
+2. Initialize Alembic: `alembic init alembic`
+3. Configure `alembic.ini` with database URL
+4. Generate initial migration from current schema
+5. Update docker-entrypoint.sh to run `alembic upgrade head`
+6. Test migration workflow locally
+7. Document migration process in README
+8. Redeploy to Fly.io with migration support
+
+**Example use cases**:
+- Adding `bio` field to User table
+- Creating new `game_stats` table
+- Adding indexes for performance
+- Renaming columns
+- Adding foreign key constraints
+
+**Estimated effort**: 2-3 hours (setup + testing)
+
+**Priority**: Low for now (no schema changes planned), High when we need to modify schema
+
+---
+
+### 8. Health Check Endpoint (Week 6 Day 1)
+
+**Issue**: No health check endpoint for monitoring and orchestration
+
+**Current state**:
+- Fly.io has no configured health checks
+- No way to verify app is responding correctly
+- No database connectivity check
+- Manual verification required
+
+**What's missing**:
+- `/health` endpoint that returns app status
+- Database connectivity check
+- Dependency status (dictionary loaded, etc.)
+- Response time metrics
+- Proper HTTP status codes
+
+**Why it's needed**:
+- Fly.io health checks for auto-restart on failures
+- Load balancer routing decisions
+- Monitoring and alerting
+- Quick verification after deployment
+- Debugging production issues
+
+**What needs to be done**:
+1. Create `/health` GET endpoint
+2. Check database connection (simple query)
+3. Check critical dependencies (dictionary loaded)
+4. Return JSON with status details:
+   ```json
+   {
+     "status": "healthy",
+     "database": "connected",
+     "dictionary_loaded": true,
+     "uptime_seconds": 3600
+   }
+   ```
+5. Return 200 for healthy, 503 for unhealthy
+6. Update fly.toml with health check configuration:
+   ```toml
+   [[services.http_checks]]
+     interval = "10s"
+     timeout = "2s"
+     grace_period = "5s"
+     method = "GET"
+     path = "/health"
+   ```
+7. Add tests for health endpoint
+8. Redeploy to Fly.io
+
+**Estimated effort**: 1 hour
+
+**Priority**: Low (app is stable), Medium for production best practices
+
+---
+
+### 9. Monitoring and Logging (Week 6 Day 1)
+
+**Issue**: No structured logging, monitoring, or error tracking
+
+**Current state**:
+- Basic print/logging to stdout
+- Fly.io collects logs but no structure
+- No error tracking or alerting
+- No performance metrics
+- No visibility into production issues
+
+**What's missing**:
+- Structured logging (JSON format)
+- Error tracking service (Sentry)
+- Performance monitoring (request timing)
+- Database query monitoring
+- WebSocket connection metrics
+- Alert notifications for errors
+
+**Why it's needed**:
+- Debug production issues quickly
+- Proactive error detection
+- Performance optimization insights
+- User experience monitoring
+- Compliance and audit trails
+
+**What needs to be done**:
+
+**Phase 1: Structured Logging (1 hour)**
+1. Configure Python logging with JSON formatter
+2. Add request IDs for tracing
+3. Log key events: game start, word submission, errors
+4. Include context: user_id, game_id, timestamp
+
+**Phase 2: Error Tracking (1 hour)**
+1. Sign up for Sentry (free tier)
+2. Install: `uv add sentry-sdk`
+3. Configure Sentry in FastAPI app
+4. Add SENTRY_DSN to Fly.io secrets
+5. Test error capture and notifications
+
+**Phase 3: Metrics (2 hours)**
+1. Add Prometheus metrics endpoint
+2. Track: request count, latency, active games, connected players
+3. Optional: Set up Grafana dashboard
+
+**Phase 4: Alerts (1 hour)**
+1. Configure Sentry alerts for error rate spikes
+2. Set up email/Slack notifications
+3. Define alert thresholds
+
+**Tools to consider**:
+- Sentry (error tracking) - Free tier available
+- Prometheus + Grafana (metrics) - Self-hosted or managed
+- Fly.io built-in metrics - Available in dashboard
+- LogDNA / Datadog (log aggregation) - Paid
+
+**Estimated effort**:
+- Basic logging: 1 hour
+- Sentry: 1 hour
+- Full monitoring stack: 5-6 hours
+
+**Priority**: Low for learning project, High for production with real users
+
+---
+
 ### 5. Authorization & Game Privacy (Week 5 Day 4)
 
 **Issue**: Currently implementing participant-only access, but future enhancements needed
@@ -372,4 +540,4 @@ None currently! All high-priority items completed.
 
 ---
 
-**Last Updated**: 2025-10-31 (Week 5 Day 3)
+**Last Updated**: 2025-11-01 (Week 6 Day 1)
