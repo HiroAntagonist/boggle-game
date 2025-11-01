@@ -88,11 +88,17 @@ ENV PORT=8000
 EXPOSE 8000
 
 # ============================================================================
-# Stage 9: Define Startup Command
+# Stage 9: Copy Entrypoint Script
+# ============================================================================
+COPY docker-entrypoint.sh ./
+RUN chmod +x docker-entrypoint.sh
+
+# ============================================================================
+# Stage 10: Define Startup Command
 # ============================================================================
 # This command runs when the container starts
 # We use the "exec form" (JSON array) for proper signal handling
-CMD ["uvicorn", "src.api_server:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["./docker-entrypoint.sh"]
 
 # Why --host 0.0.0.0?
 # - Makes the server accessible from outside the container

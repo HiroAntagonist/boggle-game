@@ -1,0 +1,61 @@
+# Fly.io deployment configuration
+# Documentation: https://fly.io/docs/reference/configuration/
+
+# App name (must be globally unique on Fly.io)
+# This becomes your URL: https://boggle-game-ar.fly.dev
+app = 'boggle-game-ar'
+
+# Primary region where your app will run
+# Options:
+#   - sjc (San Jose, CA) - West Coast US
+#   - ord (Chicago) - Central US
+#   - iad (Virginia) - East Coast US
+#   - lhr (London) - Europe
+#   - syd (Sydney) - Australia
+primary_region = 'sjc'
+
+# Build configuration - use our Dockerfile
+[build]
+
+# Environment variables (non-secret)
+# Secrets (like SECRET_KEY, DATABASE_URL) are set via flyctl secrets
+[env]
+  PORT = '8000'
+  PYTHONUNBUFFERED = '1'
+
+# HTTP service configuration
+[[services]]
+  # Health check - Fly.io will ping this to verify app is healthy
+  # We don't have a /health endpoint, so we'll use /docs
+  http_checks = []
+
+  # Internal port your app listens on (matches Dockerfile EXPOSE)
+  internal_port = 8000
+
+  # Protocol
+  protocol = 'tcp'
+
+  # Autostop/autostart - keep app running
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  # Port mapping: HTTP traffic
+  [[services.ports]]
+    port = 80
+    handlers = ['http']
+
+    # Force HTTPS redirect
+    force_https = true
+
+  # Port mapping: HTTPS traffic
+  [[services.ports]]
+    port = 443
+    handlers = ['http', 'tls']
+
+# VM resources
+# Free tier: shared-cpu-1x with 256MB RAM
+[[vm]]
+  memory = '256mb'
+  cpu_kind = 'shared'
+  cpus = 1
