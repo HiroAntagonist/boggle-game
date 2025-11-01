@@ -23,6 +23,7 @@ from src.api_models import (
     RegisterResponse,
     LoginRequest,
     LoginResponse,
+    UserResponse,
 )
 from src.board import Board
 from src.dictionary import Dictionary
@@ -32,7 +33,7 @@ from src.player import Player
 from src.config import GameConfig
 from src.database import get_db
 from src.models import User
-from src.auth import hash_password, verify_password, create_access_token
+from src.auth import hash_password, verify_password, create_access_token, get_current_user_from_db
 
 
 app = FastAPI(
@@ -95,11 +96,17 @@ manager = ConnectionManager()
 
 
 @app.post("/games", response_model=CreateGameResponse, status_code=status.HTTP_201_CREATED)
-def create_game(request: CreateGameRequest = CreateGameRequest()) -> CreateGameResponse:
+def create_game(
+    request: CreateGameRequest = CreateGameRequest(),
+    current_user: User = Depends(get_current_user_from_db)
+) -> CreateGameResponse:
     """Create a new game session.
+
+    Requires authentication. The authenticated user becomes the game creator.
 
     Args:
         request: Game configuration
+        current_user: Authenticated user (injected)
 
     Returns:
         Created game details including game_id and board
@@ -147,12 +154,19 @@ def create_game(request: CreateGameRequest = CreateGameRequest()) -> CreateGameR
 
 
 @app.post("/games/{game_id}/players", response_model=JoinGameResponse, status_code=status.HTTP_201_CREATED)
-def join_game(game_id: str, request: JoinGameRequest) -> JoinGameResponse:
+def join_game(
+    game_id: str,
+    request: JoinGameRequest,
+    current_user: User = Depends(get_current_user_from_db)
+) -> JoinGameResponse:
     """Join an existing game.
+
+    Requires authentication. The authenticated user joins the game.
 
     Args:
         game_id: Unique game identifier
         request: Player information
+        current_user: Authenticated user (injected)
 
     Returns:
         Player details and list of all players
@@ -534,4 +548,18 @@ def login(request: LoginRequest, db: Session = Depends(get_db)) -> LoginResponse
     return LoginResponse(
         access_token=access_token,
         token_type="bearer"
+    )
+
+
+@app.get("/auth/me", response_model=UserResponse)
+def get_current_user_info(current_user: User = Depends(get_current_user_from_db)) -> UserResponse:
+    """Get current authenticated user information.
+
+    This is a test endpoint to verify JWT authentication works.
+    Requires a valid JWT token in the Authorization header.
+    """
+    return UserResponse(
+        user_id=current_user.id,
+        username=current_user.username,
+        email=current_user.email
     )

@@ -111,7 +111,7 @@ class Game(Base):
     status: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
-        default="waiting"  # waiting, in_progress, completed
+        default="waiting"  # waiting, in_progress, finished
     )
 
     board_size: Mapped[int] = mapped_column(
@@ -123,6 +123,18 @@ class Game(Base):
     time_limit: Mapped[Optional[int]] = mapped_column(
         Integer,
         nullable=True  # Optional: can be None (no time limit)
+    )
+
+    max_players: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=4  # Default to 4 players max
+    )
+
+    min_word_length: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=3  # Minimum word length (standard Boggle rule)
     )
 
     # GAME STATE

@@ -92,3 +92,10 @@ class LoginResponse(BaseModel):
     """Response model after successful login."""
     access_token: str
     token_type: str = "bearer"
+
+
+class UserResponse(BaseModel):
+    """Response model for user information."""
+    user_id: str
+    username: str
+    email: str

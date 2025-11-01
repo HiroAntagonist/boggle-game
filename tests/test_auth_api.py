@@ -5,6 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from src.api_server import app
 from src.database import Base, get_db
@@ -18,28 +19,31 @@ TEST_DATABASE_URL = "sqlite:///:memory:"
 @pytest.fixture
 def client():
     """Create a test client with a fresh in-memory database for each test."""
-    # Create test database
+    # Force import of all models FIRST so SQLAlchemy knows about them
+    _ = (User, Game, GamePlayer)
+
+    # Create test database engine with StaticPool
+    # StaticPool ensures all connections share the same in-memory database
     engine = create_engine(
         TEST_DATABASE_URL,
         echo=False,
-        connect_args={"check_same_thread": False}  # Needed for SQLite with FastAPI
+        connect_args={"check_same_thread": False},  # Needed for SQLite with FastAPI
+        poolclass=StaticPool,  # CRITICAL: Share same in-memory database across connections
     )
 
     # Enable foreign key constraints for SQLite
+    # Register event listener BEFORE any connections are made
     @event.listens_for(engine, "connect")
     def set_sqlite_pragma(dbapi_conn, connection_record):
         cursor = dbapi_conn.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
 
-    # Force import of all models before creating tables
-    _ = (User, Game, GamePlayer)
-
     # Create all tables
     Base.metadata.create_all(bind=engine)
 
     # Create session maker
-    TestingSessionLocal = sessionmaker(bind=engine)
+    TestingSessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
     # Override the get_db dependency to use test database
     def override_get_db():
@@ -293,3 +297,217 @@ def test_login_token_contains_user_info(client: TestClient) -> None:
     assert decoded is not None
     assert decoded["user_id"] == user_id
     assert decoded["username"] == "henry"
+
+
+# ============================================================================
+# PROTECTED ENDPOINT TESTS (get_current_user dependency)
+# ============================================================================
+
+
+def test_get_current_user_valid_token(client: TestClient) -> None:
+    """Test that valid token returns authenticated user."""
+    # Register and login
+    client.post(
+        "/auth/register",
+        json={
+            "username": "iris",
+            "email": "iris@example.com",
+            "password": "irispassword"
+        }
+    )
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "username": "iris",
+            "password": "irispassword"
+        }
+    )
+    token = login_response.json()["access_token"]
+
+    # Call protected endpoint with valid token
+    # We'll use a test endpoint that just returns the current user
+    response = client.get(
+        "/auth/me",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["username"] == "iris"
+    assert "user_id" in data
+
+
+def test_get_current_user_missing_token(client: TestClient) -> None:
+    """Test that missing token returns 401 or 403."""
+    # Call protected endpoint without token
+    response = client.get("/auth/me")
+
+    # HTTPBearer returns 403 when no Authorization header is present
+    assert response.status_code in [401, 403]
+    data = response.json()
+    assert "not authenticated" in data["detail"].lower() or "missing" in data["detail"].lower() or "forbidden" in data["detail"].lower()
+
+
+def test_get_current_user_invalid_token(client: TestClient) -> None:
+    """Test that invalid token returns 401 Unauthorized."""
+    # Call protected endpoint with fake token
+    response = client.get(
+        "/auth/me",
+        headers={"Authorization": "Bearer invalid-token-here"}
+    )
+
+    assert response.status_code == 401
+    data = response.json()
+    assert "invalid" in data["detail"].lower() or "credentials" in data["detail"].lower()
+
+
+def test_get_current_user_expired_token(client: TestClient) -> None:
+    """Test that expired token returns 401 Unauthorized."""
+    from datetime import timedelta
+    from src.auth import create_access_token
+
+    # Create token that expires in -1 seconds (already expired)
+    token_data = {"user_id": "fake-uuid", "username": "expired"}
+    expired_token = create_access_token(token_data, expires_delta=timedelta(seconds=-1))
+
+    # Call protected endpoint with expired token
+    response = client.get(
+        "/auth/me",
+        headers={"Authorization": f"Bearer {expired_token}"}
+    )
+
+    assert response.status_code == 401
+    data = response.json()
+    assert "expired" in data["detail"].lower() or "invalid" in data["detail"].lower()
+
+
+# ============================================================================
+# PROTECTED GAME ENDPOINTS TESTS
+# ============================================================================
+
+
+def test_create_game_requires_auth(client: TestClient) -> None:
+    """Test that creating a game requires authentication."""
+    # Try to create game without token
+    response = client.post("/games")
+
+    # Should require authentication
+    assert response.status_code in [401, 403]
+
+
+def test_create_game_with_auth_success(client: TestClient) -> None:
+    """Test creating a game with valid authentication."""
+    # Register and login
+    client.post(
+        "/auth/register",
+        json={
+            "username": "gamer1",
+            "email": "gamer1@example.com",
+            "password": "password123"
+        }
+    )
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "username": "gamer1",
+            "password": "password123"
+        }
+    )
+    token = login_response.json()["access_token"]
+
+    # Create game with token
+    response = client.post(
+        "/games",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert "game_id" in data
+    assert "board" in data
+    assert data["status"] == "waiting"
+
+
+def test_join_game_requires_auth(client: TestClient) -> None:
+    """Test that joining a game requires authentication."""
+    # First, create a game (with auth)
+    client.post(
+        "/auth/register",
+        json={
+            "username": "creator",
+            "email": "creator@example.com",
+            "password": "password123"
+        }
+    )
+    login_response = client.post(
+        "/auth/login",
+        json={"username": "creator", "password": "password123"}
+    )
+    token = login_response.json()["access_token"]
+
+    create_response = client.post(
+        "/games",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    game_id = create_response.json()["game_id"]
+
+    # Try to join without auth
+    response = client.post(
+        f"/games/{game_id}/players",
+        json={"player_name": "Joiner"}
+    )
+
+    # Should require authentication
+    assert response.status_code in [401, 403]
+
+
+def test_join_game_with_auth_success(client: TestClient) -> None:
+    """Test joining a game with valid authentication."""
+    # Register two users
+    client.post(
+        "/auth/register",
+        json={
+            "username": "creator",
+            "email": "creator@example.com",
+            "password": "password123"
+        }
+    )
+    client.post(
+        "/auth/register",
+        json={
+            "username": "joiner",
+            "email": "joiner@example.com",
+            "password": "password123"
+        }
+    )
+
+    # Creator logs in and creates game
+    creator_login = client.post(
+        "/auth/login",
+        json={"username": "creator", "password": "password123"}
+    )
+    creator_token = creator_login.json()["access_token"]
+
+    create_response = client.post(
+        "/games",
+        headers={"Authorization": f"Bearer {creator_token}"}
+    )
+    game_id = create_response.json()["game_id"]
+
+    # Joiner logs in and joins game
+    joiner_login = client.post(
+        "/auth/login",
+        json={"username": "joiner", "password": "password123"}
+    )
+    joiner_token = joiner_login.json()["access_token"]
+
+    response = client.post(
+        f"/games/{game_id}/players",
+        json={"player_name": "JoinerName"},
+        headers={"Authorization": f"Bearer {joiner_token}"}
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert "player_id" in data
+    assert data["player_name"] == "JoinerName"

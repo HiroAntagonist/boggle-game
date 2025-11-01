@@ -4,17 +4,22 @@
 from typing import Any, Generator
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, DeclarativeBase, Session
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # DATABASE URL
-# Format: sqlite:///path/to/file.db
-# /// means relative path, //// means absolute path
-# This creates a file called "game.db" in the project root
-DATABASE_URL = "sqlite:///game.db"
+# Format: sqlite:///path/to/file.db (/// for relative, //// for absolute)
+# For PostgreSQL: postgresql://user:password@host:port/database
+# Load from environment variable, with fallback to local SQLite for development
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./boggle.db")
 
 # ENGINE
 # The engine is the connection to the database
-# Think of it as opening a connection to a file
 # echo=True prints all SQL commands (helpful for learning!)
+# In production, set echo=False for better performance
 engine = create_engine(DATABASE_URL, echo=True)
 
 

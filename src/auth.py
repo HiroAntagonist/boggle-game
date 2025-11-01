@@ -5,15 +5,29 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 import bcrypt
 from jose import JWTError, jwt  # type: ignore[import-untyped]
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy.orm import Session
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # PASSWORD HASHING
 # bcrypt automatically handles salt generation and secure hashing
 # We use bcrypt directly (simpler than passlib)
 
 # JWT CONFIGURATION
-# In production, this should come from environment variables!
-# For now, using a hardcoded secret for development/learning
-SECRET_KEY = "your-secret-key-change-this-in-production"  # TODO: Move to env vars
+# SECRET_KEY must be set in environment variables or .env file
+# In development: use .env file
+# In production: use environment variables (never commit secrets to git)
+SECRET_KEY = os.getenv("SECRET_KEY")
+if SECRET_KEY is None:
+    raise ValueError(
+        "SECRET_KEY environment variable is not set. "
+        "Create a .env file with SECRET_KEY=your-secret-key-here"
+    )
 ALGORITHM = "HS256"  # HMAC with SHA-256
 
 
@@ -121,3 +135,122 @@ def decode_access_token(token: str) -> dict[str, Any] | None:
     except JWTError:
         # Invalid token, expired token, or malformed token
         return None
+
+
+# JWT TOKEN VALIDATION FOR PROTECTED ENDPOINTS
+
+# HTTPBearer is a FastAPI security scheme that extracts the token from
+# the Authorization header (expects "Bearer <token>" format)
+security = HTTPBearer()
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> str:
+    """Dependency that validates JWT token and returns user ID.
+
+    This extracts and validates the JWT token, returning the user_id.
+    Use get_current_user_from_db() if you need the full User object.
+
+    Args:
+        credentials: HTTP Authorization credentials (Bearer token)
+
+    Returns:
+        User ID from validated token
+
+    Raises:
+        HTTPException: 401 if token is invalid or expired
+
+    Example:
+        @app.get("/protected")
+        def protected_route(user_id: str = Depends(get_current_user)):
+            return {"user_id": user_id}
+    """
+    # Extract token from credentials
+    token = credentials.credentials
+
+    # Decode and validate token
+    payload = decode_access_token(token)
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Extract user_id from token
+    user_id: str | None = payload.get("user_id")
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return user_id
+
+
+def make_get_current_user_from_db() -> Any:
+    """Factory function that creates the get_current_user_from_db dependency.
+
+    This is needed to lazily import get_db and avoid circular imports.
+    """
+    from src.database import get_db
+    from src.models import User
+
+    def get_current_user_from_db(
+        credentials: HTTPAuthorizationCredentials = Depends(security),
+        db: Session = Depends(get_db),  # NOW this works!
+    ) -> Any:
+        """Get full User object from database for authenticated user.
+
+        This is the MAIN authentication dependency to use in protected endpoints.
+        It validates the JWT token and returns the User object from the database.
+
+        Args:
+            credentials: HTTP Authorization credentials (Bearer token)
+            db: Database session (injected by FastAPI, respects overrides)
+
+        Returns:
+            User object from database
+
+        Raises:
+            HTTPException: 401 if token is invalid, expired, or user not found
+        """
+        # Extract and validate token
+        token = credentials.credentials
+
+        # Decode and validate token
+        payload = decode_access_token(token)
+        if payload is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        # Extract user_id from token
+        user_id: str | None = payload.get("user_id")
+        if user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token payload",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        # Get user from database
+        user = db.query(User).filter(User.id == user_id).first()
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        return user
+
+    return get_current_user_from_db
+
+
+# Create the actual dependency
+get_current_user_from_db = make_get_current_user_from_db()
