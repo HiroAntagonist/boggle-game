@@ -106,9 +106,85 @@ class WordResultMessage(BaseModel):
 
 ---
 
+## Medium Priority (continued)
+
+### 4. WebSocket Database Integration (Week 5 Day 4)
+
+**Issue**: WebSocket endpoint still uses in-memory `games` dict
+
+**Current state**:
+- REST endpoints all use database (POST /games, GET /games/{id}, etc.)
+- WebSocket `/ws/{game_id}/{player_id}` still uses in-memory storage
+- 3 WebSocket tests failing, 123 other tests passing
+
+**Why it's a problem**:
+- Inconsistent with REST API
+- WebSocket games don't persist
+- Can't reconnect to games after server restart
+
+**What needs to be done**:
+1. Decide on approach:
+   - Option A: Keep Game objects in memory during active games, sync to DB periodically
+   - Option B: Reconstruct Game objects from DB on each message (simpler but slower)
+   - Option C: Move validation logic out of Game class into standalone functions
+2. Update WebSocket endpoint to load game state from database
+3. Update WebSocket endpoint to persist word submissions to GamePlayer.words_found
+4. Update WebSocket endpoint to persist scores to GamePlayer.score
+5. Handle timer state (either in-memory or calculate from started_at + time_limit)
+6. Update 3 failing WebSocket tests
+
+**Estimated effort**: 3-4 hours
+
+**Note**: Deferred from Day 4 to focus on REST API migration first
+
+---
+
 ## Low Priority
 
-### 4. REST API Client CLI (Week 3)
+### 5. Authorization & Game Privacy (Week 5 Day 4)
+
+**Issue**: Currently implementing participant-only access, but future enhancements needed
+
+**Current state** (being implemented):
+- Adding authentication to all GET endpoints
+- Adding authorization check: only game participants can view game state/results
+- Requires user to be in GamePlayer table for that game
+
+**Future enhancements to consider**:
+1. **Public Games Flag**:
+   - Add `is_public` boolean to Game model
+   - Public games visible to any authenticated user
+   - Default to private (current behavior)
+
+2. **Spectator Mode**:
+   - Generate special invite links for spectators
+   - Spectators can view but not submit words
+   - Useful for tournaments or teaching
+
+3. **Shareable Result Links**:
+   - Generate time-limited tokens for sharing final results
+   - Allow unauthenticated access to results only (not live game)
+   - Example: `/games/{id}/results?token=abc123`
+
+4. **Tournament Mode**:
+   - Games in tournaments have public results
+   - Leaderboard endpoint showing aggregate stats
+   - No individual game details exposed
+
+5. **Deleted User Handling**:
+   - What happens when a user is deleted?
+   - Do other players still see their participation?
+   - Archive games vs cascade delete?
+
+**Estimated effort**:
+- Public games flag: 1 hour
+- Spectator mode: 3-4 hours
+- Shareable result links: 2 hours
+- Tournament mode: 4-6 hours
+
+---
+
+### 6. REST API Client CLI (Week 3)
 
 **Issue**: No CLI client that uses the REST API
 

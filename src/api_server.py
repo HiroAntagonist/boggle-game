@@ -95,10 +95,37 @@ scorer = Scorer(min_word_length=3)
 manager = ConnectionManager()
 
 
+# Helper function for authorization
+def verify_game_participant(game_id: str, user_id: str, db: Session) -> None:
+    """Verify that a user is a participant in a game.
+
+    Args:
+        game_id: Game identifier
+        user_id: User identifier
+        db: Database session
+
+    Raises:
+        HTTPException: 403 if user is not a participant in the game
+    """
+    from src.models import GamePlayer
+
+    participant = db.query(GamePlayer).filter(
+        GamePlayer.game_id == game_id,
+        GamePlayer.user_id == user_id
+    ).first()
+
+    if not participant:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not a participant in this game"
+        )
+
+
 @app.post("/games", response_model=CreateGameResponse, status_code=status.HTTP_201_CREATED)
 def create_game(
     request: CreateGameRequest = CreateGameRequest(),
-    current_user: User = Depends(get_current_user_from_db)
+    current_user: User = Depends(get_current_user_from_db),
+    db: Session = Depends(get_db)
 ) -> CreateGameResponse:
     """Create a new game session.
 
@@ -107,49 +134,40 @@ def create_game(
     Args:
         request: Game configuration
         current_user: Authenticated user (injected)
+        db: Database session (injected)
 
     Returns:
         Created game details including game_id and board
     """
-    # Generate unique game ID
-    game_id = str(uuid.uuid4())[:8]
-
-    # Create game config
-    config = GameConfig(
-        board_size=request.board_size,
-        time_limit_seconds=request.time_limit_seconds,
-        max_players=request.max_players,
-        min_word_length=3
-    )
-
     # Create board
-    board = Board(size=config.board_size)
+    board = Board(size=request.board_size)
 
-    # Create game instance
-    game = Game(
-        board=board,
-        dictionary=dictionary,
-        scorer=scorer,
-        config=config
+    # Convert board to JSON for storage
+    board_data = [[cell for cell in row] for row in board.grid]
+    board_json = json.dumps(board_data)
+
+    # Create game record in database
+    from src.models import Game as GameModel
+
+    db_game = GameModel(
+        creator_id=current_user.id,
+        status="waiting",
+        board_size=request.board_size,
+        time_limit=request.time_limit_seconds,
+        max_players=request.max_players,
+        min_word_length=3,
+        board_state=board_json
     )
 
-    # Store game state
-    games[game_id] = {
-        "game": game,
-        "config": config,
-        "players": {},  # player_id -> Player object
-        "status": "waiting",
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    }
-
-    # Convert board to list of lists
-    board_data = [[cell for cell in row] for row in board.grid]
+    db.add(db_game)
+    db.commit()
+    db.refresh(db_game)
 
     return CreateGameResponse(
-        game_id=game_id,
+        game_id=db_game.id,
         board=board_data,
-        created_at=games[game_id]["created_at"],
-        status="waiting"
+        created_at=db_game.created_at.isoformat(),
+        status=db_game.status
     )
 
 
@@ -157,7 +175,8 @@ def create_game(
 def join_game(
     game_id: str,
     request: JoinGameRequest,
-    current_user: User = Depends(get_current_user_from_db)
+    current_user: User = Depends(get_current_user_from_db),
+    db: Session = Depends(get_db)
 ) -> JoinGameResponse:
     """Join an existing game.
 
@@ -167,6 +186,7 @@ def join_game(
         game_id: Unique game identifier
         request: Player information
         current_user: Authenticated user (injected)
+        db: Database session (injected)
 
     Returns:
         Player details and list of all players
@@ -174,85 +194,115 @@ def join_game(
     Raises:
         HTTPException: 404 if game not found, 400 if game is full
     """
+    from src.models import Game as GameModel, GamePlayer
+
     # Check if game exists
-    if game_id not in games:
+    db_game = db.query(GameModel).filter(GameModel.id == game_id).first()
+    if not db_game:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Game {game_id} not found"
         )
 
-    game_state = games[game_id]
-
     # Check if game is full
-    if len(game_state["players"]) >= game_state["config"].max_players:
+    current_player_count = db.query(GamePlayer).filter(GamePlayer.game_id == game_id).count()
+    if current_player_count >= db_game.max_players:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Game is full"
         )
 
-    # Generate player ID
-    player_id = str(uuid.uuid4())[:8]
+    # Check if user already joined this game
+    existing_player = db.query(GamePlayer).filter(
+        GamePlayer.game_id == game_id,
+        GamePlayer.user_id == current_user.id
+    ).first()
+    if existing_player:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You have already joined this game"
+        )
 
-    # Create player
-    player = Player(player_id=player_id, name=request.player_name)
+    # Create GamePlayer record
+    game_player = GamePlayer(
+        game_id=game_id,
+        user_id=current_user.id,
+        score=0,
+        words_found="[]"
+    )
 
-    # Add player to game
-    game_state["players"][player_id] = player
+    db.add(game_player)
+    db.commit()
+    db.refresh(game_player)
 
-    # Get list of all player names
-    player_names = [p.name for p in game_state["players"].values()]
+    # Get all players in the game
+    all_players = db.query(GamePlayer).filter(GamePlayer.game_id == game_id).all()
+    player_names = [db.query(User).filter(User.id == gp.user_id).first().username for gp in all_players]
 
     return JoinGameResponse(
-        player_id=player_id,
+        player_id=game_player.id,
         player_name=request.player_name,
         players=player_names
     )
 
 
 @app.get("/games/{game_id}", response_model=GameStateResponse)
-def get_game_state(game_id: str) -> GameStateResponse:
+def get_game_state(
+    game_id: str,
+    current_user: User = Depends(get_current_user_from_db),
+    db: Session = Depends(get_db)
+) -> GameStateResponse:
     """Get current state of a game.
+
+    Requires authentication and game participation.
 
     Args:
         game_id: Unique game identifier
+        current_user: Authenticated user (injected)
+        db: Database session (injected)
 
     Returns:
         Current game state including board, players, and status
 
     Raises:
-        HTTPException: 404 if game not found
+        HTTPException: 404 if game not found, 403 if not a participant
     """
+    from src.models import Game as GameModel, GamePlayer
+
     # Check if game exists
-    if game_id not in games:
+    db_game = db.query(GameModel).filter(GameModel.id == game_id).first()
+    if not db_game:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Game {game_id} not found"
         )
 
-    game_state = games[game_id]
+    # Verify user is a participant in this game
+    verify_game_participant(game_id, current_user.id, db)
 
-    # Convert board to list of lists
-    board = game_state["game"].board
-    board_data = [[cell for cell in row] for row in board.grid]
+    # Get board from database (stored as JSON)
+    board_data = json.loads(db_game.board_state)
 
-    # Get player names
-    player_names = [p.name for p in game_state["players"].values()]
+    # Get player names from database
+    all_players = db.query(GamePlayer).filter(GamePlayer.game_id == game_id).all()
+    player_names = [db.query(User).filter(User.id == gp.user_id).first().username for gp in all_players]
 
-    # Get time remaining (None if game not started)
+    # Calculate time remaining if game is in progress
     time_remaining = None
-    if game_state["status"] == "in_progress":
-        remaining = game_state["game"].get_remaining_time()
-        time_remaining = int(remaining) if remaining is not None else None
+    if db_game.status == "in_progress" and db_game.started_at and db_game.time_limit:
+        elapsed = (datetime.now(timezone.utc) - db_game.started_at).total_seconds()
+        remaining = db_game.time_limit - elapsed
+        time_remaining = int(remaining) if remaining > 0 else 0
 
-    # Get words by player
+    # Get words by player from database
     words_by_player = {}
-    for player_id, player in game_state["players"].items():
-        words_by_player[player_id] = player.get_words()
+    for gp in all_players:
+        words_by_player[gp.id] = json.loads(gp.words_found)
 
     return GameStateResponse(
         game_id=game_id,
         board=board_data,
-        status=game_state["status"],
+        status=db_game.status,
         players=player_names,
         time_remaining=time_remaining,
         words_by_player=words_by_player
@@ -260,83 +310,121 @@ def get_game_state(game_id: str) -> GameStateResponse:
 
 
 @app.post("/games/{game_id}/start", response_model=StartGameResponse)
-def start_game(game_id: str) -> StartGameResponse:
+def start_game(
+    game_id: str,
+    current_user: User = Depends(get_current_user_from_db),
+    db: Session = Depends(get_db)
+) -> StartGameResponse:
     """Start a game.
+
+    Requires authentication and game participation.
 
     Args:
         game_id: Unique game identifier
+        current_user: Authenticated user (injected)
+        db: Database session (injected)
 
     Returns:
         Game start confirmation with timestamp
 
     Raises:
-        HTTPException: 404 if game not found, 400 if already started
+        HTTPException: 404 if game not found, 403 if not a participant, 400 if already started
     """
+    from src.models import Game as GameModel
+
     # Check if game exists
-    if game_id not in games:
+    db_game = db.query(GameModel).filter(GameModel.id == game_id).first()
+    if not db_game:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Game {game_id} not found"
         )
 
-    game_state = games[game_id]
+    # Verify user is a participant in this game
+    verify_game_participant(game_id, current_user.id, db)
 
     # Check if game is already started
-    if game_state["status"] == "in_progress":
+    if db_game.status == "in_progress":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Game already started"
         )
 
     # Start the game
-    game_state["status"] = "in_progress"
-    game_state["game"].start_timer()
-    start_time = datetime.now(timezone.utc).isoformat()
-    game_state["start_time"] = start_time
+    db_game.status = "in_progress"
+    db_game.started_at = datetime.now(timezone.utc)
+
+    db.commit()
+    db.refresh(db_game)
 
     return StartGameResponse(
-        game_id=game_id,
-        status="in_progress",
-        start_time=start_time
+        game_id=db_game.id,
+        status=db_game.status,
+        start_time=db_game.started_at.isoformat()
     )
 
 
 @app.get("/games/{game_id}/results", response_model=GameResultsResponse)
-def get_game_results(game_id: str) -> GameResultsResponse:
+def get_game_results(
+    game_id: str,
+    current_user: User = Depends(get_current_user_from_db),
+    db: Session = Depends(get_db)
+) -> GameResultsResponse:
     """Get final game results with scores and strike-outs.
+
+    Requires authentication and game participation.
 
     Args:
         game_id: Unique game identifier
+        current_user: Authenticated user (injected)
+        db: Database session (injected)
 
     Returns:
         Results for all players including valid words and duplicates
 
     Raises:
-        HTTPException: 404 if game not found
+        HTTPException: 404 if game not found, 403 if not a participant
     """
+    from src.models import Game as GameModel, GamePlayer
+    from collections import Counter
+
     # Check if game exists
-    if game_id not in games:
+    db_game = db.query(GameModel).filter(GameModel.id == game_id).first()
+    if not db_game:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Game {game_id} not found"
         )
 
-    game_state = games[game_id]
-    game = game_state["game"]
+    # Verify user is a participant in this game
+    verify_game_participant(game_id, current_user.id, db)
 
-    # Get duplicate words (struck out)
-    duplicates = list(game.get_duplicate_words())
+    # Get all players in the game
+    all_players = db.query(GamePlayer).filter(GamePlayer.game_id == game_id).all()
+
+    # Calculate duplicates (words submitted by multiple players)
+    word_counter: Counter[str] = Counter()
+    for gp in all_players:
+        words = json.loads(gp.words_found)
+        for word in words:
+            word_counter[word] += 1
+
+    duplicates = [word for word, count in word_counter.items() if count > 1]
 
     # Build results for each player
     player_results = []
-    for player_id, player in game_state["players"].items():
-        all_words = player.get_words()
-        valid_words = game.get_player_valid_words(player)
-        score = game.get_player_score(player)
+    for gp in all_players:
+        user = db.query(User).filter(User.id == gp.user_id).first()
+        all_words = json.loads(gp.words_found)
+
+        # Valid words are those not in duplicates list
+        # NOTE: This is a simplified version - we're not validating against dictionary/board
+        # In a real implementation, we'd need to validate each word
+        valid_words = [w for w in all_words if w not in duplicates]
 
         player_results.append(PlayerResult(
-            name=player.name,
-            score=score,
+            name=user.username,
+            score=gp.score,
             words=all_words,
             valid_words=valid_words
         ))
@@ -351,13 +439,19 @@ def get_game_results(game_id: str) -> GameResultsResponse:
 
 
 @app.websocket("/ws/{game_id}/{player_id}")
-async def websocket_endpoint(websocket: WebSocket, game_id: str, player_id: str) -> None:
+async def websocket_endpoint(
+    websocket: WebSocket,
+    game_id: str,
+    player_id: str,
+    db: Session = Depends(get_db)
+) -> None:
     """WebSocket endpoint for real-time game updates.
 
     Args:
         websocket: WebSocket connection
         game_id: Game identifier
-        player_id: Player identifier
+        player_id: Player identifier (GamePlayer ID from database)
+        db: Database session (injected)
 
     Handles:
         - Real-time word submissions
@@ -365,30 +459,53 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str, player_id: str)
         - Timer updates
         - Player disconnections
     """
-    # Verify game exists
-    if game_id not in games:
-        await websocket.close(code=1008, reason="Game not found")
-        return
-
-    game_state = games[game_id]
-
-    # Verify player is in game
-    if player_id not in game_state["players"]:
-        await websocket.close(code=1008, reason="Player not in game")
-        return
-
-    # Accept connection
-    await manager.connect(websocket, game_id)
-
-    # Notify others that player connected
-    player = game_state["players"][player_id]
-    await manager.broadcast(
-        json.dumps({"type": "player_connected", "player_name": player.name}),
-        game_id,
-        exclude=websocket
-    )
+    from src.models import Game as GameModel, GamePlayer
 
     try:
+        # Load game from database
+        db_game = db.query(GameModel).filter(GameModel.id == game_id).first()
+        if not db_game:
+            await websocket.close(code=1008, reason="Game not found")
+            return
+
+        # Load player from database
+        db_player = db.query(GamePlayer).filter(GamePlayer.id == player_id).first()
+        if not db_player or db_player.game_id != game_id:
+            await websocket.close(code=1008, reason="Player not in game")
+            return
+
+        # Reconstruct Board from database
+        board_data = json.loads(db_game.board_state)
+        board = Board(size=db_game.board_size)
+        board.grid = board_data
+
+        # Create Game object for validation
+        config = GameConfig(
+            board_size=db_game.board_size,
+            time_limit_seconds=db_game.time_limit,
+            min_word_length=db_game.min_word_length
+        )
+        game = Game(board, dictionary, scorer, config)
+
+        # Get user info and create Player object
+        user = db.query(User).filter(User.id == db_player.user_id).first()
+        player = Player(player_id=player_id, name=user.username)
+
+        # Load existing words from database
+        existing_words = json.loads(db_player.words_found)
+        for word in existing_words:
+            player.add_word(word)
+
+        # Accept connection
+        await manager.connect(websocket, game_id)
+
+        # Notify others that player connected
+        await manager.broadcast(
+            json.dumps({"type": "player_connected", "player_name": user.username}),
+            game_id,
+            exclude=websocket
+        )
+
         while True:
             # Receive message from client
             data = await websocket.receive_text()
@@ -399,9 +516,8 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str, player_id: str)
             if message_type == "submit_word":
                 # Handle word submission
                 word = message.get("word", "").upper()
-                game = game_state["game"]
 
-                # Validate and submit word
+                # Validate and submit word using Game object
                 is_valid = game.submit_word(word, player)
 
                 # Calculate score
@@ -410,6 +526,13 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str, player_id: str)
                 if is_valid:
                     score = scorer.score_word(word)
                     status_msg = f"Valid! +{score} points"
+
+                    # PERSIST TO DATABASE
+                    words_list = json.loads(db_player.words_found)
+                    words_list.append(word)
+                    db_player.words_found = json.dumps(words_list)
+                    db_player.score += score
+                    db.commit()
                 else:
                     # Determine why invalid
                     if len(word) < game.config.min_word_length:
@@ -435,7 +558,7 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str, player_id: str)
                     await manager.broadcast(
                         json.dumps({
                             "type": "word_submitted",
-                            "player_name": player.name,
+                            "player_name": user.username,
                             "word": word,
                             "score": score
                         }),
@@ -444,24 +567,33 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str, player_id: str)
                     )
 
             elif message_type == "get_state":
-                # Send current game state
+                # Send current game state from database
                 time_remaining = None
-                if game_state["status"] == "in_progress":
-                    remaining = game_state["game"].get_remaining_time()
-                    time_remaining = int(remaining) if remaining is not None else None
+                if db_game.status == "in_progress" and db_game.started_at and db_game.time_limit:
+                    # Ensure both datetimes are timezone-aware
+                    now = datetime.now(timezone.utc)
+                    started = db_game.started_at
+                    if started.tzinfo is None:
+                        started = started.replace(tzinfo=timezone.utc)
+                    elapsed = (now - started).total_seconds()
+                    remaining = db_game.time_limit - elapsed
+                    time_remaining = int(remaining) if remaining > 0 else 0
+
+                # Get current player count from database
+                player_count = db.query(GamePlayer).filter(GamePlayer.game_id == game_id).count()
 
                 await websocket.send_text(json.dumps({
                     "type": "game_state",
-                    "status": game_state["status"],
+                    "status": db_game.status,
                     "time_remaining": time_remaining,
-                    "player_count": len(game_state["players"])
+                    "player_count": player_count
                 }))
 
     except WebSocketDisconnect:
         manager.disconnect(websocket, game_id)
         # Notify others that player disconnected
         await manager.broadcast(
-            json.dumps({"type": "player_disconnected", "player_name": player.name}),
+            json.dumps({"type": "player_disconnected", "player_name": user.username}),
             game_id
         )
 
