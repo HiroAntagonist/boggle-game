@@ -2794,3 +2794,268 @@ None! All blockers from Day 3 resolved.
 Week 5 Day 4 complete! 🎉
 
 ---
+
+## Week 5 Day 5: WebSocket Database Integration
+
+**Date:** 2025-10-31
+
+**Goal:** Complete database migration by integrating WebSocket endpoint with database persistence
+
+**Status:** ✅ COMPLETE - All 130 tests passing (100%)
+
+### What we built
+
+Completed the final piece of database migration: refactored the WebSocket endpoint (`/ws/{game_id}/{player_id}`) to use database storage instead of the in-memory `games` dict.
+
+**Before:** REST endpoints used database, WebSocket used in-memory dict
+**After:** Entire API uses database persistence (hybrid REST + WebSocket API fully integrated)
+
+### Implementation approach: Hybrid validation pattern
+
+**Key decision:** Reconstruct in-memory objects from database for validation, persist results back
+
+```python
+# On WebSocket connection:
+1. Load Game and GamePlayer from database
+2. Reconstruct Board from JSON board_state
+3. Create in-memory Game/Board/Player objects for fast validation
+4. Keep database session open for updates
+
+# On word submission:
+1. Validate using in-memory Game.submit_word() (fast!)
+2. If valid, persist to database:
+   - Append word to GamePlayer.words_found JSON array
+   - Update GamePlayer.score
+   - db.commit()
+```
+
+**Rationale:**
+- ✅ Reuses existing, tested validation code (Game, Board, Player classes)
+- ✅ Fast real-time validation (no DB reconstruction overhead per message)
+- ✅ Data persists after each word submission
+- ✅ Simpler than extracting validation to standalone functions
+- ✅ Consistent with how REST endpoints work
+
+### Technical challenges solved
+
+#### Challenge 1: Database dependency injection in WebSocket
+
+**Problem:** Initially tried manual session creation with `next(get_db())`. This created a new database connection that didn't share the in-memory test database (StaticPool issue).
+
+**Error:**
+```
+WebSocketDisconnect: Game not found
+```
+
+**Solution:** Use FastAPI's dependency injection pattern:
+```python
+@app.websocket("/ws/{game_id}/{player_id}")
+async def websocket_endpoint(
+    websocket: WebSocket,
+    game_id: str,
+    player_id: str,
+    db: Session = Depends(get_db)  # Let FastAPI inject the session
+) -> None:
+```
+
+**Learning:** Don't fight FastAPI's dependency injection - it handles StaticPool correctly for tests.
+
+#### Challenge 2: Player constructor requirements
+
+**Problem:** Player class requires both `player_id` and `name`, initially only passed `name`.
+
+**Error:**
+```python
+TypeError: Player.__init__() missing 1 required positional argument: 'player_id'
+```
+
+**Solution:** Pass both parameters from database:
+```python
+user = db.query(User).filter(User.id == db_player.user_id).first()
+player = Player(player_id=player_id, name=user.username)
+```
+
+#### Challenge 3: Timezone-aware datetime calculations
+
+**Problem:** SQLite stores datetimes as timezone-naive, but `datetime.now(timezone.utc)` is timezone-aware. Can't subtract them.
+
+**Error:**
+```python
+TypeError: can't subtract offset-naive and offset-aware datetimes
+```
+
+**Solution:** Check and fix timezone before subtraction:
+```python
+# Calculate time remaining
+now = datetime.now(timezone.utc)
+started = db_game.started_at
+if started.tzinfo is None:
+    started = started.replace(tzinfo=timezone.utc)
+elapsed = (now - started).total_seconds()
+time_remaining = db_game.time_limit - elapsed
+```
+
+**Learning:** SQLite doesn't have native timezone support. Always normalize to UTC.
+
+### Files modified
+
+**src/api_server.py (lines 441-593):**
+- Added `db: Session = Depends(get_db)` to WebSocket endpoint
+- Load game and player from database on connection
+- Reconstruct Game/Board/Player objects from database
+- Persist word submissions to `GamePlayer.words_found` and `score`
+- Calculate time remaining from database timestamps
+
+**tests/test_websocket.py:**
+- Added `headers=auth_headers(token)` to all `start_game` calls
+- All 4 WebSocket tests now passing
+
+**tests/test_api.py:**
+- Added authorization tests for non-participants (lines 350-403)
+
+**TECHNICAL_DEBT.md:**
+- Marked "WebSocket Database Integration" as completed
+- Documented authorization enhancements for future consideration
+
+### Test results
+
+- **Before:** 126/129 tests passing (3 WebSocket tests failing)
+- **After:** 130/130 tests passing (100%) ✨
+
+### Authorization implementation
+
+Also completed in this session: Added participant-only access control
+
+**Rule:** Only users who are participants in a game (have GamePlayer record) can:
+- View game state (GET /games/{id})
+- Start game (POST /games/{id}/start)
+- View results (GET /games/{id}/results)
+
+**Implementation:**
+```python
+def get_current_user_from_db(
+    token: str = Depends(bearer_scheme),
+    db: Session = Depends(get_db)
+) -> User:
+    # Validate JWT token, load user from database
+    ...
+
+# Check authorization
+db_player = db.query(GamePlayer).filter(
+    GamePlayer.game_id == game_id,
+    GamePlayer.user_id == current_user.id
+).first()
+
+if not db_player:
+    raise HTTPException(status_code=403, detail="You are not a participant in this game")
+```
+
+**Future enhancements documented:**
+- Public games flag
+- Spectator mode
+- Shareable result links
+- Tournament mode
+
+### Architecture status
+
+**Database Models (all implemented):**
+- ✅ User (authentication, UUIDs, password hashing)
+- ✅ Game (board state, status, timestamps, config)
+- ✅ GamePlayer (join table, scores, words found)
+
+**REST Endpoints (all using database):**
+- ✅ POST /auth/register
+- ✅ POST /auth/login
+- ✅ POST /games
+- ✅ POST /games/{id}/players
+- ✅ POST /games/{id}/start
+- ✅ GET /games/{id}
+- ✅ GET /games/{id}/results
+
+**WebSocket Endpoint (now using database):**
+- ✅ /ws/{game_id}/{player_id}
+  - get_state message
+  - submit_word message
+  - player_connected broadcast
+  - word_submitted broadcast
+
+**Security:**
+- ✅ JWT authentication (all endpoints except /auth/*)
+- ✅ Participant authorization (game endpoints)
+- ✅ Password hashing (bcrypt)
+- ✅ Environment variables (SECRET_KEY)
+- ✅ UUID primary keys (not guessable)
+
+### Next steps
+
+**Ready for deployment!** The hybrid API is now fully database-backed and production-ready.
+
+**Week 6 Plan: Fly.io Deployment**
+1. Add PostgreSQL support (keep SQLite for local dev)
+2. Install `psycopg2-binary`
+3. Make database URL configurable via environment
+4. Create Dockerfile
+5. Create fly.toml
+6. Deploy to Fly.io
+7. Set up Alembic migrations
+8. Test production deployment
+
+### Reflection
+
+**Completion milestone achieved!** This was the final piece of the database migration puzzle.
+
+**Key insights:**
+
+1. **Hybrid approach works beautifully**
+   - Database for persistence
+   - In-memory objects for fast validation
+   - Best of both worlds
+
+2. **FastAPI dependency injection is powerful**
+   - Works seamlessly with WebSockets
+   - Handles database sessions correctly
+   - Respects test fixtures (StaticPool)
+
+3. **Timezone handling requires care**
+   - SQLite is timezone-naive
+   - Always normalize to UTC
+   - Check before datetime math
+
+4. **Test-driven development caught integration issues**
+   - All 3 challenges found via failing tests
+   - Fixed before they could reach production
+   - TDD investment pays off
+
+5. **Architecture evolution complete**
+   - Started: In-memory game logic only
+   - Now: Full database persistence with real-time WebSocket updates
+   - Clean separation: Game class for validation, database for state
+
+**What worked well:**
+- Systematic debugging (root cause analysis, not workarounds)
+- Incremental testing (fix one error at a time)
+- Clear commit with detailed message
+- Documentation of future enhancements in TECHNICAL_DEBT.md
+
+**What to remember:**
+- Don't bypass framework patterns (use Depends, don't call manually)
+- SQLite datetime timezone handling needs explicit care
+- Hybrid validation pattern is a good compromise for real-time apps
+
+**Project Status:**
+- ✅ Core game logic (Board, Dictionary, Scorer, Player, Game)
+- ✅ Local multiplayer CLI
+- ✅ Network multiplayer (WebSocket server)
+- ✅ Database models (User, Game, GamePlayer)
+- ✅ Authentication (JWT, bcrypt)
+- ✅ Authorization (participant-only access)
+- ✅ REST API (all endpoints database-backed)
+- ✅ WebSocket API (database-backed with real-time validation)
+- ✅ 130/130 tests passing (100%)
+- ⏳ Cloud deployment (Week 6)
+
+We now have a production-ready multiplayer Boggle game with authentication, authorization, real-time gameplay, and full database persistence! 🎉
+
+Week 5 Day 5 complete!
+
+---
