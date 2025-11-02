@@ -91,13 +91,13 @@ struct PlayerResultCard: View {
                             Text(wordResult.word)
                                 .font(.body)
                                 .strikethrough(!wordResult.valid, color: .red)
-                                .foregroundStyle(wordResult.valid ? .primary : .gray)
+                                .foregroundStyle(wordResult.valid ? Color.primary : Color.gray)
 
                             Spacer()
 
                             Text("\(wordResult.score) pts")
                                 .font(.caption)
-                                .foregroundStyle(wordResult.valid ? .blue : .gray)
+                                .foregroundStyle(wordResult.valid ? Color.blue : Color.gray)
                         }
                     }
                 }
