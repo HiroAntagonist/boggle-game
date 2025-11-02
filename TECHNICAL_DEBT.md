@@ -135,6 +135,71 @@ None currently! All high-priority items completed.
 
 ---
 
+## Medium Priority (continued)
+
+### 10. OpenAPI Schema Code Generation for iOS Models (Week 6 Day 2)
+
+**Issue**: Swift API models are manually maintained separately from Python Pydantic models
+
+**Current state**:
+- Python backend uses Pydantic models in `src/api_models.py`
+- Swift iOS app has duplicate model definitions in `BoggleAPI.swift`
+- Manual synchronization required when API changes
+- Risk of mismatches causing runtime errors (already experienced with 200/201 status codes and JSON structure)
+
+**What's missing**:
+- Automated Swift model generation from OpenAPI schema
+- Single source of truth for API contracts
+- Type-safe Swift models guaranteed to match backend
+
+**Why it's needed**:
+- Eliminate manual model synchronization errors
+- Catch API breaking changes at compile time
+- Industry standard for API client generation
+- Faster development (no manual model writing)
+- Self-documenting API changes
+
+**What needs to be done**:
+
+**Option A: OpenAPI Generator (Recommended)**
+1. FastAPI already generates OpenAPI schema at `/openapi.json`
+2. Download schema: `curl https://boggle-game-ar.fly.dev/openapi.json > openapi.json`
+3. Install OpenAPI Generator: `brew install openapi-generator`
+4. Generate Swift models:
+   ```bash
+   openapi-generator generate \
+     -i openapi.json \
+     -g swift5 \
+     -o BoggleApp/Generated \
+     --additional-properties=responseAs=Codable,library=urlsession
+   ```
+5. Add generated code to Xcode project
+6. Replace manual models in `BoggleAPI.swift` with generated ones
+7. Add generation script to `scripts/generate_ios_models.sh`
+8. Document in README
+
+**Option B: CreateAPI (Apple-focused alternative)**
+1. Install CreateAPI: `brew install create-api`
+2. Similar workflow to OpenAPI Generator
+3. Generates more idiomatic Swift code
+4. Better integration with Swift Package Manager
+
+**Tools comparison**:
+- **OpenAPI Generator**: More mature, supports many languages, verbose output
+- **CreateAPI**: Cleaner Swift code, better for Swift-only projects
+- **Quicktype**: Simpler but less feature-complete
+
+**Benefits demonstrated**:
+- Would have caught `CreateGameResponse` vs `GameResponse` mismatch immediately
+- Would have caught missing `player_name` field in join request
+- Would have caught `JoinGameResponse` structure mismatch
+
+**Estimated effort**: 3-4 hours (setup + integration + testing)
+
+**Priority**: Medium - worth doing soon to prevent future API mismatches
+
+---
+
 ## Low Priority
 
 ### 7. Database Migrations with Alembic (Week 6 Day 1)

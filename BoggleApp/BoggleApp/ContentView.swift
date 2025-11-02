@@ -1,21 +1,13 @@
 //
-//  ContentView.swift
-//  BoggleApp
-//
-//  Created by Amritansh Raghav on 11/1/25.
+// ABOUTME: Root view of the application, displays the login screen.
+// ABOUTME: Entry point for user authentication before accessing the game.
 //
 
 import SwiftUI
 
 struct ContentView: View {
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
+        LoginView()
     }
 }
 

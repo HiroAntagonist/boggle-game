@@ -160,3 +160,4 @@ boggle/
 - Client uses `aioconsole.ainput()` for non-blocking input (no threads needed)
 - Lobby loop polls `client.in_game` flag to exit when game starts
 - WebSocket connections handle both str and bytes messages
+- memorize
