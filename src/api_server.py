@@ -290,7 +290,11 @@ def get_game_state(
     # Calculate time remaining if game is in progress
     time_remaining = None
     if db_game.status == "in_progress" and db_game.started_at and db_game.time_limit:
-        elapsed = (datetime.now(timezone.utc) - db_game.started_at).total_seconds()
+        # Ensure started_at is timezone-aware
+        started_at = db_game.started_at
+        if started_at.tzinfo is None:
+            started_at = started_at.replace(tzinfo=timezone.utc)
+        elapsed = (datetime.now(timezone.utc) - started_at).total_seconds()
         remaining = db_game.time_limit - elapsed
         time_remaining = int(remaining) if remaining > 0 else 0
 

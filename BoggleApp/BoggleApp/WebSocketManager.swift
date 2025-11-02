@@ -1,0 +1,163 @@
+//
+// ABOUTME: WebSocket manager for real-time game communication.
+// ABOUTME: Handles connection, message sending/receiving, and game state updates.
+//
+
+import Foundation
+import Combine
+
+// MARK: - WebSocket Messages
+
+struct SubmitWordMessage: Codable {
+    let type: String = "submit_word"
+    let word: String
+}
+
+struct WordResultMessage: Codable, Equatable {
+    let type: String
+    let word: String
+    let valid: Bool
+    let score: Int
+    let message: String
+}
+
+struct GameStateMessage: Codable {
+    let type: String
+    let status: String
+    let time_remaining: Int?
+    let player_count: Int
+}
+
+// MARK: - WebSocket Manager
+
+class WebSocketManager: ObservableObject {
+    @Published var isConnected = false
+    @Published var lastWordResult: WordResultMessage?
+    @Published var timeRemaining: Int?
+
+    private var webSocketTask: URLSessionWebSocketTask?
+    private let gameId: String
+    private let playerId: String
+    var onWordResult: ((WordResultMessage) -> Void)?
+
+    init(gameId: String, playerId: String) {
+        self.gameId = gameId
+        self.playerId = playerId
+    }
+
+    func connect() {
+        // wss:// for production HTTPS, ws:// for local HTTP
+        let urlString = "wss://boggle-game-ar.fly.dev/ws/\(gameId)/\(playerId)"
+        guard let url = URL(string: urlString) else {
+            print("❌ Invalid WebSocket URL")
+            return
+        }
+
+        print("🔵 Connecting to WebSocket: \(urlString)")
+
+        webSocketTask = URLSession.shared.webSocketTask(with: url)
+        webSocketTask?.resume()
+        isConnected = true
+
+        // Start listening for messages
+        receiveMessage()
+
+        print("✅ WebSocket connected")
+    }
+
+    func disconnect() {
+        print("🔵 Disconnecting WebSocket")
+        webSocketTask?.cancel(with: .goingAway, reason: nil)
+        isConnected = false
+        print("✅ WebSocket disconnected")
+    }
+
+    func submitWord(_ word: String) {
+        let message = SubmitWordMessage(word: word.uppercased())
+
+        guard let data = try? JSONEncoder().encode(message),
+              let jsonString = String(data: data, encoding: .utf8) else {
+            print("❌ Failed to encode word submission")
+            return
+        }
+
+        print("🔵 Submitting word: \(word)")
+
+        let wsMessage = URLSessionWebSocketTask.Message.string(jsonString)
+        webSocketTask?.send(wsMessage) { error in
+            if let error = error {
+                print("❌ WebSocket send error: \(error)")
+            } else {
+                print("✅ Word submitted: \(word)")
+            }
+        }
+    }
+
+    private func receiveMessage() {
+        webSocketTask?.receive { [weak self] result in
+            switch result {
+            case .success(let message):
+                switch message {
+                case .string(let text):
+                    self?.handleMessage(text)
+                case .data(let data):
+                    if let text = String(data: data, encoding: .utf8) {
+                        self?.handleMessage(text)
+                    }
+                @unknown default:
+                    break
+                }
+
+                // Keep listening for next message
+                self?.receiveMessage()
+
+            case .failure(let error):
+                print("❌ WebSocket receive error: \(error)")
+                self?.isConnected = false
+            }
+        }
+    }
+
+    private func handleMessage(_ text: String) {
+        print("📩 Received: \(text)")
+
+        guard let data = text.data(using: .utf8) else { return }
+
+        // Try to determine message type
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let type = json["type"] as? String {
+
+            switch type {
+            case "word_result":
+                if let result = try? JSONDecoder().decode(WordResultMessage.self, from: data) {
+                    DispatchQueue.main.async {
+                        self.lastWordResult = result
+                        self.onWordResult?(result)
+                        print("✅ Word result: \(result.word) - \(result.valid ? "VALID" : "INVALID")")
+                    }
+                }
+
+            case "game_state":
+                if let state = try? JSONDecoder().decode(GameStateMessage.self, from: data) {
+                    DispatchQueue.main.async {
+                        self.timeRemaining = state.time_remaining
+                        print("✅ Game state: \(state.status), time: \(state.time_remaining ?? 0)s")
+                    }
+                }
+
+            case "player_connected":
+                print("👋 Player connected")
+
+            case "player_disconnected":
+                print("👋 Player disconnected")
+
+            default:
+                print("⚠️ Unknown message type: \(type)")
+            }
+        }
+    }
+
+    deinit {
+        disconnect()
+    }
+}

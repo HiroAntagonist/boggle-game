@@ -40,15 +40,8 @@ struct GameResponse: Codable {
     let game_id: String
     let board: [[String]]
     let status: String
-    let time_limit_seconds: Int
-    let created_at: String
-    let started_at: String?
-    let players: [PlayerInfo]?
-}
-
-struct PlayerInfo: Codable {
-    let player_id: String
-    let username: String
+    let time_remaining: Int?
+    let players: [String]
 }
 
 struct JoinGameRequest: Codable {

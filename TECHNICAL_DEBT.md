@@ -6,7 +6,48 @@ This file tracks known issues, shortcuts, and improvements we want to make later
 
 ## High Priority
 
-None currently! All high-priority items completed.
+### 1. Shared API Schema Definition (Week 6)
+
+**Issue**: Client and server define API models independently, leading to schema mismatches and runtime errors.
+
+**Current problems encountered**:
+1. iOS `WordResultMessage` vs backend - missed `Equatable` conformance needed for SwiftUI
+2. iOS `GameResponse` vs backend `GameStateResponse` - different field names and types:
+   - Backend: `players: [String]`, iOS expected: `players: [PlayerInfo]`
+   - Backend: `time_remaining: Int?`, iOS expected: `time_limit_seconds: Int`
+   - Backend has no `created_at`, `started_at` fields that iOS expected
+
+**Why this is critical**:
+- Schema mismatches cause silent failures that only appear at runtime
+- Wastes debugging time hunting for field name differences
+- Easy to introduce bugs when API evolves
+- No compile-time safety between client and server
+
+**Solution options**:
+1. **OpenAPI Code Generation** (recommended)
+   - Generate Swift models from backend's OpenAPI schema
+   - Single source of truth (backend defines, client generates)
+   - Tools: `openapi-generator`, `CreateAPI`
+   - Ensures perfect schema match
+
+2. **Shared Schema Repository**
+   - Define schemas in neutral format (JSON Schema, Protocol Buffers)
+   - Generate both Python (Pydantic) and Swift (Codable) from schemas
+   - More setup but language-agnostic
+
+3. **Manual Testing Suite**
+   - Integration tests that verify client models can decode server responses
+   - Catches mismatches before deployment
+   - Still allows drift but catches it faster
+
+**Recommended approach**: Start with OpenAPI code generation for Swift client
+- Backend already generates OpenAPI spec at `/openapi.json`
+- Add build step to iOS project to regenerate models when spec changes
+- Keep manual models only for internal client state
+
+**Estimated effort**: 3-4 hours initial setup, saves hours of debugging
+
+**Priority**: HIGH - affects all client-server communication
 
 ---
 
