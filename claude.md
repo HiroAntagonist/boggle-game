@@ -160,4 +160,40 @@ boggle/
 - Client uses `aioconsole.ainput()` for non-blocking input (no threads needed)
 - Lobby loop polls `client.in_game` flag to exit when game starts
 - WebSocket connections handle both str and bytes messages
-- memorize
+
+## iOS Client & Schema Generation
+
+### Shared API Schema Strategy
+
+**Single Source of Truth**: Pydantic models in `src/api_models.py` are the authoritative schema definition.
+
+**Schema Flow**:
+1. Backend Pydantic models → FastAPI auto-generates OpenAPI schema at `/openapi.json`
+2. OpenAPI Generator → Reads schema and generates Swift Codable models
+3. iOS app imports generated models for type-safe API communication
+
+### Regenerating iOS Models
+
+When backend API models change, regenerate Swift models:
+
+```bash
+./scripts/generate_ios_models.sh
+```
+
+This script:
+1. Downloads latest OpenAPI schema from production
+2. Generates Swift models using openapi-generator
+3. Outputs to `BoggleApp/Generated/Sources/OpenAPIClient/Models/`
+
+### Manual Steps After Generation
+
+1. Review generated models in `BoggleApp/Generated/Sources/OpenAPIClient/Models/`
+2. Add new model files to Xcode project (if first time)
+3. Update `BoggleAPI.swift` to use generated models instead of manual definitions
+
+### Benefits
+
+- **No schema drift**: Generated Swift models always match backend exactly
+- **Type safety**: Compile-time errors if client uses wrong types
+- **Auto documentation**: Field descriptions from Pydantic carry over to Swift
+- **Consistent naming**: Generator handles snake_case → camelCase conversion

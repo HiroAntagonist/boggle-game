@@ -99,3 +99,7 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots
 fastlane/test_output
+
+# OpenAPI generated code
+BoggleApp/Generated/
+openapi.json
