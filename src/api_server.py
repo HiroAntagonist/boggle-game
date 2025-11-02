@@ -42,6 +42,15 @@ app = FastAPI(
     version="1.0.0"
 )
 
+
+@app.on_event("startup")
+async def startup_event() -> None:
+    """Start background tasks when the application starts."""
+    # Start the game timer monitor in the background
+    asyncio.create_task(monitor_game_timers())
+    print("Started game timer monitoring task")
+
+
 # Connection manager for WebSockets
 class ConnectionManager:
     """Manages WebSocket connections for real-time gameplay."""
@@ -93,6 +102,147 @@ scorer = Scorer(min_word_length=3)
 
 # WebSocket connection manager
 manager = ConnectionManager()
+
+
+# Background task for monitoring game timers
+async def monitor_game_timers() -> None:
+    """Background task that checks for expired games and ends them.
+
+    This runs continuously in the background, checking every 5 seconds for games
+    that have exceeded their time limit. When a game expires:
+    1. Calculate final scores with duplicate removal
+    2. Update game status to "finished"
+    3. Broadcast results to all connected players
+    """
+    from src.database import SessionLocal
+    from src.models import Game as GameModel, GamePlayer
+    from src.ws_models import GameEndedMessage, PlayerFinalResult, PlayerWordResult
+
+    while True:
+        try:
+            # Check every 5 seconds
+            await asyncio.sleep(5)
+
+            # Create a new database session for this check
+            db = SessionLocal()
+            try:
+                # Find all games that are in progress with a time limit
+                active_games = db.query(GameModel).filter(
+                    GameModel.status == "in_progress",
+                    GameModel.started_at.isnot(None),
+                    GameModel.time_limit.isnot(None)
+                ).all()
+
+                now = datetime.now(timezone.utc)
+
+                for game in active_games:
+                    # Skip if missing required data
+                    if game.started_at is None or game.time_limit is None:
+                        continue
+
+                    # Ensure started_at is timezone-aware
+                    started_at = game.started_at
+                    if started_at.tzinfo is None:
+                        started_at = started_at.replace(tzinfo=timezone.utc)
+
+                    # Calculate elapsed time
+                    elapsed = (now - started_at).total_seconds()
+
+                    # Check if time limit exceeded
+                    if elapsed >= game.time_limit:
+                        # Game has ended! Calculate final results
+                        await end_game(game.id, db)
+
+            finally:
+                db.close()
+
+        except Exception as e:
+            print(f"Error in game timer monitor: {e}")
+            import traceback
+            traceback.print_exc()
+
+
+async def end_game(game_id: str, db: Session) -> None:
+    """End a game and broadcast final results to all players.
+
+    Args:
+        game_id: The game to end
+        db: Database session
+    """
+    from src.models import Game as GameModel, GamePlayer
+    from src.ws_models import GameEndedMessage, PlayerFinalResult, PlayerWordResult
+
+    # Get game from database
+    db_game = db.query(GameModel).filter(GameModel.id == game_id).first()
+    if not db_game or db_game.status == "finished":
+        return
+
+    # Get all players in this game
+    game_players = db.query(GamePlayer).filter(GamePlayer.game_id == game_id).all()
+
+    # Collect all words by player
+    player_words: Dict[str, list[str]] = {}
+    for gp in game_players:
+        words = json.loads(gp.words_found) if gp.words_found else []
+        player_words[gp.user.username] = words
+
+    # Find duplicate words (words submitted by multiple players)
+    word_counts: Dict[str, int] = {}
+    for words in player_words.values():
+        for word in words:
+            word_counts[word] = word_counts.get(word, 0) + 1
+
+    duplicates = {word for word, count in word_counts.items() if count > 1}
+
+    # Calculate final results for each player
+    results = []
+    for gp in game_players:
+        words = json.loads(gp.words_found) if gp.words_found else []
+        word_results = []
+        total_score = 0
+
+        for word in words:
+            is_duplicate = word in duplicates
+            score = 0 if is_duplicate else scorer.score_word(word)
+            total_score += score
+
+            word_results.append(PlayerWordResult(
+                word=word,
+                score=score,
+                valid=not is_duplicate
+            ))
+
+        results.append(PlayerFinalResult(
+            player_name=gp.user.username,
+            words=word_results,
+            total_score=total_score
+        ))
+
+        # Update player score in database
+        gp.score = total_score
+
+    # Find winner (highest score)
+    winner = None
+    if results:
+        max_score = max(r.total_score for r in results)
+        winners = [r for r in results if r.total_score == max_score]
+        winner = winners[0].player_name if len(winners) == 1 else None  # None if tie
+
+    # Update game status in database
+    db_game.status = "finished"
+    db_game.ended_at = datetime.now(timezone.utc)
+    db.commit()
+
+    # Broadcast results to all connected players
+    end_message = GameEndedMessage(
+        type="game_ended",
+        winner=winner,
+        results=results
+    )
+
+    await manager.broadcast(end_message.model_dump_json(), game_id)
+
+    print(f"Game {game_id} ended. Winner: {winner}")
 
 
 # Helper function for authorization

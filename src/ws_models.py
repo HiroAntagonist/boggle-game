@@ -113,3 +113,60 @@ class PlayerDisconnectedMessage(BaseModel):
     """
     type: Literal["player_disconnected"]
     player_name: str = Field(description="Username of disconnected player")
+
+
+class GameStartedMessage(BaseModel):
+    """Server broadcast when a game starts.
+
+    Example:
+        {
+            "type": "game_started",
+            "board": [["A", "B"], ["C", "D"]],
+            "time_limit": 180
+        }
+    """
+    type: Literal["game_started"]
+    board: list[list[str]] = Field(description="Game board grid")
+    time_limit: int | None = Field(description="Time limit in seconds, None if no timer")
+
+
+class PlayerWordResult(BaseModel):
+    """Result for a single word submitted by a player."""
+    word: str = Field(description="The word")
+    score: int = Field(ge=0, description="Points awarded")
+    valid: bool = Field(description="Whether word was valid after duplicate removal")
+
+
+class PlayerFinalResult(BaseModel):
+    """Final results for a single player."""
+    player_name: str = Field(description="Username of player")
+    words: list[PlayerWordResult] = Field(description="All words submitted by this player")
+    total_score: int = Field(ge=0, description="Final score after duplicate removal")
+
+
+class GameEndedMessage(BaseModel):
+    """Server broadcast when a game ends.
+
+    Contains final results for all players, with duplicates removed.
+
+    Example:
+        {
+            "type": "game_ended",
+            "winner": "alice",
+            "results": [
+                {
+                    "player_name": "alice",
+                    "words": [{"word": "CAT", "score": 1, "valid": true}],
+                    "total_score": 1
+                },
+                {
+                    "player_name": "bob",
+                    "words": [{"word": "DOG", "score": 1, "valid": true}],
+                    "total_score": 1
+                }
+            ]
+        }
+    """
+    type: Literal["game_ended"]
+    winner: str | None = Field(description="Username of winner, None if tie")
+    results: list[PlayerFinalResult] = Field(description="Final results for all players")
