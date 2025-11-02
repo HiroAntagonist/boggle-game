@@ -3415,3 +3415,225 @@ The Boggle API is officially deployed and production-ready! 🚀🎉
 Week 6 Day 1 complete!
 
 ---
+
+---
+
+## 2025-11-02: Week 6, Day 2 - iOS App Development with SwiftUI
+
+### What we did
+- Created iOS app from scratch using SwiftUI in Xcode
+- Implemented complete REST API client with authentication
+- Built user registration and login flow
+- Created interactive Boggle board UI with real backend data
+- Debugged HTTP status codes and JSON model mismatches
+- Connected iOS app to production Fly.io backend
+- Documented OpenAPI code generation in technical debt
+
+### What I learned
+
+**Swift Fundamentals:**
+- `let` vs `var` (constants vs variables)
+- Type inference and static typing
+- String interpolation with `\(variable)`
+- Optionals and `?` syntax
+- Closures and trailing closure syntax
+- `@State` property wrapper for reactive UI
+- `some View` opaque return types
+
+**SwiftUI Architecture:**
+- `View` protocol and `body` property
+- Layout containers: `VStack`, `HStack`, `ZStack`
+- `ForEach` loops with `id: \.self`
+- `@State` for UI state management
+- `.task { }` modifier for async operations on view appear
+- Two-way bindings with `$variable` syntax
+- Modifiers chaining (`.font()`, `.padding()`, etc.)
+
+**iOS Networking:**
+- `async/await` in Swift (like Python's asyncio)
+- `URLSession.shared.data(for:)` for HTTP requests
+- `Codable` protocol for JSON serialization (like Pydantic)
+- `Task { }` to run async code from sync context
+- Bearer token authentication with headers
+
+**API Integration Lessons:**
+- HTTP 201 (Created) vs 200 (OK) - both are success codes
+- FastAPI returns 201 for POST endpoints that create resources
+- Swift `Codable` requires exact JSON structure match
+- Pydantic validation errors return 422 (Unprocessable Entity)
+- Client-side validation prevents unnecessary server round-trips
+
+**SwiftUI Patterns:**
+- Singleton pattern with `static let shared`
+- View composition and reusable components
+- Conditional view rendering based on state
+- Error handling with user-friendly messages
+- Loading states with `ProgressView`
+
+### Challenges/Issues
+
+**Challenge 1: HTTP Status Code Mismatch**
+- **Problem**: App rejected 201 responses as errors
+- **Cause**: Only checking for 200, but backend returns 201 for created resources
+- **Solution**: Created `isSuccessStatusCode()` helper accepting both 200 and 201
+- **Lesson**: REST conventions matter - 201 is correct for POST creating resources
+
+**Challenge 2: JSON Model Structure Mismatch**
+- **Problem**: "Unexpected error" when decoding `CreateGameResponse`
+- **Cause**: Swift `GameResponse` expected fields backend didn't return
+- **Root cause**: `CreateGameResponse` differs from `GameResponse` in backend
+- **Solution**: Created separate Swift models matching each backend response
+- **Lesson**: JSON structure must match exactly for `Codable` to work
+
+**Challenge 3: Missing Request Body**
+- **Problem**: Join game returned 422 validation error
+- **Cause**: Not sending required `player_name` field
+- **Solution**: Added `JoinGameRequest` model and sent JSON body
+- **Lesson**: Check backend Pydantic models for required fields
+
+**Challenge 4: Understanding Xcode Project Structure**
+- **Problem**: Confusion about nested `BoggleApp/BoggleApp/` folders
+- **Cause**: First time creating Xcode project
+- **Solution**: Let Xcode create its own structure automatically
+- **Lesson**: Xcode has specific folder conventions
+
+### Architecture Decisions
+
+**API Client Design:**
+```swift
+class BoggleAPI {
+    static let shared = BoggleAPI()  // Singleton
+    private var accessToken: String?  // JWT storage
+    
+    func login(...) async throws { }  // async/await
+    func createGame(...) async throws -> CreateGameResponse { }
+}
+```
+
+**View Hierarchy:**
+```
+ContentView (root)
+  └─ LoginView
+      └─ GameView (after successful login)
+          └─ LetterTile (reusable component) x16
+```
+
+**State Flow:**
+1. User registers/logs in → `accessToken` stored
+2. `LoginView` sets `isLoggedIn = true`
+3. Shows `GameView` which calls `.task { await loadGame() }`
+4. Loads board from backend and displays
+
+### Key Code Patterns
+
+**Async networking in SwiftUI:**
+```swift
+Button("Login") {
+    Task {  // Run async code from button tap
+        await handleAuth()
+    }
+}
+```
+
+**Model matching backend:**
+```swift
+// Python (Pydantic)
+class CreateGameResponse(BaseModel):
+    game_id: str
+    board: List[List[str]]
+    created_at: str
+    status: str
+
+// Swift (Codable)
+struct CreateGameResponse: Codable {
+    let game_id: String
+    let board: [[String]]
+    let created_at: String
+    let status: String
+}
+```
+
+**Two-way binding:**
+```swift
+@State private var username = ""
+
+TextField("Username", text: $username)  // $ creates binding
+```
+
+### Technical Debt Added
+
+**Item #10: OpenAPI Schema Code Generation**
+- Documented automated Swift model generation from FastAPI OpenAPI schema
+- Would have prevented all JSON mismatch errors we encountered
+- Industry standard for API client generation
+- Tools: OpenAPI Generator or CreateAPI
+
+### Project Status Update
+
+**iOS App Complete (Basic):**
+- ✅ User authentication (register/login)
+- ✅ JWT token management
+- ✅ Game creation via REST API
+- ✅ Real board loading from production backend
+- ✅ Interactive letter tile UI
+- ✅ Word building with tap gestures
+- ⏳ Word submission (TODO: WebSocket)
+- ⏳ Real-time multiplayer (TODO: WebSocket)
+- ⏳ Timer display (TODO)
+- ⏳ Score display (TODO)
+
+**Tech Stack:**
+- Frontend: SwiftUI (iOS 17+)
+- Networking: URLSession with async/await
+- Backend: FastAPI on Fly.io
+- Database: PostgreSQL
+- Authentication: JWT Bearer tokens
+
+### Debugging Techniques Learned
+
+**Console Logging:**
+```swift
+print("🔵 Registering user: \(username)")  // Starting action
+print("✅ Registration successful!")       // Success
+print("❌ Error: \(error)")                // Failure
+```
+
+**Error context:**
+```swift
+if let errorString = String(data: data, encoding: .utf8) {
+    print("❌ Error (\(statusCode)): \(errorString)")
+}
+```
+
+**Xcode Console:** Bottom panel shows all print statements - essential for debugging network issues
+
+### Next Steps
+
+**Immediate (Week 6):**
+1. Implement WebSocket connection for real-time gameplay
+2. Add word submission and validation feedback
+3. Display timer countdown
+4. Show scores and other players' words
+
+**Future Enhancements:**
+1. OpenAPI code generation for models
+2. Implement proper error types (not just strings)
+3. Add loading indicators and animations
+4. Implement reconnection logic
+5. Add unit tests for API client
+
+### Reflection
+
+**Huge milestone!** Built a complete iOS app from zero Swift knowledge to working prototype in one session. The app successfully:
+- Authenticates users with a production backend
+- Loads real game data via REST API
+- Displays an interactive UI
+- Handles errors gracefully
+
+**Key insight:** The debugging process (status codes, JSON models) taught more about API integration than if everything had worked first try. Understanding *why* things fail builds deeper knowledge than just following tutorials.
+
+**Swift/SwiftUI impressions:**
+- Type safety catches many errors at compile time
+- SwiftUI's declarative syntax is intuitive coming from React/Flutter
+- `Codable` is powerful but strict (good for catching API mismatches)
+- Xcode's live preview makes UI development fast
