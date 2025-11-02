@@ -99,3 +99,44 @@ class UserResponse(BaseModel):
     user_id: str
     username: str
     email: str
+
+
+class DatabaseHealth(BaseModel):
+    """Database health metrics."""
+    connected: bool
+    response_time_ms: int
+
+
+class WebSocketHealth(BaseModel):
+    """WebSocket connection metrics."""
+    total_connections: int
+    connections_by_game: Dict[str, int]
+
+
+class TimerMonitorHealth(BaseModel):
+    """Background timer monitor status."""
+    running: bool
+    active_games_count: int
+
+
+class BackgroundTasksHealth(BaseModel):
+    """Background tasks health metrics."""
+    timer_monitor: TimerMonitorHealth
+
+
+class GamesHealth(BaseModel):
+    """Game statistics."""
+    total: int
+    in_progress: int
+    waiting: int
+    finished: int
+
+
+class HealthCheckResponse(BaseModel):
+    """Overall health check response."""
+    status: str = Field(description="Overall status: healthy or degraded")
+    timestamp: str = Field(description="ISO timestamp of health check")
+    database: DatabaseHealth
+    websockets: WebSocketHealth
+    background_tasks: BackgroundTasksHealth
+    games: GamesHealth

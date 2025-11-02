@@ -10,6 +10,7 @@ struct GameView: View {
     let gameId: String?
     let playerId: String?
     let initialBoard: [[String]]?
+    let timeLimit: Int?
 
     @State private var board: [[String]] = []
     @State private var selectedWord = ""
@@ -26,11 +27,13 @@ struct GameView: View {
     @State private var gameResults: GameEndedMessage?
     @State private var navigateToResults = false
     @State private var connectionStatus: ConnectionStatus = .disconnected
+    @State private var timerCancellable: AnyCancellable?
 
-    init(gameId: String? = nil, playerId: String? = nil, initialBoard: [[String]]? = nil) {
+    init(gameId: String? = nil, playerId: String? = nil, initialBoard: [[String]]? = nil, timeLimit: Int? = nil) {
         self.gameId = gameId
         self.playerId = playerId
         self.initialBoard = initialBoard
+        self.timeLimit = timeLimit
     }
 
     var body: some View {
@@ -180,6 +183,7 @@ struct GameView: View {
                 self.playerCount = state.player_count
             }
             wsManager.onGameEnded = { endMessage in
+                self.stopCountdownTimer()
                 self.gameResults = endMessage
                 self.navigateToResults = true
             }
@@ -193,6 +197,11 @@ struct GameView: View {
                         self.connectionStatus = status
                     }
                 }
+            }
+
+            // Start countdown timer if time limit provided
+            if let limit = timeLimit {
+                startCountdownTimer(from: limit)
             }
 
             isLoading = false
@@ -224,6 +233,7 @@ struct GameView: View {
                 self.playerCount = state.player_count
             }
             wsManager.onGameEnded = { endMessage in
+                self.stopCountdownTimer()
                 self.gameResults = endMessage
                 self.navigateToResults = true
             }
@@ -305,6 +315,28 @@ struct GameView: View {
         let mins = seconds / 60
         let secs = seconds % 60
         return String(format: "%d:%02d", mins, secs)
+    }
+
+    private func startCountdownTimer(from initialTime: Int) {
+        // Cancel any existing timer
+        timerCancellable?.cancel()
+
+        // Set initial time
+        timeRemaining = initialTime
+
+        // Create a timer that fires every second
+        timerCancellable = Timer.publish(every: 1.0, on: .main, in: .common)
+            .autoconnect()
+            .sink { _ in
+                if let current = self.timeRemaining, current > 0 {
+                    self.timeRemaining = current - 1
+                }
+            }
+    }
+
+    private func stopCountdownTimer() {
+        timerCancellable?.cancel()
+        timerCancellable = nil
     }
 
     private var connectionStatusView: some View {

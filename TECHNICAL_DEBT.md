@@ -53,62 +53,6 @@ This file tracks known issues, shortcuts, and improvements we want to make later
 
 ## Medium Priority
 
-### 2. Pre-Game Lobby Phase (Week 4)
-
-**Issue**: Players join via REST, then immediately connect via WebSocket. No "waiting room" phase.
-
-**Current state**:
-- Players join game (REST POST /games/{id}/players)
-- Game starts immediately (REST POST /games/{id}/start)
-- Players connect via WebSocket after game started
-
-**What's missing**:
-- Pre-game lobby where players wait
-- "Ready" button for each player
-- Game starts automatically when all players ready
-- Live updates as players join lobby
-
-**Why it's useful**:
-- Better UX - players see who's joined
-- Natural flow: lobby → ready up → game starts
-- Common pattern in multiplayer games
-
-**What needs to be done**:
-1. Add lobby state tracking to game
-2. Add WebSocket messages for lobby events
-3. Add "ready" mechanism
-4. Auto-start when all players ready
-
-**Estimated effort**: 2-3 hours
-
----
-
-### 3. Automatic Timer Broadcasts (Week 4)
-
-**Issue**: Game timer exists but clients must poll for updates
-
-**Current state**:
-- Timer runs on server
-- Clients can request state via `{"type": "get_state"}`
-- No automatic countdown broadcasts
-
-**What's missing**:
-- Server broadcasts timer updates every N seconds
-- Clients get live countdown without polling
-- Game end broadcast when timer expires
-
-**What needs to be done**:
-1. Create background task to broadcast timer updates
-2. Add timer monitoring per game
-3. Broadcast `{"type": "timer_update", "remaining": 150}`
-4. Auto-end game when timer expires, broadcast results
-
-**Estimated effort**: 1-2 hours
-
----
-
-## Medium Priority (continued)
-
 ### 4. Game Lifecycle & Resilience Design (Week 5 Day 5)
 
 **Issue**: Need comprehensive design for game finalization, scoring, and failure handling
@@ -133,11 +77,13 @@ This file tracks known issues, shortcuts, and improvements we want to make later
 
 **B. Client Disconnect/Reconnect:**
 - Current: Reload words from DB, rebuild Player object, ignore stored score
+- Timer issue: Client runs local countdown timer, no sync with server on reconnect
 - Questions:
   - Should we display provisional score to reconnected players?
   - Do we recalculate score from words_found or trust DB?
   - How do we sync in-memory state with DB state?
   - What happens if player reconnects after game ends?
+  - How does client get accurate time remaining on reconnect? (currently uses stale local timer)
 
 **C. Zombie Game Cleanup:**
 - Games stuck in "in_progress" state due to:
@@ -289,61 +235,6 @@ This file tracks known issues, shortcuts, and improvements we want to make later
 
 ---
 
-### 8. Health Check Endpoint (Week 6 Day 1)
-
-**Issue**: No health check endpoint for monitoring and orchestration
-
-**Current state**:
-- Fly.io has no configured health checks
-- No way to verify app is responding correctly
-- No database connectivity check
-- Manual verification required
-
-**What's missing**:
-- `/health` endpoint that returns app status
-- Database connectivity check
-- Dependency status (dictionary loaded, etc.)
-- Response time metrics
-- Proper HTTP status codes
-
-**Why it's needed**:
-- Fly.io health checks for auto-restart on failures
-- Load balancer routing decisions
-- Monitoring and alerting
-- Quick verification after deployment
-- Debugging production issues
-
-**What needs to be done**:
-1. Create `/health` GET endpoint
-2. Check database connection (simple query)
-3. Check critical dependencies (dictionary loaded)
-4. Return JSON with status details:
-   ```json
-   {
-     "status": "healthy",
-     "database": "connected",
-     "dictionary_loaded": true,
-     "uptime_seconds": 3600
-   }
-   ```
-5. Return 200 for healthy, 503 for unhealthy
-6. Update fly.toml with health check configuration:
-   ```toml
-   [[services.http_checks]]
-     interval = "10s"
-     timeout = "2s"
-     grace_period = "5s"
-     method = "GET"
-     path = "/health"
-   ```
-7. Add tests for health endpoint
-8. Redeploy to Fly.io
-
-**Estimated effort**: 1 hour
-
-**Priority**: Low (app is stable), Medium for production best practices
-
----
 
 ### 9. Monitoring and Logging (Week 6 Day 1)
 
@@ -584,6 +475,147 @@ This file tracks known issues, shortcuts, and improvements we want to make later
 
 ---
 
+### 4. Pre-Game Lobby Phase (Week 6 Day 2) - COMPLETED 2025-11-02
+
+**Issue**: Players joined via REST then immediately connected via WebSocket with no waiting room phase.
+
+**Resolution**: Implemented waiting room in iOS client with live player updates and auto-start when room fills.
+
+**Implementation**:
+- Created `WaitingRoomView.swift` - displays players who have joined, updates in real-time via WebSocket
+- Added `player_joined` WebSocket message type for live lobby updates
+- Implemented auto-start when room reaches `max_players`
+- Server broadcasts `game_started` message to all players in lobby
+- Client navigates automatically from waiting room to game view when game starts
+- Added `onGameStarted` callback in `WebSocketManager`
+
+**Files changed**:
+- `BoggleApp/WaitingRoomView.swift` - New waiting room UI
+- `BoggleApp/WebSocketManager.swift` - Added game_started message handling
+- `BoggleApp/GameView.swift` - Updated to accept game params from waiting room
+- `src/ws_models.py` - Added PlayerJoinedMessage and GameStartedMessage
+- `src/api_server.py` - Broadcast player_joined and game_started events
+
+**Benefits**:
+- Better UX - players see who's joined before game starts
+- Natural multiplayer flow: create → join lobby → wait → auto-start
+- Real-time updates as players join
+- Smooth transition from lobby to gameplay
+
+---
+
+### 5. Automatic Timer Broadcasts & On-Demand Monitor (Week 6 Day 2) - COMPLETED 2025-11-02
+
+**Issue**: Game timer ran continuously as background task even with no active games, wasting resources. Clients had to poll for timer updates.
+
+**Resolution**: Implemented on-demand timer monitor that starts/stops automatically, plus automatic game-end broadcasts when timer expires.
+
+**Implementation**:
+- Added global `monitor_task` reference to track background task
+- Created `start_monitor_if_needed()` - starts timer monitor only when first game starts
+- Modified `monitor_game_timers()` to auto-exit when no active games remain
+- Timer monitor checks every 5 seconds for expired games
+- When game expires: calculates final scores, broadcasts `game_ended` message to all connected players
+- Client-side countdown timer in iOS using `Timer.publish()` for local display
+- Server startup checks for in-progress games and resumes monitoring if needed
+
+**Files changed**:
+- `src/api_server.py` - On-demand timer monitor, auto-finalization, game_ended broadcasts
+- `BoggleApp/GameView.swift` - Client-side countdown timer display
+- `src/ws_models.py` - Added GameEndedMessage with results
+
+**Benefits**:
+- Resource efficient - background task only runs when needed
+- Automatic game finalization - no manual intervention required
+- Players get real-time results when game ends
+- Survives server restarts - resumes monitoring for in-progress games
+- Better UX - countdown displayed in UI without polling
+
+---
+
+### 6. Health Check Endpoint (Week 6 Day 2) - COMPLETED 2025-11-02
+
+**Issue**: No health check endpoint for monitoring server status and dependencies.
+
+**Resolution**: Implemented comprehensive `/health` GET endpoint with detailed system status.
+
+**Implementation**:
+- Created `GET /health` endpoint (no authentication required)
+- Returns overall status: "healthy" or "degraded"
+- Database health: connectivity check with response time measurement (`SELECT 1`)
+- WebSocket metrics: total connections and per-game connection counts
+- Background tasks status: timer monitor running state and active game count
+- Game statistics: total, in_progress, waiting, finished counts
+- Added health check models to `src/api_models.py`
+
+**Files changed**:
+- `src/api_server.py` - Health check endpoint implementation (lines 332-423)
+- `src/api_models.py` - Added HealthCheckResponse and component models
+
+**Response format**:
+```json
+{
+  "status": "healthy",
+  "timestamp": "2025-11-02T20:15:30Z",
+  "database": {
+    "connected": true,
+    "response_time_ms": 5
+  },
+  "websockets": {
+    "total_connections": 8,
+    "connections_by_game": {"game_123": 4, "game_456": 4}
+  },
+  "background_tasks": {
+    "timer_monitor": {
+      "running": true,
+      "active_games_count": 2
+    }
+  },
+  "games": {
+    "total": 156,
+    "in_progress": 2,
+    "waiting": 3,
+    "finished": 151
+  }
+}
+```
+
+**Benefits**:
+- Production monitoring visibility
+- Quick diagnosis of issues (database, websockets, background tasks)
+- Foundation for Fly.io health checks and alerting
+- No authentication required for monitoring tools
+
+---
+
+### 7. Mypy Type Safety Cleanup (Week 6 Day 2) - COMPLETED 2025-11-02
+
+**Issue**: 15 pre-existing mypy type errors that could cause runtime issues.
+
+**Resolution**: Systematically fixed all type errors with proper None checks and default values.
+
+**Fixes applied**:
+1. **User | None errors** (7 instances) - Added None checks before accessing `.username`, proper error handling for missing users
+2. **json.loads() str | None errors** (7 instances) - Added conditional checks: `json.loads(field) if field else []`
+3. **GameConfig time_limit None** (1 instance) - Added default value: `time_limit if time_limit else 180`
+
+**Files changed**:
+- `src/api_server.py` - Fixed all User queries, json.loads calls, and GameConfig instantiation
+
+**Results**:
+- Mypy: `Success: no issues found in 16 source files`
+- All 132 tests passing
+- No runtime regressions
+- Full type safety across codebase
+
+**Benefits**:
+- Prevents potential runtime AttributeError and TypeError crashes
+- Enforces strict None checking throughout codebase
+- Better code quality and maintainability
+- Catches errors at development time instead of production
+
+---
+
 ## How to Use This File
 
 1. **Before starting new features**: Check if related debt exists
@@ -646,4 +678,4 @@ This file tracks known issues, shortcuts, and improvements we want to make later
 
 ---
 
-**Last Updated**: 2025-11-01 (Week 6 Day 1)
+**Last Updated**: 2025-11-02 (Week 6 Day 2)

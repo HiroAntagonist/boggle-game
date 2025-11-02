@@ -24,6 +24,12 @@ from src.api_models import (
     LoginRequest,
     LoginResponse,
     UserResponse,
+    HealthCheckResponse,
+    DatabaseHealth,
+    WebSocketHealth,
+    BackgroundTasksHealth,
+    TimerMonitorHealth,
+    GamesHealth,
 )
 from src.board import Board
 from src.dictionary import Dictionary
@@ -46,9 +52,26 @@ app = FastAPI(
 @app.on_event("startup")
 async def startup_event() -> None:
     """Start background tasks when the application starts."""
-    # Start the game timer monitor in the background
-    asyncio.create_task(monitor_game_timers())
-    print("Started game timer monitoring task")
+    # Check if there are any in-progress games and start monitor if needed
+    from src.database import SessionLocal
+    from src.models import Game as GameModel
+
+    db = SessionLocal()
+    try:
+        active_count = db.query(GameModel).filter(
+            GameModel.status == "in_progress",
+            GameModel.started_at.isnot(None),
+            GameModel.time_limit.isnot(None)
+        ).count()
+
+        if active_count > 0:
+            global monitor_task
+            monitor_task = asyncio.create_task(monitor_game_timers())
+            print(f"API server started - resuming timer monitor for {active_count} active games")
+        else:
+            print("API server started - no active games")
+    finally:
+        db.close()
 
 
 # Connection manager for WebSockets
@@ -103,20 +126,48 @@ scorer = Scorer(min_word_length=3)
 # WebSocket connection manager
 manager = ConnectionManager()
 
+# Global reference to monitor task (None when not running)
+monitor_task: asyncio.Task | None = None
+
+
+def start_monitor_if_needed(db: Session) -> None:
+    """Start the game timer monitor if there are active games and it's not already running."""
+    global monitor_task
+
+    # Check if monitor is already running
+    if monitor_task is not None and not monitor_task.done():
+        return
+
+    # Check if there are any active games
+    from src.models import Game as GameModel
+    active_count = db.query(GameModel).filter(
+        GameModel.status == "in_progress",
+        GameModel.started_at.isnot(None),
+        GameModel.time_limit.isnot(None)
+    ).count()
+
+    if active_count > 0:
+        monitor_task = asyncio.create_task(monitor_game_timers())
+        print(f"Started game timer monitor (active games: {active_count})")
+
 
 # Background task for monitoring game timers
 async def monitor_game_timers() -> None:
     """Background task that checks for expired games and ends them.
 
-    This runs continuously in the background, checking every 5 seconds for games
-    that have exceeded their time limit. When a game expires:
+    This runs continuously while there are active games, checking every 5 seconds
+    for games that have exceeded their time limit. When a game expires:
     1. Calculate final scores with duplicate removal
     2. Update game status to "finished"
     3. Broadcast results to all connected players
+
+    Exits automatically when there are no more active games.
     """
     from src.database import SessionLocal
     from src.models import Game as GameModel, GamePlayer
     from src.ws_models import GameEndedMessage, PlayerFinalResult, PlayerWordResult
+
+    print("Game timer monitor started")
 
     while True:
         try:
@@ -132,6 +183,11 @@ async def monitor_game_timers() -> None:
                     GameModel.started_at.isnot(None),
                     GameModel.time_limit.isnot(None)
                 ).all()
+
+                # Exit if no active games
+                if not active_games:
+                    print("No active games remaining - stopping timer monitor")
+                    break
 
                 now = datetime.now(timezone.utc)
 
@@ -161,6 +217,8 @@ async def monitor_game_timers() -> None:
             import traceback
             traceback.print_exc()
 
+    print("Game timer monitor stopped")
+
 
 async def end_game(game_id: str, db: Session) -> None:
     """End a game and broadcast final results to all players.
@@ -183,7 +241,7 @@ async def end_game(game_id: str, db: Session) -> None:
     # Collect all words by player
     player_words: Dict[str, list[str]] = {}
     for gp in game_players:
-        words = json.loads(gp.words_found) if gp.words_found else []
+        words = json.loads(gp.words_found) if gp.words_found else [] if gp.words_found else []
         player_words[gp.user.username] = words
 
     # Find duplicate words (words submitted by multiple players)
@@ -197,7 +255,7 @@ async def end_game(game_id: str, db: Session) -> None:
     # Calculate final results for each player
     results = []
     for gp in game_players:
-        words = json.loads(gp.words_found) if gp.words_found else []
+        words = json.loads(gp.words_found) if gp.words_found else [] if gp.words_found else []
         word_results = []
         total_score = 0
 
@@ -269,6 +327,101 @@ def verify_game_participant(game_id: str, user_id: str, db: Session) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You are not a participant in this game"
         )
+
+
+@app.get("/health", response_model=HealthCheckResponse)
+async def health_check(db: Session = Depends(get_db)) -> HealthCheckResponse:
+    """Health check endpoint for monitoring server status.
+
+    Returns comprehensive health metrics including:
+    - Database connectivity and response time
+    - WebSocket connection counts
+    - Background task status
+    - Game statistics
+
+    No authentication required - this is a public monitoring endpoint.
+    """
+    import time
+    from src.models import Game as GameModel
+
+    overall_status = "healthy"
+
+    # Check database health
+    from sqlalchemy import text
+    db_start = time.time()
+    db_connected = False
+    try:
+        # Simple query to test connection
+        db.execute(text("SELECT 1"))
+        db_connected = True
+    except Exception as e:
+        print(f"Database health check failed: {e}")
+        overall_status = "degraded"
+    db_response_time = int((time.time() - db_start) * 1000)  # Convert to milliseconds
+
+    # Count WebSocket connections
+    total_ws_connections = sum(len(conns) for conns in manager.active_connections.values())
+    ws_by_game = {game_id: len(conns) for game_id, conns in manager.active_connections.items()}
+
+    # Check timer monitor status
+    global monitor_task
+    monitor_running = monitor_task is not None and not monitor_task.done()
+
+    # Count active games being monitored
+    active_timed_games = 0
+    if db_connected:
+        try:
+            active_timed_games = db.query(GameModel).filter(
+                GameModel.status == "in_progress",
+                GameModel.started_at.isnot(None),
+                GameModel.time_limit.isnot(None)
+            ).count()
+        except Exception as e:
+            print(f"Failed to count active games: {e}")
+            overall_status = "degraded"
+
+    # Get game statistics
+    game_stats = {"total": 0, "in_progress": 0, "waiting": 0, "finished": 0}
+    if db_connected:
+        try:
+            game_stats["total"] = db.query(GameModel).count()
+            game_stats["in_progress"] = db.query(GameModel).filter(
+                GameModel.status == "in_progress"
+            ).count()
+            game_stats["waiting"] = db.query(GameModel).filter(
+                GameModel.status == "waiting"
+            ).count()
+            game_stats["finished"] = db.query(GameModel).filter(
+                GameModel.status == "finished"
+            ).count()
+        except Exception as e:
+            print(f"Failed to get game statistics: {e}")
+            overall_status = "degraded"
+
+    return HealthCheckResponse(
+        status=overall_status,
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        database=DatabaseHealth(
+            connected=db_connected,
+            response_time_ms=db_response_time
+        ),
+        websockets=WebSocketHealth(
+            total_connections=total_ws_connections,
+            connections_by_game=ws_by_game
+        ),
+        background_tasks=BackgroundTasksHealth(
+            timer_monitor=TimerMonitorHealth(
+                running=monitor_running,
+                active_games_count=active_timed_games
+            )
+        ),
+        games=GamesHealth(
+            total=game_stats["total"],
+            in_progress=game_stats["in_progress"],
+            waiting=game_stats["waiting"],
+            finished=game_stats["finished"]
+        )
+    )
 
 
 @app.post("/games", response_model=CreateGameResponse, status_code=status.HTTP_201_CREATED)
@@ -387,7 +540,11 @@ def join_game(
 
     # Get all players in the game
     all_players = db.query(GamePlayer).filter(GamePlayer.game_id == game_id).all()
-    player_names = [db.query(User).filter(User.id == gp.user_id).first().username for gp in all_players]
+    player_names = []
+    for gp in all_players:
+        user = db.query(User).filter(User.id == gp.user_id).first()
+        if user:
+            player_names.append(user.username)
 
     return JoinGameResponse(
         player_id=game_player.id,
@@ -431,11 +588,15 @@ def get_game_state(
     verify_game_participant(game_id, current_user.id, db)
 
     # Get board from database (stored as JSON)
-    board_data = json.loads(db_game.board_state)
+    board_data = json.loads(db_game.board_state) if db_game.board_state else []
 
     # Get player names from database
     all_players = db.query(GamePlayer).filter(GamePlayer.game_id == game_id).all()
-    player_names = [db.query(User).filter(User.id == gp.user_id).first().username for gp in all_players]
+    player_names = []
+    for gp in all_players:
+        user = db.query(User).filter(User.id == gp.user_id).first()
+        if user:
+            player_names.append(user.username)
 
     # Calculate time remaining if game is in progress
     time_remaining = None
@@ -451,7 +612,7 @@ def get_game_state(
     # Get words by player from database
     words_by_player = {}
     for gp in all_players:
-        words_by_player[gp.id] = json.loads(gp.words_found)
+        words_by_player[gp.id] = json.loads(gp.words_found) if gp.words_found else []
 
     return GameStateResponse(
         game_id=game_id,
@@ -464,7 +625,7 @@ def get_game_state(
 
 
 @app.post("/games/{game_id}/start", response_model=StartGameResponse)
-def start_game(
+async def start_game(
     game_id: str,
     current_user: User = Depends(get_current_user_from_db),
     db: Session = Depends(get_db)
@@ -510,6 +671,10 @@ def start_game(
 
     db.commit()
     db.refresh(db_game)
+
+    # Start timer monitor if this is a timed game
+    if db_game.time_limit is not None:
+        start_monitor_if_needed(db)
 
     return StartGameResponse(
         game_id=db_game.id,
@@ -559,7 +724,7 @@ def get_game_results(
     # Calculate duplicates (words submitted by multiple players)
     word_counter: Counter[str] = Counter()
     for gp in all_players:
-        words = json.loads(gp.words_found)
+        words = json.loads(gp.words_found) if gp.words_found else []
         for word in words:
             word_counter[word] += 1
 
@@ -569,7 +734,9 @@ def get_game_results(
     player_results = []
     for gp in all_players:
         user = db.query(User).filter(User.id == gp.user_id).first()
-        all_words = json.loads(gp.words_found)
+        if not user:
+            continue  # Skip if user not found
+        all_words = json.loads(gp.words_found) if gp.words_found else []
 
         # Valid words are those not in duplicates list
         # NOTE: This is a simplified version - we're not validating against dictionary/board
@@ -629,24 +796,27 @@ async def websocket_endpoint(
             return
 
         # Reconstruct Board from database
-        board_data = json.loads(db_game.board_state)
+        board_data = json.loads(db_game.board_state) if db_game.board_state else []
         board = Board(size=db_game.board_size)
         board.grid = board_data
 
         # Create Game object for validation
         config = GameConfig(
             board_size=db_game.board_size,
-            time_limit_seconds=db_game.time_limit,
+            time_limit_seconds=db_game.time_limit if db_game.time_limit else 180,
             min_word_length=db_game.min_word_length
         )
         game = Game(board, dictionary, scorer, config)
 
         # Get user info and create Player object
         user = db.query(User).filter(User.id == db_player.user_id).first()
+        if not user:
+            await websocket.close(code=1008, reason="User not found")
+            return
         player = Player(player_id=player_id, name=user.username)
 
         # Load existing words from database
-        existing_words = json.loads(db_player.words_found)
+        existing_words = json.loads(db_player.words_found) if db_player.words_found else []
         for word in existing_words:
             player.add_word(word)
 
@@ -698,7 +868,7 @@ async def websocket_endpoint(
                     status_msg = f"Valid! +{score} points"
 
                     # PERSIST TO DATABASE
-                    words_list = json.loads(db_player.words_found)
+                    words_list = json.loads(db_player.words_found) if db_player.words_found else []
                     words_list.append(word)
                     db_player.words_found = json.dumps(words_list)
                     db_player.score += score
@@ -777,9 +947,11 @@ async def websocket_endpoint(
         manager.disconnect(websocket, game_id)
         # Notify others that player disconnected
         from src.ws_models import PlayerDisconnectedMessage
+        # Get username for disconnect message
+        username = user.username if 'user' in locals() and user else "Unknown"
         disconnect_msg = PlayerDisconnectedMessage(
             type="player_disconnected",
-            player_name=user.username
+            player_name=username
         )
         await manager.broadcast(
             disconnect_msg.model_dump_json(),
