@@ -58,6 +58,14 @@ struct PlayerResultCard: View {
     let result: PlayerFinalResult
     let isWinner: Bool
 
+    private var backgroundColor: Color {
+        isWinner ? Color.green.opacity(0.1) : Color.gray.opacity(0.1)
+    }
+
+    private var borderColor: Color {
+        isWinner ? .green : .clear
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Player name and score header
@@ -101,14 +109,8 @@ struct PlayerResultCard: View {
             }
         }
         .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(isWinner ? Color.green.opacity(0.1) : Color.gray.opacity(0.1))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(isWinner ? Color.green : Color.clear, lineWidth: 2)
-        )
+        .background(RoundedRectangle(cornerRadius: 12).fill(backgroundColor))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(borderColor, lineWidth: 2))
     }
 }
 
