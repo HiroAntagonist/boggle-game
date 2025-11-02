@@ -8,6 +8,10 @@ import SwiftUI
 struct GameResultsView: View {
     let results: GameEndedMessage
 
+    private var sortedResults: [PlayerFinalResult] {
+        results.results.sorted { $0.total_score > $1.total_score }
+    }
+
     var body: some View {
         VStack(spacing: 25) {
             // Winner announcement
@@ -30,8 +34,11 @@ struct GameResultsView: View {
             // Player results
             ScrollView {
                 VStack(spacing: 20) {
-                    ForEach(results.results.sorted(by: { $0.total_score > $1.total_score }), id: \.player_name) { playerResult in
-                        PlayerResultCard(result: playerResult, isWinner: playerResult.player_name == results.winner)
+                    ForEach(sortedResults, id: \.player_name) { playerResult in
+                        PlayerResultCard(
+                            result: playerResult,
+                            isWinner: playerResult.player_name == results.winner
+                        )
                     }
                 }
                 .padding(.horizontal)
