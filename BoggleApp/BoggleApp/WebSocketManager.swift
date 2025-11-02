@@ -54,14 +54,26 @@ struct GameStartedMessage: Codable {
 
 // MARK: - WebSocket Manager
 
+enum ConnectionStatus {
+    case disconnected
+    case connecting
+    case connected
+    case reconnecting
+}
+
 class WebSocketManager: ObservableObject {
     @Published var isConnected = false
+    @Published var connectionStatus: ConnectionStatus = .disconnected
     @Published var lastWordResult: WordResultMessage?
     @Published var timeRemaining: Int?
 
     private var webSocketTask: URLSessionWebSocketTask?
     private let gameId: String
     private let playerId: String
+    private var reconnectAttempts = 0
+    private let maxReconnectAttempts = 5
+    private var reconnectTask: Task<Void, Never>?
+
     var onWordResult: ((WordResultMessage) -> Void)?
     var onGameEnded: ((GameEndedMessage) -> Void)?
     var onGameStarted: ((GameStartedMessage) -> Void)?
@@ -73,10 +85,13 @@ class WebSocketManager: ObservableObject {
     }
 
     func connect() {
+        connectionStatus = .connecting
+
         // wss:// for production HTTPS, ws:// for local HTTP
         let urlString = "wss://boggle-game-ar.fly.dev/ws/\(gameId)/\(playerId)"
         guard let url = URL(string: urlString) else {
             print("❌ Invalid WebSocket URL")
+            connectionStatus = .disconnected
             return
         }
 
@@ -85,6 +100,8 @@ class WebSocketManager: ObservableObject {
         webSocketTask = URLSession.shared.webSocketTask(with: url)
         webSocketTask?.resume()
         isConnected = true
+        connectionStatus = .connected
+        reconnectAttempts = 0  // Reset on successful connection
 
         // Start listening for messages
         receiveMessage()
@@ -94,9 +111,36 @@ class WebSocketManager: ObservableObject {
 
     func disconnect() {
         print("🔵 Disconnecting WebSocket")
+        reconnectTask?.cancel()
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         isConnected = false
+        connectionStatus = .disconnected
         print("✅ WebSocket disconnected")
+    }
+
+    private func attemptReconnect() {
+        guard reconnectAttempts < maxReconnectAttempts else {
+            print("❌ Max reconnection attempts reached")
+            connectionStatus = .disconnected
+            return
+        }
+
+        reconnectAttempts += 1
+        connectionStatus = .reconnecting
+
+        // Exponential backoff: 1s, 2s, 4s, 8s, 16s
+        let delay = min(pow(2.0, Double(reconnectAttempts - 1)), 16.0)
+        print("🔄 Reconnecting in \(delay)s (attempt \(reconnectAttempts)/\(maxReconnectAttempts))...")
+
+        reconnectTask = Task {
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+
+            guard !Task.isCancelled else { return }
+
+            await MainActor.run {
+                self.connect()
+            }
+        }
     }
 
     func submitWord(_ word: String) {
@@ -141,6 +185,10 @@ class WebSocketManager: ObservableObject {
             case .failure(let error):
                 print("❌ WebSocket receive error: \(error)")
                 self?.isConnected = false
+                self?.connectionStatus = .disconnected
+
+                // Attempt to reconnect
+                self?.attemptReconnect()
             }
         }
     }

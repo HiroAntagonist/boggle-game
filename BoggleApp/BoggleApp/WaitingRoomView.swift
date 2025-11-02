@@ -86,9 +86,15 @@ struct WaitingRoomView: View {
             board = gameState.board
             players = gameState.players
 
-            // Get our player ID (we should already be joined)
-            // For now, we'll connect WebSocket without player ID and handle it in game start
-            // TODO: Store player ID from join response
+            // Connect WebSocket to listen for game_started messages (auto-start)
+            let wsManager = WebSocketManager(gameId: gameId, playerId: playerId)
+            wsManager.onGameStarted = { startMessage in
+                // Auto-start: game started by another player or when room filled
+                self.board = startMessage.board
+                self.navigateToGame = true
+            }
+            wsManager.connect()
+            webSocketManager = wsManager
 
         } catch let error as APIError {
             errorMessage = error.errorDescription

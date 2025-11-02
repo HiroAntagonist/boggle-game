@@ -24,6 +24,7 @@ struct GameView: View {
     @State private var playerCount: Int = 0
     @State private var gameResults: GameEndedMessage?
     @State private var navigateToResults = false
+    @State private var connectionStatus: ConnectionStatus = .disconnected
 
     init(gameId: String? = nil, playerId: String? = nil, initialBoard: [[String]]? = nil) {
         self.gameId = gameId
@@ -39,9 +40,12 @@ struct GameView: View {
                     .font(.largeTitle)
                     .fontWeight(.bold)
 
-                // Timer and player count
+                // Timer, player count, and connection status
                 if !isLoading {
                     HStack(spacing: 20) {
+                        // Connection status indicator
+                        connectionStatusView
+
                         if let time = timeRemaining {
                             Label("\(formatTime(time))", systemImage: "clock")
                                 .font(.headline)
@@ -181,6 +185,15 @@ struct GameView: View {
             wsManager.connect()
             webSocketManager = wsManager
 
+            // Observe connection status changes
+            Task {
+                for await status in wsManager.$connectionStatus.values {
+                    await MainActor.run {
+                        self.connectionStatus = status
+                    }
+                }
+            }
+
             isLoading = false
             return
         }
@@ -215,6 +228,15 @@ struct GameView: View {
             }
             wsManager.connect()
             webSocketManager = wsManager
+
+            // Observe connection status changes
+            Task {
+                for await status in wsManager.$connectionStatus.values {
+                    await MainActor.run {
+                        self.connectionStatus = status
+                    }
+                }
+            }
 
         } catch let error as APIError {
             errorMessage = error.errorDescription
@@ -282,6 +304,29 @@ struct GameView: View {
         let mins = seconds / 60
         let secs = seconds % 60
         return String(format: "%d:%02d", mins, secs)
+    }
+
+    private var connectionStatusView: some View {
+        Group {
+            switch connectionStatus {
+            case .connected:
+                Label("Connected", systemImage: "wifi")
+                    .font(.caption)
+                    .foregroundStyle(.green)
+            case .connecting:
+                Label("Connecting", systemImage: "wifi.exclamationmark")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            case .reconnecting:
+                Label("Reconnecting", systemImage: "wifi.slash")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            case .disconnected:
+                Label("Disconnected", systemImage: "wifi.slash")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+        }
     }
 }
 
