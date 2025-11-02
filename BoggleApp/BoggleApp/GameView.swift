@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import Combine
 
 struct GameView: View {
     let gameId: String?
