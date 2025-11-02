@@ -28,6 +28,30 @@ struct GameStateMessage: Codable {
     let player_count: Int
 }
 
+struct PlayerWordResult: Codable {
+    let word: String
+    let score: Int
+    let valid: Bool
+}
+
+struct PlayerFinalResult: Codable {
+    let player_name: String
+    let words: [PlayerWordResult]
+    let total_score: Int
+}
+
+struct GameEndedMessage: Codable {
+    let type: String
+    let winner: String?
+    let results: [PlayerFinalResult]
+}
+
+struct GameStartedMessage: Codable {
+    let type: String
+    let board: [[String]]
+    let time_limit: Int?
+}
+
 // MARK: - WebSocket Manager
 
 class WebSocketManager: ObservableObject {
@@ -39,6 +63,9 @@ class WebSocketManager: ObservableObject {
     private let gameId: String
     private let playerId: String
     var onWordResult: ((WordResultMessage) -> Void)?
+    var onGameEnded: ((GameEndedMessage) -> Void)?
+    var onGameStarted: ((GameStartedMessage) -> Void)?
+    var onGameState: ((GameStateMessage) -> Void)?
 
     init(gameId: String, playerId: String) {
         self.gameId = gameId
@@ -141,7 +168,24 @@ class WebSocketManager: ObservableObject {
                 if let state = try? JSONDecoder().decode(GameStateMessage.self, from: data) {
                     DispatchQueue.main.async {
                         self.timeRemaining = state.time_remaining
+                        self.onGameState?(state)
                         print("✅ Game state: \(state.status), time: \(state.time_remaining ?? 0)s")
+                    }
+                }
+
+            case "game_ended":
+                if let endMessage = try? JSONDecoder().decode(GameEndedMessage.self, from: data) {
+                    DispatchQueue.main.async {
+                        self.onGameEnded?(endMessage)
+                        print("🏁 Game ended! Winner: \(endMessage.winner ?? "TIE")")
+                    }
+                }
+
+            case "game_started":
+                if let startMessage = try? JSONDecoder().decode(GameStartedMessage.self, from: data) {
+                    DispatchQueue.main.async {
+                        self.onGameStarted?(startMessage)
+                        print("🎮 Game started!")
                     }
                 }
 

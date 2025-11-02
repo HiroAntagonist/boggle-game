@@ -20,6 +20,10 @@ struct GameView: View {
     @State private var lastResult: WordResultMessage?
     @State private var isSubmitting = false
     @State private var submittingWord = ""
+    @State private var timeRemaining: Int?
+    @State private var playerCount: Int = 0
+    @State private var gameResults: GameEndedMessage?
+    @State private var navigateToResults = false
 
     init(gameId: String? = nil, playerId: String? = nil, initialBoard: [[String]]? = nil) {
         self.gameId = gameId
@@ -29,10 +33,29 @@ struct GameView: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            // Title
-            Text("Boggle")
-                .font(.largeTitle)
-                .fontWeight(.bold)
+            // Title and game info
+            VStack(spacing: 8) {
+                Text("Boggle")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+
+                // Timer and player count
+                if !isLoading {
+                    HStack(spacing: 20) {
+                        if let time = timeRemaining {
+                            Label("\(formatTime(time))", systemImage: "clock")
+                                .font(.headline)
+                                .foregroundStyle(time < 30 ? .red : .blue)
+                        }
+
+                        if playerCount > 0 {
+                            Label("\(playerCount) players", systemImage: "person.2")
+                                .font(.headline)
+                                .foregroundStyle(.gray)
+                        }
+                    }
+                }
+            }
 
             if isLoading {
                 ProgressView("Creating game...")
@@ -130,6 +153,11 @@ struct GameView: View {
         .task {
             await loadGame()
         }
+        .navigationDestination(isPresented: $navigateToResults) {
+            if let results = gameResults {
+                GameResultsView(results: results)
+            }
+        }
     }
 
     private func loadGame() async {
@@ -141,6 +169,14 @@ struct GameView: View {
             let wsManager = WebSocketManager(gameId: gid, playerId: pid)
             wsManager.onWordResult = { result in
                 self.handleWordResult(result)
+            }
+            wsManager.onGameState = { state in
+                self.timeRemaining = state.time_remaining
+                self.playerCount = state.player_count
+            }
+            wsManager.onGameEnded = { endMessage in
+                self.gameResults = endMessage
+                self.navigateToResults = true
             }
             wsManager.connect()
             webSocketManager = wsManager
@@ -168,6 +204,14 @@ struct GameView: View {
             let wsManager = WebSocketManager(gameId: game.game_id, playerId: joinResponse.player_id)
             wsManager.onWordResult = { result in
                 self.handleWordResult(result)
+            }
+            wsManager.onGameState = { state in
+                self.timeRemaining = state.time_remaining
+                self.playerCount = state.player_count
+            }
+            wsManager.onGameEnded = { endMessage in
+                self.gameResults = endMessage
+                self.navigateToResults = true
             }
             wsManager.connect()
             webSocketManager = wsManager
@@ -232,6 +276,12 @@ struct GameView: View {
                 self.feedbackMessage = nil
             }
         }
+    }
+
+    private func formatTime(_ seconds: Int) -> String {
+        let mins = seconds / 60
+        let secs = seconds % 60
+        return String(format: "%d:%02d", mins, secs)
     }
 }
 
