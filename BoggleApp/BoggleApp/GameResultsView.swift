@@ -53,6 +53,7 @@ struct GameResultsView: View {
             .font(.title3)
         }
         .padding()
+        .navigationBarBackButtonHidden(true)
     }
 }
 
