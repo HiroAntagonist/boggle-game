@@ -15,6 +15,7 @@ class CreateGameRequest(BaseModel):
 class CreateGameResponse(BaseModel):
     """Response model after creating a game."""
     game_id: str = Field(description="Unique game identifier")
+    friendly_code: str = Field(description="Human-readable game code (XXXX-XXXX format)")
     board: List[List[str]] = Field(description="Game board grid")
     created_at: str = Field(description="ISO timestamp of game creation")
     status: str = Field(description="Game status (waiting, in_progress, finished)")

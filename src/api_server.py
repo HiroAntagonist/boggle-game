@@ -40,6 +40,37 @@ from src.config import GameConfig
 from src.database import get_db
 from src.models import User
 from src.auth import hash_password, verify_password, create_access_token, get_current_user_from_db
+import random
+
+
+def generate_friendly_code(db: Session) -> str:
+    """Generate a unique friendly code in XXXX-XXXX format.
+
+    Uses 8 random digits formatted as XXXX-XXXX for human readability.
+    Checks database for uniqueness and retries if collision occurs.
+
+    Args:
+        db: Database session for uniqueness checks
+
+    Returns:
+        Unique 9-character code string (8 digits + 1 dash)
+    """
+    from src.models import Game as GameModel
+
+    max_attempts = 10
+    for _ in range(max_attempts):
+        # Generate 8 random digits
+        code_number = random.randint(0, 99999999)
+        # Format as XXXX-XXXX
+        friendly_code = f"{code_number:08d}"[:4] + "-" + f"{code_number:08d}"[4:]
+
+        # Check if code already exists
+        existing = db.query(GameModel).filter(GameModel.friendly_code == friendly_code).first()
+        if not existing:
+            return friendly_code
+
+    # Fallback to UUID if we can't generate unique code (extremely unlikely)
+    raise Exception("Unable to generate unique friendly code after multiple attempts")
 
 
 app = FastAPI(
@@ -452,6 +483,9 @@ def create_game(
     # Create game record in database
     from src.models import Game as GameModel
 
+    # Generate unique friendly code
+    friendly_code = generate_friendly_code(db)
+
     db_game = GameModel(
         creator_id=current_user.id,
         status="waiting",
@@ -459,15 +493,20 @@ def create_game(
         time_limit=request.time_limit_seconds,
         max_players=request.max_players,
         min_word_length=3,
-        board_state=board_json
+        board_state=board_json,
+        friendly_code=friendly_code
     )
 
     db.add(db_game)
     db.commit()
     db.refresh(db_game)
 
+    # Assertion: friendly_code is guaranteed to be set since we just assigned it
+    assert db_game.friendly_code is not None
+
     return CreateGameResponse(
         game_id=db_game.id,
+        friendly_code=db_game.friendly_code,
         board=board_data,
         created_at=db_game.created_at.isoformat(),
         status=db_game.status

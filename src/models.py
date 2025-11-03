@@ -98,6 +98,15 @@ class Game(Base):
         default=lambda: str(uuid.uuid4())
     )
 
+    # FRIENDLY CODE - Human-readable game code (XXXX-XXXX format)
+    # Indexed and unique for fast lookups when joining by code
+    friendly_code: Mapped[Optional[str]] = mapped_column(
+        String(9),  # Format: XXXX-XXXX (8 digits + 1 dash)
+        unique=True,
+        nullable=True,
+        index=True
+    )
+
     # FOREIGN KEY - References users.id
     # This creates a column that MUST contain a valid user ID
     # ForeignKey("users.id") tells SQLAlchemy this column references the users table

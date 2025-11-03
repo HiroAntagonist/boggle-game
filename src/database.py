@@ -35,7 +35,11 @@ else:
 # Format: sqlite:///path/to/file.db (/// for relative, //// for absolute)
 # For PostgreSQL: postgresql://user:password@host:port/database
 # Load from environment variable, with fallback to local SQLite for development
+# Handle both postgres:// and postgresql:// prefixes
+# Heroku and some services use postgres:// but SQLAlchemy needs postgresql://
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./boggle.db")
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 # ENGINE
 # The engine is the connection to the database
