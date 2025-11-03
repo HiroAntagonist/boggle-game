@@ -30,6 +30,9 @@ struct GameView: View {
     @State private var connectionStatus: ConnectionStatus = .disconnected
     @State private var timerCancellable: AnyCancellable?
     @State private var showExitConfirmation = false
+    @State private var isDragging = false
+    @State private var currentDragWord = ""
+    @State private var lastDraggedTile: String? = nil  // Track last tile to avoid adding same letter multiple times in one position
 
     init(navigationPath: Binding<NavigationPath>, gameId: String? = nil, playerId: String? = nil, initialBoard: [[String]]? = nil, timeLimit: Int? = nil) {
         self._navigationPath = navigationPath
@@ -97,24 +100,36 @@ struct GameView: View {
                     }
                 }
             } else {
-                // Board grid with rotation button
+                // Board grid with rotation button and drag gesture
                 ZStack(alignment: .topTrailing) {
-                    VStack(spacing: 8) {
-                        ForEach(0..<board.count, id: \.self) { row in
-                            HStack(spacing: 8) {
-                                ForEach(0..<board[row].count, id: \.self) { col in
-                                    LetterTile(letter: board[row][col]) {
-                                        selectedWord += board[row][col]
+                    GeometryReader { geometry in
+                        VStack(spacing: 8) {
+                            ForEach(0..<board.count, id: \.self) { row in
+                                HStack(spacing: 8) {
+                                    ForEach(0..<board[row].count, id: \.self) { col in
+                                        LetterTile(letter: board[row][col]) {
+                                            selectedWord += board[row][col]
+                                        }
                                     }
                                 }
                             }
                         }
+                        .padding()
+                        .background(
+                            RoundedRectangle(cornerRadius: 15)
+                                .fill(.gray.opacity(0.1))
+                        )
+                        .gesture(
+                            DragGesture(minimumDistance: 0)
+                                .onChanged { value in
+                                    handleDrag(at: value.location, in: geometry.size)
+                                }
+                                .onEnded { _ in
+                                    endDrag()
+                                }
+                        )
                     }
-                    .padding()
-                    .background(
-                        RoundedRectangle(cornerRadius: 15)
-                            .fill(.gray.opacity(0.1))
-                    )
+                    .frame(height: CGFloat(board.count * 78 + 16))  // 70px tiles + 8px spacing + padding
 
                     // Rotate button
                     Button(action: {
@@ -379,6 +394,52 @@ struct GameView: View {
     private func stopCountdownTimer() {
         timerCancellable?.cancel()
         timerCancellable = nil
+    }
+
+    private func handleDrag(at location: CGPoint, in size: CGSize) {
+        guard !board.isEmpty else { return }
+
+        // Start drag if not already dragging
+        if !isDragging {
+            isDragging = true
+            currentDragWord = ""
+            lastDraggedTile = nil
+        }
+
+        // Calculate which tile the drag is over
+        // Account for padding (16px total: 8px on each side)
+        let adjustedX = location.x - 8
+        let adjustedY = location.y - 8
+
+        // Calculate tile size including spacing
+        let boardSize = board.count
+        let tileSize: CGFloat = 70
+        let spacing: CGFloat = 8
+        let tileWithSpacing = tileSize + spacing
+
+        let col = Int(adjustedX / tileWithSpacing)
+        let row = Int(adjustedY / tileWithSpacing)
+
+        // Check if within bounds
+        guard row >= 0 && row < boardSize && col >= 0 && col < boardSize else { return }
+
+        let tileKey = "\(row)-\(col)"
+
+        // Only add letter if we've moved to a different tile
+        if lastDraggedTile != tileKey {
+            currentDragWord += board[row][col]
+            lastDraggedTile = tileKey
+        }
+    }
+
+    private func endDrag() {
+        isDragging = false
+        // Transfer the drag word to selected word
+        if !currentDragWord.isEmpty {
+            selectedWord = currentDragWord
+        }
+        currentDragWord = ""
+        lastDraggedTile = nil
     }
 
     private var connectionStatusView: some View {
