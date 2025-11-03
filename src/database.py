@@ -20,7 +20,32 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./boggle.db")
 # The engine is the connection to the database
 # echo=True prints all SQL commands (helpful for learning!)
 # In production, set echo=False for better performance
-engine = create_engine(DATABASE_URL, echo=True)
+#
+# Connection pool settings for PostgreSQL:
+# - pool_pre_ping: Test connections before using them (handle stale connections)
+# - pool_size: Number of connections to keep in the pool
+# - max_overflow: Additional connections beyond pool_size
+# - pool_recycle: Recycle connections after this many seconds (prevents stale connections)
+# - connect_args: Database-specific connection arguments
+connect_args = {}
+if DATABASE_URL.startswith("postgresql"):
+    # PostgreSQL-specific settings
+    connect_args = {
+        "connect_timeout": 10,  # 10 second connection timeout
+        "options": "-c statement_timeout=30000"  # 30 second statement timeout
+    }
+    engine = create_engine(
+        DATABASE_URL,
+        echo=True,
+        pool_pre_ping=True,  # Test connection before using
+        pool_size=5,  # Maintain 5 connections
+        max_overflow=10,  # Allow 10 additional connections
+        pool_recycle=3600,  # Recycle connections after 1 hour
+        connect_args=connect_args
+    )
+else:
+    # SQLite doesn't need connection pooling
+    engine = create_engine(DATABASE_URL, echo=True)
 
 
 # ENABLE FOREIGN KEY CONSTRAINTS FOR SQLITE
