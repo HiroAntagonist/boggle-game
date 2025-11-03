@@ -151,6 +151,17 @@ struct GameView: View {
                         .buttonStyle(.bordered)
                         .disabled(selectedWord.isEmpty)
 
+                        Button(action: {
+                            if !selectedWord.isEmpty {
+                                selectedWord.removeLast()
+                                feedbackMessage = nil
+                            }
+                        }) {
+                            Image(systemName: "delete.left")
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(selectedWord.isEmpty)
+
                         Button("Submit") {
                             submitWord()
                         }
