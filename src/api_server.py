@@ -592,6 +592,88 @@ def join_game(
     )
 
 
+@app.post("/games/code/{friendly_code}/join", response_model=JoinGameResponse, status_code=status.HTTP_201_CREATED)
+def join_game_by_code(
+    friendly_code: str,
+    request: JoinGameRequest,
+    current_user: User = Depends(get_current_user_from_db),
+    db: Session = Depends(get_db)
+) -> JoinGameResponse:
+    """Join a game using its friendly code (XXXX-XXXX format).
+
+    This is a convenience endpoint that allows users to join games using
+    human-readable codes instead of UUIDs.
+
+    Requires authentication. The authenticated user joins the game.
+
+    Args:
+        friendly_code: Human-readable game code (XXXX-XXXX format)
+        request: Player information
+        current_user: Authenticated user (injected)
+        db: Database session (injected)
+
+    Returns:
+        Player details and list of all players
+
+    Raises:
+        HTTPException: 404 if game not found, 400 if game is full or user already joined
+    """
+    from src.models import Game as GameModel, GamePlayer
+
+    # Look up game by friendly code
+    db_game = db.query(GameModel).filter(GameModel.friendly_code == friendly_code).first()
+    if not db_game:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Game with code {friendly_code} not found"
+        )
+
+    # Check if game is full
+    current_player_count = db.query(GamePlayer).filter(GamePlayer.game_id == db_game.id).count()
+    if current_player_count >= db_game.max_players:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Game is full"
+        )
+
+    # Check if user already joined this game
+    existing_player = db.query(GamePlayer).filter(
+        GamePlayer.game_id == db_game.id,
+        GamePlayer.user_id == current_user.id
+    ).first()
+    if existing_player:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You have already joined this game"
+        )
+
+    # Create GamePlayer record
+    game_player = GamePlayer(
+        game_id=db_game.id,
+        user_id=current_user.id,
+        score=0,
+        words_found="[]"
+    )
+
+    db.add(game_player)
+    db.commit()
+    db.refresh(game_player)
+
+    # Get all players in the game
+    all_players = db.query(GamePlayer).filter(GamePlayer.game_id == db_game.id).all()
+    player_names = []
+    for gp in all_players:
+        user = db.query(User).filter(User.id == gp.user_id).first()
+        if user:
+            player_names.append(user.username)
+
+    return JoinGameResponse(
+        player_id=game_player.id,
+        player_name=request.player_name,
+        players=player_names
+    )
+
+
 @app.get("/games/{game_id}", response_model=GameStateResponse)
 def get_game_state(
     game_id: str,
