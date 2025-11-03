@@ -6,6 +6,7 @@
 import SwiftUI
 
 struct WaitingRoomView: View {
+    @Binding var navigationPath: NavigationPath
     let gameId: String
     let playerId: String
     let maxPlayers: Int
@@ -73,7 +74,7 @@ struct WaitingRoomView: View {
         }
         .navigationDestination(isPresented: $navigateToGame) {
             if !board.isEmpty {
-                GameView(gameId: gameId, playerId: playerId, initialBoard: board)
+                GameView(navigationPath: $navigationPath, gameId: gameId, playerId: playerId, initialBoard: board, timeLimit: nil)
             }
         }
         .navigationBarBackButtonHidden(true)
@@ -128,5 +129,5 @@ struct WaitingRoomView: View {
 }
 
 #Preview {
-    WaitingRoomView(gameId: "preview-game-123", playerId: "preview-player-456", maxPlayers: 2)
+    WaitingRoomView(navigationPath: .constant(NavigationPath()), gameId: "preview-game-123", playerId: "preview-player-456", maxPlayers: 2)
 }

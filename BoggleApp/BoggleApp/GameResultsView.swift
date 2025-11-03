@@ -6,8 +6,8 @@
 import SwiftUI
 
 struct GameResultsView: View {
+    @Binding var navigationPath: NavigationPath
     let results: GameEndedMessage
-    @Environment(\.dismiss) private var dismiss
 
     private var sortedResults: [PlayerFinalResult] {
         results.results.sorted { $0.total_score > $1.total_score }
@@ -46,9 +46,8 @@ struct GameResultsView: View {
             }
 
             Button("Back to Lobby") {
-                // Dismiss back through the navigation stack to lobby
-                // This will pop: GameResultsView → GameView → WaitingRoom → back to Lobby
-                dismiss()
+                // Clear navigation path to return to lobby
+                navigationPath = NavigationPath()
             }
             .buttonStyle(.borderedProminent)
             .font(.title3)
@@ -142,5 +141,5 @@ struct PlayerResultCard: View {
         ]
     )
 
-    return GameResultsView(results: sampleResults)
+    return GameResultsView(navigationPath: .constant(NavigationPath()), results: sampleResults)
 }

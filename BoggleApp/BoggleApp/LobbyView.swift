@@ -6,41 +6,46 @@
 import SwiftUI
 
 struct LobbyView: View {
-    @State private var showNewGame = false
-    @State private var showJoinGame = false
+    @State private var navigationPath = NavigationPath()
 
     var body: some View {
-        VStack(spacing: 30) {
-            Text("Boggle")
-                .font(.largeTitle)
-                .fontWeight(.bold)
+        NavigationStack(path: $navigationPath) {
+            VStack(spacing: 30) {
+                Text("Boggle")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
 
-            Text("Ready to play?")
-                .font(.title2)
-                .foregroundStyle(.gray)
+                Text("Ready to play?")
+                    .font(.title2)
+                    .foregroundStyle(.gray)
 
-            VStack(spacing: 15) {
-                Button("New Game") {
-                    showNewGame = true
+                VStack(spacing: 15) {
+                    NavigationLink(value: "newGame") {
+                        Text("New Game")
+                            .frame(width: 200)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .font(.title3)
+
+                    NavigationLink(value: "joinGame") {
+                        Text("Join Game")
+                            .frame(width: 200)
+                    }
+                    .buttonStyle(.bordered)
+                    .font(.title3)
                 }
-                .buttonStyle(.borderedProminent)
-                .font(.title3)
-                .frame(width: 200)
-
-                Button("Join Game") {
-                    showJoinGame = true
-                }
-                .buttonStyle(.bordered)
-                .font(.title3)
-                .frame(width: 200)
             }
-        }
-        .padding()
-        .sheet(isPresented: $showNewGame) {
-            NewGameView()
-        }
-        .sheet(isPresented: $showJoinGame) {
-            JoinGameView()
+            .padding()
+            .navigationDestination(for: String.self) { destination in
+                switch destination {
+                case "newGame":
+                    NewGameView(navigationPath: $navigationPath)
+                case "joinGame":
+                    JoinGameView(navigationPath: $navigationPath)
+                default:
+                    EmptyView()
+                }
+            }
         }
     }
 }

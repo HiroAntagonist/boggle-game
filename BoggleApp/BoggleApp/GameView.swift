@@ -7,6 +7,7 @@ import SwiftUI
 import Combine
 
 struct GameView: View {
+    @Binding var navigationPath: NavigationPath
     let gameId: String?
     let playerId: String?
     let initialBoard: [[String]]?
@@ -28,8 +29,10 @@ struct GameView: View {
     @State private var navigateToResults = false
     @State private var connectionStatus: ConnectionStatus = .disconnected
     @State private var timerCancellable: AnyCancellable?
+    @State private var showExitConfirmation = false
 
-    init(gameId: String? = nil, playerId: String? = nil, initialBoard: [[String]]? = nil, timeLimit: Int? = nil) {
+    init(navigationPath: Binding<NavigationPath>, gameId: String? = nil, playerId: String? = nil, initialBoard: [[String]]? = nil, timeLimit: Int? = nil) {
+        self._navigationPath = navigationPath
         self.gameId = gameId
         self.playerId = playerId
         self.initialBoard = initialBoard
@@ -38,30 +41,48 @@ struct GameView: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            // Title and game info
-            VStack(spacing: 8) {
-                Text("Boggle")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
+            // Title, Exit button, and game info
+            HStack {
+                Spacer()
 
-                // Timer, player count, and connection status
-                if !isLoading {
-                    HStack(spacing: 20) {
-                        // Connection status indicator
-                        connectionStatusView
+                VStack(spacing: 8) {
+                    Text("Boggle")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
 
-                        if let time = timeRemaining {
-                            Label("\(formatTime(time))", systemImage: "clock")
-                                .font(.headline)
-                                .foregroundStyle(time < 30 ? .red : .blue)
-                        }
+                    // Timer, player count, and connection status
+                    if !isLoading {
+                        HStack(spacing: 20) {
+                            // Connection status indicator
+                            connectionStatusView
 
-                        if playerCount > 0 {
-                            Label("\(playerCount) players", systemImage: "person.2")
-                                .font(.headline)
-                                .foregroundStyle(.gray)
+                            if let time = timeRemaining {
+                                Label("\(formatTime(time))", systemImage: "clock")
+                                    .font(.headline)
+                                    .foregroundStyle(time < 30 ? .red : .blue)
+                            }
+
+                            if playerCount > 0 {
+                                Label("\(playerCount) players", systemImage: "person.2")
+                                    .font(.headline)
+                                    .foregroundStyle(.gray)
+                            }
                         }
                     }
+                }
+
+                Spacer()
+
+                // Exit button in top-right
+                if !isLoading && errorMessage == nil {
+                    Button(action: {
+                        showExitConfirmation = true
+                    }) {
+                        Image(systemName: "xmark.circle")
+                            .font(.title2)
+                            .foregroundStyle(.red)
+                    }
+                    .padding(.trailing)
                 }
             }
 
@@ -163,8 +184,18 @@ struct GameView: View {
         }
         .navigationDestination(isPresented: $navigateToResults) {
             if let results = gameResults {
-                GameResultsView(results: results)
+                GameResultsView(navigationPath: $navigationPath, results: results)
             }
+        }
+        .navigationBarBackButtonHidden(true)
+        .alert("Exit Game?", isPresented: $showExitConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Exit", role: .destructive) {
+                // Clear navigation path to go back to lobby
+                navigationPath = NavigationPath()
+            }
+        } message: {
+            Text("Are you sure you want to exit? Your progress will be lost.")
         }
     }
 
@@ -386,5 +417,5 @@ struct LetterTile: View {
 }
 
 #Preview {
-    GameView()
+    GameView(navigationPath: .constant(NavigationPath()))
 }

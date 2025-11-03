@@ -6,7 +6,7 @@
 import SwiftUI
 
 struct JoinGameView: View {
-    @Environment(\.dismiss) private var dismiss
+    @Binding var navigationPath: NavigationPath
     @State private var gameId = ""
     @State private var isJoining = false
     @State private var errorMessage: String?
@@ -15,8 +15,7 @@ struct JoinGameView: View {
     @State private var playerId: String?
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 25) {
+        VStack(spacing: 25) {
                 Text("Join Game")
                     .font(.largeTitle)
                     .fontWeight(.bold)
@@ -55,10 +54,9 @@ struct JoinGameView: View {
             .padding()
             .navigationDestination(isPresented: $navigateToWaitingRoom) {
                 if let players = maxPlayers, let pid = playerId {
-                    WaitingRoomView(gameId: gameId, playerId: pid, maxPlayers: players)
+                    WaitingRoomView(navigationPath: $navigationPath, gameId: gameId, playerId: pid, maxPlayers: players)
                 }
             }
-        }
     }
 
     private func joinGame() async {
@@ -90,5 +88,5 @@ struct JoinGameView: View {
 }
 
 #Preview {
-    JoinGameView()
+    JoinGameView(navigationPath: .constant(NavigationPath()))
 }

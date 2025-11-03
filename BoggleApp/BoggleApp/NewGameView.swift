@@ -6,7 +6,7 @@
 import SwiftUI
 
 struct NewGameView: View {
-    @Environment(\.dismiss) private var dismiss
+    @Binding var navigationPath: NavigationPath
     @State private var boardSize = 4
     @State private var timeLimit = 180
     @State private var maxPlayers = 2
@@ -21,8 +21,7 @@ struct NewGameView: View {
     let playerCounts = [2, 3, 4]
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 25) {
+        VStack(spacing: 25) {
                 Text("New Game")
                     .font(.largeTitle)
                     .fontWeight(.bold)
@@ -72,10 +71,9 @@ struct NewGameView: View {
             .padding()
             .navigationDestination(isPresented: $navigateToWaitingRoom) {
                 if let gameId = createdGameId, let pid = playerId {
-                    WaitingRoomView(gameId: gameId, playerId: pid, maxPlayers: maxPlayers)
+                    WaitingRoomView(navigationPath: $navigationPath, gameId: gameId, playerId: pid, maxPlayers: maxPlayers)
                 }
             }
-        }
     }
 
     private func createGame() async {
@@ -108,5 +106,5 @@ struct NewGameView: View {
 }
 
 #Preview {
-    NewGameView()
+    NewGameView(navigationPath: .constant(NavigationPath()))
 }

@@ -3637,3 +3637,6 @@ if let errorString = String(data: data, encoding: .utf8) {
 - SwiftUI's declarative syntax is intuitive coming from React/Flutter
 - `Codable` is powerful but strict (good for catching API mismatches)
 - Xcode's live preview makes UI development fast
+## Important: DO NOT use flyctl logs command
+
+The flyctl logs command causes issues and should be avoided. Use alternative methods to check deployment status.
