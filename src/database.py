@@ -5,10 +5,31 @@ from typing import Any, Generator
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, DeclarativeBase, Session
 import os
+import logging
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+
+# Configure SQLAlchemy logging to output SQL on single lines
+# This prevents multi-line SQL statements from creating fragmented log entries
+class SingleLineFormatter(logging.Formatter):
+    """Custom formatter that replaces newlines with spaces in log messages."""
+    def format(self, record: logging.LogRecord) -> str:
+        # Replace newlines and multiple spaces with single space
+        record.msg = ' '.join(str(record.msg).split())
+        return super().format(record)
+
+# Apply single-line formatter to SQLAlchemy's engine logger
+sqlalchemy_logger = logging.getLogger('sqlalchemy.engine')
+if sqlalchemy_logger.handlers:
+    for handler in sqlalchemy_logger.handlers:
+        handler.setFormatter(SingleLineFormatter('%(levelname)s:%(name)s:%(message)s'))
+else:
+    # Create handler if none exists
+    handler = logging.StreamHandler()
+    handler.setFormatter(SingleLineFormatter('%(levelname)s:%(name)s:%(message)s'))
+    sqlalchemy_logger.addHandler(handler)
 
 # DATABASE URL
 # Format: sqlite:///path/to/file.db (/// for relative, //// for absolute)
@@ -29,14 +50,14 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./boggle.db")
 # - connect_args: Database-specific connection arguments
 connect_args = {}
 if DATABASE_URL.startswith("postgresql"):
-    # PostgreSQL-specific settings (production)
+    # PostgreSQL-specific settings
     connect_args = {
         "connect_timeout": 10,  # 10 second connection timeout
         "options": "-c statement_timeout=30000"  # 30 second statement timeout
     }
     engine = create_engine(
         DATABASE_URL,
-        echo=False,  # Disable SQL logging in production for cleaner logs
+        echo=True,  # SQL logging enabled (formatted to single line above)
         pool_pre_ping=True,  # Test connection before using
         pool_size=5,  # Maintain 5 connections
         max_overflow=10,  # Allow 10 additional connections
@@ -44,7 +65,7 @@ if DATABASE_URL.startswith("postgresql"):
         connect_args=connect_args
     )
 else:
-    # SQLite (local development) - keep echo on for debugging
+    # SQLite doesn't need connection pooling
     engine = create_engine(DATABASE_URL, echo=True)
 
 
