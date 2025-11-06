@@ -260,7 +260,10 @@ struct GameView: View {
 
             // Start countdown timer if time limit and started_at provided
             if let limit = timeLimit, let started = startedAt {
+                print("🕐 Starting countdown timer: timeLimit=\(limit), startedAt=\(started)")
                 startCountdownTimer(from: limit, startedAt: started)
+            } else {
+                print("⚠️ No timer started: timeLimit=\(String(describing: timeLimit)), startedAt=\(String(describing: startedAt))")
             }
 
             isLoading = false
@@ -390,6 +393,7 @@ struct GameView: View {
         // Calculate initial remaining time
         let endTime = startTime.addingTimeInterval(TimeInterval(timeLimit))
         let remaining = max(0, Int(endTime.timeIntervalSinceNow))
+        print("🕐 Timer calculated: remaining=\(remaining)s, endTime=\(endTime), now=\(Date())")
         timeRemaining = remaining
 
         // Create a timer that fires every second and recalculates from server time
