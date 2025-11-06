@@ -145,6 +145,12 @@ class ConnectionManager:
         for connection in disconnected:
             self.disconnect(connection, game_id)
 
+    def get_connection_count(self, game_id: str) -> int:
+        """Get the number of active connections for a game."""
+        if game_id not in self.active_connections:
+            return 0
+        return len(self.active_connections[game_id])
+
 
 # In-memory storage for games
 # In a real application, this would be a database
@@ -1080,6 +1086,19 @@ async def websocket_endpoint(
             disconnect_msg.model_dump_json(),
             game_id
         )
+
+        # Cleanup: Delete waiting games when all players disconnect
+        remaining_connections = manager.get_connection_count(game_id)
+        if remaining_connections == 0:
+            # Check if game is in waiting status
+            db_game = db.query(GameModel).filter(GameModel.id == game_id).first()
+            if db_game and db_game.status == "waiting":
+                # Delete all players first (foreign key constraint)
+                db.query(GamePlayer).filter(GamePlayer.game_id == game_id).delete()
+                # Delete the game
+                db.delete(db_game)
+                db.commit()
+                print(f"Deleted abandoned waiting game: {game_id}")
 
 
 # ============================================================================
