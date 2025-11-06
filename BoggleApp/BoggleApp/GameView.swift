@@ -383,8 +383,9 @@ struct GameView: View {
         // Cancel any existing timer
         timerCancellable?.cancel()
 
-        // Parse started_at timestamp
+        // Parse started_at timestamp (with fractional seconds)
         let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         guard let startTime = formatter.date(from: startedAt) else {
             print("❌ Failed to parse started_at: \(startedAt)")
             return
