@@ -100,6 +100,14 @@ struct WaitingRoomView: View {
             board = gameState.board
             players = gameState.players
 
+            // Check if game has already started (handles race condition where game
+            // auto-started before we connected to WebSocket)
+            if gameState.status == "in_progress" {
+                print("✅ Game already started - navigating immediately")
+                navigateToGame = true
+                return
+            }
+
             // Connect WebSocket to listen for game events
             let wsManager = WebSocketManager(gameId: gameId, playerId: playerId)
 
