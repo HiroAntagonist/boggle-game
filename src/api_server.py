@@ -648,7 +648,8 @@ async def join_game(
             json.dumps({
                 "type": "game_started",
                 "board": board_data,
-                "started_at": db_game.started_at.isoformat()
+                "started_at": db_game.started_at.isoformat(),
+                "time_limit": db_game.time_limit
             }),
             game_id
         )
@@ -773,7 +774,8 @@ async def join_game_by_code(
             json.dumps({
                 "type": "game_started",
                 "board": board_data,
-                "started_at": db_game.started_at.isoformat()
+                "started_at": db_game.started_at.isoformat(),
+                "time_limit": db_game.time_limit
             }),
             db_game.id
         )
@@ -853,6 +855,8 @@ def get_game_state(
         status=db_game.status,
         players=player_names,
         max_players=db_game.max_players,
+        time_limit=db_game.time_limit,
+        started_at=db_game.started_at.isoformat() if db_game.started_at else None,
         time_remaining=time_remaining,
         words_by_player=words_by_player
     )

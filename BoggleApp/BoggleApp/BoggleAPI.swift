@@ -41,6 +41,8 @@ struct GameResponse: Codable {
     let game_id: String
     let board: [[String]]
     let status: String
+    let time_limit: Int?
+    let started_at: String?
     let time_remaining: Int?
     let players: [String]
     let max_players: Int

@@ -41,6 +41,8 @@ class GameStateResponse(BaseModel):
     players: List[str]
     status: str
     max_players: int
+    time_limit: int | None = Field(description="Total time limit in seconds, None if no time limit")
+    started_at: str | None = Field(description="ISO timestamp of when game started, None if not started")
     time_remaining: int | None = Field(description="Seconds remaining, None if not started")
     words_by_player: Dict[str, List[str]] = Field(description="Player ID to their submitted words")
 

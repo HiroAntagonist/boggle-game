@@ -12,6 +12,7 @@ struct GameView: View {
     let playerId: String?
     let initialBoard: [[String]]?
     let timeLimit: Int?
+    let startedAt: String?
 
     @State private var board: [[String]] = []
     @State private var selectedWord = ""
@@ -34,12 +35,13 @@ struct GameView: View {
     @State private var currentDragWord = ""
     @State private var lastDraggedTile: String? = nil  // Track last tile to avoid adding same letter multiple times in one position
 
-    init(navigationPath: Binding<NavigationPath>, gameId: String? = nil, playerId: String? = nil, initialBoard: [[String]]? = nil, timeLimit: Int? = nil) {
+    init(navigationPath: Binding<NavigationPath>, gameId: String? = nil, playerId: String? = nil, initialBoard: [[String]]? = nil, timeLimit: Int? = nil, startedAt: String? = nil) {
         self._navigationPath = navigationPath
         self.gameId = gameId
         self.playerId = playerId
         self.initialBoard = initialBoard
         self.timeLimit = timeLimit
+        self.startedAt = startedAt
     }
 
     var body: some View {
@@ -256,9 +258,9 @@ struct GameView: View {
                 }
             }
 
-            // Start countdown timer if time limit provided
-            if let limit = timeLimit {
-                startCountdownTimer(from: limit)
+            // Start countdown timer if time limit and started_at provided
+            if let limit = timeLimit, let started = startedAt {
+                startCountdownTimer(from: limit, startedAt: started)
             }
 
             isLoading = false
@@ -374,20 +376,28 @@ struct GameView: View {
         return String(format: "%d:%02d", mins, secs)
     }
 
-    private func startCountdownTimer(from initialTime: Int) {
+    private func startCountdownTimer(from timeLimit: Int, startedAt: String) {
         // Cancel any existing timer
         timerCancellable?.cancel()
 
-        // Set initial time
-        timeRemaining = initialTime
+        // Parse started_at timestamp
+        let formatter = ISO8601DateFormatter()
+        guard let startTime = formatter.date(from: startedAt) else {
+            print("❌ Failed to parse started_at: \(startedAt)")
+            return
+        }
 
-        // Create a timer that fires every second
+        // Calculate initial remaining time
+        let endTime = startTime.addingTimeInterval(TimeInterval(timeLimit))
+        let remaining = max(0, Int(endTime.timeIntervalSinceNow))
+        timeRemaining = remaining
+
+        // Create a timer that fires every second and recalculates from server time
         timerCancellable = Timer.publish(every: 1.0, on: .main, in: .common)
             .autoconnect()
             .sink { _ in
-                if let current = self.timeRemaining, current > 0 {
-                    self.timeRemaining = current - 1
-                }
+                let newRemaining = max(0, Int(endTime.timeIntervalSinceNow))
+                self.timeRemaining = newRemaining
             }
     }
 

@@ -14,6 +14,8 @@ struct WaitingRoomView: View {
 
     @State private var players: [String] = []
     @State private var board: [[String]] = []
+    @State private var timeLimit: Int?
+    @State private var startedAt: String?
     @State private var isStarting = false
     @State private var errorMessage: String?
     @State private var webSocketManager: WebSocketManager?
@@ -87,7 +89,7 @@ struct WaitingRoomView: View {
         }
         .navigationDestination(isPresented: $navigateToGame) {
             if !board.isEmpty {
-                GameView(navigationPath: $navigationPath, gameId: gameId, playerId: playerId, initialBoard: board, timeLimit: nil)
+                GameView(navigationPath: $navigationPath, gameId: gameId, playerId: playerId, initialBoard: board, timeLimit: timeLimit, startedAt: startedAt)
             }
         }
         .navigationBarBackButtonHidden(true)
@@ -99,6 +101,8 @@ struct WaitingRoomView: View {
             let gameState = try await BoggleAPI.shared.getGameState(gameId: gameId)
             board = gameState.board
             players = gameState.players
+            timeLimit = gameState.time_limit
+            startedAt = gameState.started_at
 
             // Check if game has already started (handles race condition where game
             // auto-started before we connected to WebSocket)
@@ -121,6 +125,8 @@ struct WaitingRoomView: View {
             wsManager.onGameStarted = { startMessage in
                 // Auto-start: game started by another player or when room filled
                 self.board = startMessage.board
+                self.timeLimit = startMessage.time_limit
+                self.startedAt = startMessage.started_at
                 self.navigateToGame = true
             }
 

@@ -49,6 +49,7 @@ struct GameEndedMessage: Codable {
 struct GameStartedMessage: Codable {
     let type: String
     let board: [[String]]
+    let started_at: String
     let time_limit: Int?
 }
 
