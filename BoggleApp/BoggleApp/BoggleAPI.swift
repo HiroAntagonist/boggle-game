@@ -31,6 +31,7 @@ struct CreateGameRequest: Codable {
 
 struct CreateGameResponse: Codable {
     let game_id: String
+    let friendly_code: String
     let board: [[String]]
     let created_at: String
     let status: String
@@ -49,6 +50,7 @@ struct JoinGameRequest: Codable {
 }
 
 struct JoinGameResponse: Codable {
+    let game_id: String
     let player_id: String
     let player_name: String
     let players: [String]
@@ -204,6 +206,39 @@ class BoggleAPI {
         }
 
         print("✅ Joined game successfully!")
+        return try JSONDecoder().decode(JoinGameResponse.self, from: data)
+    }
+
+    func joinGameByCode(friendlyCode: String, playerName: String = "Player") async throws -> JoinGameResponse {
+        guard let token = accessToken else {
+            throw APIError.notAuthenticated
+        }
+
+        let request = JoinGameRequest(player_name: playerName)
+        let url = URL(string: "\(baseURL)/games/code/\(friendlyCode)/join")!
+
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        urlRequest.httpBody = try JSONEncoder().encode(request)
+
+        print("🔵 Joining game with code: \(friendlyCode) as \(playerName)")
+
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.joinGameFailed
+        }
+
+        if !isSuccessStatusCode(httpResponse.statusCode) {
+            if let errorString = String(data: data, encoding: .utf8) {
+                print("❌ Join game by code error (\(httpResponse.statusCode)): \(errorString)")
+            }
+            throw APIError.joinGameFailed
+        }
+
+        print("✅ Joined game by code successfully!")
         return try JSONDecoder().decode(JoinGameResponse.self, from: data)
     }
 

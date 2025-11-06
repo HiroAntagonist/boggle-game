@@ -28,6 +28,7 @@ class JoinGameRequest(BaseModel):
 
 class JoinGameResponse(BaseModel):
     """Response model after joining a game."""
+    game_id: str = Field(description="Game identifier")
     player_id: str = Field(description="Unique player identifier")
     player_name: str = Field(description="Player's display name")
     players: List[str] = Field(description="List of all player names in game")

@@ -10,6 +10,7 @@ struct WaitingRoomView: View {
     let gameId: String
     let playerId: String
     let maxPlayers: Int
+    let friendlyCode: String
 
     @State private var players: [String] = []
     @State private var board: [[String]] = []
@@ -24,10 +25,22 @@ struct WaitingRoomView: View {
                 .font(.largeTitle)
                 .fontWeight(.bold)
 
-            Text("Game ID: \(gameId)")
-                .font(.caption)
-                .foregroundStyle(.gray)
-                .textSelection(.enabled)
+            VStack(spacing: 8) {
+                Text("Share this code:")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+
+                Text(friendlyCode)
+                    .font(.system(size: 36, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.blue)
+                    .tracking(3)
+                    .textSelection(.enabled)
+                    .padding(.horizontal)
+                    .padding(.vertical, 12)
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(10)
+            }
+            .padding(.bottom, 10)
 
             VStack(spacing: 10) {
                 Text("\(players.count)/\(maxPlayers) Players")

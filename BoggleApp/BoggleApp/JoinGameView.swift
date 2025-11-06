@@ -1,5 +1,5 @@
 //
-// ABOUTME: View for joining an existing game by entering a game ID.
+// ABOUTME: View for joining an existing game by entering a friendly code.
 // ABOUTME: Validates and joins the game, then navigates to the waiting room.
 //
 
@@ -7,10 +7,11 @@ import SwiftUI
 
 struct JoinGameView: View {
     @Binding var navigationPath: NavigationPath
-    @State private var gameId = ""
+    @State private var friendlyCode = ""
     @State private var isJoining = false
     @State private var errorMessage: String?
     @State private var navigateToWaitingRoom = false
+    @State private var gameId: String?
     @State private var maxPlayers: Int?
     @State private var playerId: String?
 
@@ -20,15 +21,26 @@ struct JoinGameView: View {
                     .font(.largeTitle)
                     .fontWeight(.bold)
 
-                Text("Enter the game ID to join")
+                Text("Enter the game code")
                     .font(.subheadline)
                     .foregroundStyle(.gray)
 
-                TextField("Game ID", text: $gameId)
+                TextField("XXXX-XXXX", text: $friendlyCode)
                     .textFieldStyle(.roundedBorder)
-                    .textInputAutocapitalization(.never)
+                    .font(.system(size: 24, weight: .semibold, design: .monospaced))
+                    .multilineTextAlignment(.center)
+                    .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
                     .padding(.horizontal)
+                    .onChange(of: friendlyCode) { oldValue, newValue in
+                        // Auto-format as XXXX-XXXX
+                        let filtered = newValue.filter { $0.isNumber }
+                        if filtered.count > 4 {
+                            friendlyCode = String(filtered.prefix(4)) + "-" + String(filtered.dropFirst(4).prefix(4))
+                        } else if filtered.count > 0 {
+                            friendlyCode = filtered
+                        }
+                    }
 
                 if let error = errorMessage {
                     Text(error)
@@ -42,7 +54,7 @@ struct JoinGameView: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(isJoining || gameId.isEmpty)
+                .disabled(isJoining || friendlyCode.count < 8)
                 .font(.title3)
 
                 if isJoining {
@@ -53,8 +65,8 @@ struct JoinGameView: View {
             }
             .padding()
             .navigationDestination(isPresented: $navigateToWaitingRoom) {
-                if let players = maxPlayers, let pid = playerId {
-                    WaitingRoomView(navigationPath: $navigationPath, gameId: gameId, playerId: pid, maxPlayers: players)
+                if let players = maxPlayers, let pid = playerId, let gid = gameId {
+                    WaitingRoomView(navigationPath: $navigationPath, gameId: gid, playerId: pid, maxPlayers: players, friendlyCode: friendlyCode)
                 }
             }
     }
@@ -64,15 +76,11 @@ struct JoinGameView: View {
         errorMessage = nil
 
         do {
-            // First get the game state to know max_players
-            let gameState = try await BoggleAPI.shared.getGameState(gameId: gameId)
-
-            // Join the game
-            let joinResponse = try await BoggleAPI.shared.joinGame(gameId: gameId)
+            // Join the game by friendly code
+            let joinResponse = try await BoggleAPI.shared.joinGameByCode(friendlyCode: friendlyCode)
             playerId = joinResponse.player_id
-
-            // Store max_players (we'll need to add this to GameResponse model)
-            maxPlayers = 4 // Default for now, TODO: get from gameState
+            gameId = joinResponse.game_id
+            maxPlayers = 4 // Default for now - could be enhanced to get from game state
 
             // Navigate to waiting room
             navigateToWaitingRoom = true

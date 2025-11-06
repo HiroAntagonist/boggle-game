@@ -586,6 +586,7 @@ def join_game(
             player_names.append(user.username)
 
     return JoinGameResponse(
+        game_id=game_id,
         player_id=game_player.id,
         player_name=request.player_name,
         players=player_names
@@ -668,6 +669,7 @@ def join_game_by_code(
             player_names.append(user.username)
 
     return JoinGameResponse(
+        game_id=db_game.id,
         player_id=game_player.id,
         player_name=request.player_name,
         players=player_names

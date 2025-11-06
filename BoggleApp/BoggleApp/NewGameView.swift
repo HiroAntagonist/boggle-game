@@ -14,6 +14,7 @@ struct NewGameView: View {
     @State private var errorMessage: String?
     @State private var navigateToWaitingRoom = false
     @State private var createdGameId: String?
+    @State private var createdFriendlyCode: String?
     @State private var playerId: String?
 
     let boardSizes = [4, 5]
@@ -70,8 +71,8 @@ struct NewGameView: View {
             }
             .padding()
             .navigationDestination(isPresented: $navigateToWaitingRoom) {
-                if let gameId = createdGameId, let pid = playerId {
-                    WaitingRoomView(navigationPath: $navigationPath, gameId: gameId, playerId: pid, maxPlayers: maxPlayers)
+                if let gameId = createdGameId, let pid = playerId, let friendlyCode = createdFriendlyCode {
+                    WaitingRoomView(navigationPath: $navigationPath, gameId: gameId, playerId: pid, maxPlayers: maxPlayers, friendlyCode: friendlyCode)
                 }
             }
     }
@@ -87,6 +88,7 @@ struct NewGameView: View {
                 maxPlayers: maxPlayers
             )
             createdGameId = game.game_id
+            createdFriendlyCode = game.friendly_code
 
             // Join the game
             let joinResponse = try await BoggleAPI.shared.joinGame(gameId: game.game_id)
