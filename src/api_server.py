@@ -132,8 +132,9 @@ class ConnectionManager:
         if game_id not in self.active_connections:
             return
 
+        # Create a copy of the set to avoid RuntimeError when set changes during iteration
         disconnected = set()
-        for connection in self.active_connections[game_id]:
+        for connection in list(self.active_connections[game_id]):
             if connection == exclude:
                 continue
             try:
