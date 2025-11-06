@@ -142,5 +142,5 @@ struct WaitingRoomView: View {
 }
 
 #Preview {
-    WaitingRoomView(navigationPath: .constant(NavigationPath()), gameId: "preview-game-123", playerId: "preview-player-456", maxPlayers: 2)
+    WaitingRoomView(navigationPath: .constant(NavigationPath()), gameId: "preview-game-123", playerId: "preview-player-456", maxPlayers: 2, friendlyCode: "1234-5678")
 }
