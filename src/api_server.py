@@ -489,24 +489,40 @@ def create_game(
 
     # Create game record in database
     from src.models import Game as GameModel
+    from sqlalchemy.exc import IntegrityError
 
-    # Generate unique friendly code
-    friendly_code = generate_friendly_code(db)
+    # Retry loop to handle duplicate friendly codes
+    max_attempts = 5
+    for attempt in range(max_attempts):
+        try:
+            # Generate unique friendly code
+            friendly_code = generate_friendly_code(db)
 
-    db_game = GameModel(
-        creator_id=current_user.id,
-        status="waiting",
-        board_size=request.board_size,
-        time_limit=request.time_limit_seconds,
-        max_players=request.max_players,
-        min_word_length=3,
-        board_state=board_json,
-        friendly_code=friendly_code
-    )
+            db_game = GameModel(
+                creator_id=current_user.id,
+                status="waiting",
+                board_size=request.board_size,
+                time_limit=request.time_limit_seconds,
+                max_players=request.max_players,
+                min_word_length=3,
+                board_state=board_json,
+                friendly_code=friendly_code
+            )
 
-    db.add(db_game)
-    db.commit()
-    db.refresh(db_game)
+            db.add(db_game)
+            db.commit()
+            db.refresh(db_game)
+            break  # Success - exit retry loop
+
+        except IntegrityError:
+            # Duplicate friendly code - rollback and retry
+            db.rollback()
+            if attempt == max_attempts - 1:
+                # Last attempt failed - raise error
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Unable to generate unique game code after multiple attempts"
+                )
 
     # Assertion: friendly_code is guaranteed to be set since we just assigned it
     assert db_game.friendly_code is not None
