@@ -43,6 +43,7 @@ struct GameResponse: Codable {
     let status: String
     let time_remaining: Int?
     let players: [String]
+    let max_players: Int
 }
 
 struct JoinGameRequest: Codable {
