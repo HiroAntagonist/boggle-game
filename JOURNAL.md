@@ -3644,3 +3644,65 @@ if let errorString = String(data: data, encoding: .utf8) {
 ## Important: DO NOT use flyctl logs command
 
 The flyctl logs command causes issues and should be avoided. Use alternative methods to check deployment status.
+
+## 2025-01-05 - Countdown Timer Implementation
+
+### Completed Features
+- **Added countdown timer to iOS app** with client-side calculation from server timestamps
+- **Fixed WebSocket race condition** where joiners missed game_started messages
+- **Implemented hybrid timer approach**: Server provides time_limit + started_at, client calculates remaining time
+
+### Backend Changes
+1. Added `time_limit` and `started_at` fields to `GameStateResponse` API model
+2. Updated `game_started` WebSocket broadcasts to include timer data
+3. Both `join_game()` and `join_game_by_code()` now send timer info
+4. All 137 tests continue to pass
+
+### iOS Changes
+1. Updated `GameStartedMessage` and `GameResponse` models with timer fields
+2. `WaitingRoomView` captures timer data from both REST API (late joiners) and WebSocket
+3. `GameView` calculates countdown using: `remaining = max(0, endTime - now())`
+4. Timer recalculates every second from server timestamp (no drift)
+5. Visual: Clock icon, turns red at <30s remaining
+
+### Technical Challenges & Solutions
+
+**Challenge 1: Timestamp Parsing**
+- **Problem**: Backend sends ISO8601 with microseconds (`2025-11-06T06:01:27.511864`)
+- **Solution**: Used `DateFormatter` with pattern `"yyyy-MM-dd'T'HH:mm:ss.SSSSSS"` as fallback
+- **Why**: `ISO8601DateFormatter.withFractionalSeconds` not reliable across iOS versions
+
+**Challenge 2: Late Joiner Support**
+- **Problem**: Players joining after game starts need current remaining time
+- **Solution**: REST API includes both `time_limit` and `started_at`, client calculates elapsed time
+- **Result**: Late joiners see correct remaining time immediately
+
+**Challenge 3: Race Condition - Joiner Stuck in Waiting Room**
+- **Problem**: WebSocket connects AFTER `game_started` broadcast fires
+- **Solution**: Check `game.status == "in_progress"` on state load, navigate immediately if true
+- **Code**: `WaitingRoomView.swift:109` - detects already-started games
+
+### Architecture Decisions
+
+**Client-Side Calculation (chosen over server broadcasts)**
+- Pros: No network overhead, resilient to hiccups, standard game design pattern
+- Cons: Requires clock sync (acceptable - iOS/Android use NTP)
+- Server remains authoritative - enforces timeout, client display only
+
+**UTC Timestamps**
+- Backend uses `datetime.now(timezone.utc)` for all timestamps
+- Timezone-agnostic calculations work globally
+- No daylight savings issues
+
+### Files Modified
+- Backend: `src/api_models.py`, `src/api_server.py`
+- iOS: `BoggleAPI.swift`, `GameView.swift`, `WaitingRoomView.swift`, `WebSocketManager.swift`
+
+### Deployment
+- Backend deployed to production ✅
+- iOS changes committed and tested ✅
+- Timer displays and counts down correctly on both simulators
+
+### Next Steps
+- Consider adding visual/audio alert when time is running out
+- Possible UX improvement: Show timer during waiting room (countdown to auto-start)
