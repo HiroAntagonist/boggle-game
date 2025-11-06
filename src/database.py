@@ -61,7 +61,7 @@ if DATABASE_URL.startswith("postgresql"):
     }
     engine = create_engine(
         DATABASE_URL,
-        echo=True,  # SQL logging enabled (formatted to single line above)
+        echo=False,  # SQL logging disabled for cleaner logs
         pool_pre_ping=True,  # Test connection before using
         pool_size=5,  # Maintain 5 connections
         max_overflow=10,  # Allow 10 additional connections
@@ -70,7 +70,7 @@ if DATABASE_URL.startswith("postgresql"):
     )
 else:
     # SQLite doesn't need connection pooling
-    engine = create_engine(DATABASE_URL, echo=True)
+    engine = create_engine(DATABASE_URL, echo=False)
 
 
 # ENABLE FOREIGN KEY CONSTRAINTS FOR SQLITE
