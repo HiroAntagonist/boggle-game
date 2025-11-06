@@ -40,6 +40,7 @@ class GameStateResponse(BaseModel):
     board: List[List[str]]
     players: List[str]
     status: str
+    max_players: int
     time_remaining: int | None = Field(description="Seconds remaining, None if not started")
     words_by_player: Dict[str, List[str]] = Field(description="Player ID to their submitted words")
 

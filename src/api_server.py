@@ -852,6 +852,7 @@ def get_game_state(
         board=board_data,
         status=db_game.status,
         players=player_names,
+        max_players=db_game.max_players,
         time_remaining=time_remaining,
         words_by_player=words_by_player
     )
