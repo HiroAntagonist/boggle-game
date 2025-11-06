@@ -3617,6 +3617,10 @@ if let errorString = String(data: data, encoding: .utf8) {
 
 **Future Enhancements:**
 1. OpenAPI code generation for models
+   - Add GitHub Action that triggers on changes to `src/api_models.py`
+   - Use OpenAPI Generator or CreateAPI to generate Swift models from `/openapi.json`
+   - Auto-generate `BoggleAPI.swift` models instead of manual sync
+   - Would prevent schema drift between backend and iOS app
 2. Implement proper error types (not just strings)
 3. Add loading indicators and animations
 4. Implement reconnection logic
