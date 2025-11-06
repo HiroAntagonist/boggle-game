@@ -383,10 +383,17 @@ struct GameView: View {
         // Cancel any existing timer
         timerCancellable?.cancel()
 
-        // Parse started_at timestamp (with fractional seconds)
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        guard let startTime = formatter.date(from: startedAt) else {
+        // Parse started_at timestamp (Python's isoformat() includes microseconds)
+        // Try ISO8601 with fractional seconds first
+        let iso8601Formatter = ISO8601DateFormatter()
+        iso8601Formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        // Fallback to DateFormatter if ISO8601 fails
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS"
+        dateFormatter.timeZone = TimeZone(identifier: "UTC")
+
+        guard let startTime = iso8601Formatter.date(from: startedAt) ?? dateFormatter.date(from: startedAt) else {
             print("❌ Failed to parse started_at: \(startedAt)")
             return
         }
