@@ -542,7 +542,7 @@ def create_game(
 
 
 @app.post("/games/{game_id}/players", response_model=JoinGameResponse, status_code=status.HTTP_201_CREATED)
-def join_game(
+async def join_game(
     game_id: str,
     request: JoinGameRequest,
     current_user: User = Depends(get_current_user_from_db),
@@ -615,7 +615,31 @@ def join_game(
         if user:
             player_names.append(user.username)
 
-    print(f"✅ PLAYER JOINED - UUID: {game_id} | Friendly Code: {db_game.friendly_code} | Player: {current_user.username} | Player ID: {game_player.id} | Total Players: {len(player_names)}")
+    print(f"✅ PLAYER JOINED - UUID: {game_id} | Friendly Code: {db_game.friendly_code} | Player: {current_user.username} | Player ID: {game_player.id} | Total Players: {len(player_names)}/{db_game.max_players}")
+
+    # Auto-start game if room is now full
+    if len(player_names) >= db_game.max_players and db_game.status == "waiting":
+        print(f"🚀 AUTO-STARTING GAME - Room is full ({len(player_names)}/{db_game.max_players})")
+        db_game.status = "in_progress"
+        db_game.started_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(db_game)
+
+        # Start timer monitor if this is a timed game
+        if db_game.time_limit is not None:
+            start_monitor_if_needed(db)
+
+        # Broadcast game_started to all connected players
+        assert db_game.board_state is not None, "Board state must exist for started game"
+        board_data = json.loads(db_game.board_state)
+        await manager.broadcast(
+            json.dumps({
+                "type": "game_started",
+                "board": board_data,
+                "started_at": db_game.started_at.isoformat()
+            }),
+            game_id
+        )
 
     return JoinGameResponse(
         game_id=game_id,
@@ -626,7 +650,7 @@ def join_game(
 
 
 @app.post("/games/code/{friendly_code}/join", response_model=JoinGameResponse, status_code=status.HTTP_201_CREATED)
-def join_game_by_code(
+async def join_game_by_code(
     friendly_code: str,
     request: JoinGameRequest,
     current_user: User = Depends(get_current_user_from_db),
@@ -703,6 +727,32 @@ def join_game_by_code(
         user = db.query(User).filter(User.id == gp.user_id).first()
         if user:
             player_names.append(user.username)
+
+    print(f"✅ PLAYER JOINED BY CODE - UUID: {db_game.id} | Friendly Code: {friendly_code} | Player: {current_user.username} | Player ID: {game_player.id} | Total Players: {len(player_names)}/{db_game.max_players}")
+
+    # Auto-start game if room is now full
+    if len(player_names) >= db_game.max_players and db_game.status == "waiting":
+        print(f"🚀 AUTO-STARTING GAME - Room is full ({len(player_names)}/{db_game.max_players})")
+        db_game.status = "in_progress"
+        db_game.started_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(db_game)
+
+        # Start timer monitor if this is a timed game
+        if db_game.time_limit is not None:
+            start_monitor_if_needed(db)
+
+        # Broadcast game_started to all connected players
+        assert db_game.board_state is not None, "Board state must exist for started game"
+        board_data = json.loads(db_game.board_state)
+        await manager.broadcast(
+            json.dumps({
+                "type": "game_started",
+                "board": board_data,
+                "started_at": db_game.started_at.isoformat()
+            }),
+            db_game.id
+        )
 
     return JoinGameResponse(
         game_id=db_game.id,

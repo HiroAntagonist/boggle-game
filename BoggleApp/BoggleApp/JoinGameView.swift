@@ -80,7 +80,14 @@ struct JoinGameView: View {
             let joinResponse = try await BoggleAPI.shared.joinGameByCode(friendlyCode: friendlyCode)
             playerId = joinResponse.player_id
             gameId = joinResponse.game_id
-            maxPlayers = 4 // Default for now - could be enhanced to get from game state
+
+            // Fetch game state to get the actual max_players value
+            if let gid = gameId {
+                let gameState = try await BoggleAPI.shared.getGameState(gameId: gid)
+                maxPlayers = gameState.max_players
+            } else {
+                maxPlayers = 4 // Fallback if gameId is somehow nil
+            }
 
             // Navigate to waiting room
             navigateToWaitingRoom = true
