@@ -512,11 +512,16 @@ def create_game(
             db.add(db_game)
             db.commit()
             db.refresh(db_game)
+
+            # Log successful game creation
+            print(f"✅ GAME CREATED - UUID: {db_game.id} | Friendly Code: {db_game.friendly_code} | Creator: {current_user.username}")
+
             break  # Success - exit retry loop
 
-        except IntegrityError:
+        except IntegrityError as e:
             # Duplicate friendly code - rollback and retry
             db.rollback()
+            print(f"⚠️  DUPLICATE CODE DETECTED - Attempt {attempt + 1}/{max_attempts} | Code: {friendly_code} | Error: {str(e)}")
             if attempt == max_attempts - 1:
                 # Last attempt failed - raise error
                 raise HTTPException(
@@ -564,6 +569,7 @@ def join_game(
     # Check if game exists
     db_game = db.query(GameModel).filter(GameModel.id == game_id).first()
     if not db_game:
+        print(f"❌ JOIN FAILED - Game not found | UUID: {game_id} | User: {current_user.username}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Game {game_id} not found"
@@ -571,6 +577,7 @@ def join_game(
 
     # Check if game is full
     current_player_count = db.query(GamePlayer).filter(GamePlayer.game_id == game_id).count()
+    print(f"🔍 JOIN REQUEST - UUID: {db_game.id} | Friendly Code: {db_game.friendly_code} | User: {current_user.username} | Current Players: {current_player_count}/{db_game.max_players}")
     if current_player_count >= db_game.max_players:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -607,6 +614,8 @@ def join_game(
         user = db.query(User).filter(User.id == gp.user_id).first()
         if user:
             player_names.append(user.username)
+
+    print(f"✅ PLAYER JOINED - UUID: {game_id} | Friendly Code: {db_game.friendly_code} | Player: {current_user.username} | Player ID: {game_player.id} | Total Players: {len(player_names)}")
 
     return JoinGameResponse(
         game_id=game_id,
@@ -645,12 +654,16 @@ def join_game_by_code(
     from src.models import Game as GameModel, GamePlayer
 
     # Look up game by friendly code
+    print(f"🔍 JOIN BY CODE REQUEST - Friendly Code: {friendly_code} | User: {current_user.username}")
     db_game = db.query(GameModel).filter(GameModel.friendly_code == friendly_code).first()
     if not db_game:
+        print(f"❌ JOIN BY CODE FAILED - Game not found | Friendly Code: {friendly_code} | User: {current_user.username}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Game with code {friendly_code} not found"
         )
+
+    print(f"✅ GAME FOUND BY CODE - UUID: {db_game.id} | Friendly Code: {friendly_code}")
 
     # Check if game is full
     current_player_count = db.query(GamePlayer).filter(GamePlayer.game_id == db_game.id).count()
