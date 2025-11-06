@@ -100,13 +100,22 @@ struct WaitingRoomView: View {
             board = gameState.board
             players = gameState.players
 
-            // Connect WebSocket to listen for game_started messages (auto-start)
+            // Connect WebSocket to listen for game events
             let wsManager = WebSocketManager(gameId: gameId, playerId: playerId)
+
+            // Listen for player_joined messages to update the player list
+            wsManager.onPlayerJoined = { joinedMessage in
+                self.players = joinedMessage.players
+                print("✅ Updated player list: \(joinedMessage.players.joined(separator: ", "))")
+            }
+
+            // Listen for game_started messages (auto-start)
             wsManager.onGameStarted = { startMessage in
                 // Auto-start: game started by another player or when room filled
                 self.board = startMessage.board
                 self.navigateToGame = true
             }
+
             wsManager.connect()
             webSocketManager = wsManager
 

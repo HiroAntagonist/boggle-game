@@ -617,6 +617,18 @@ async def join_game(
 
     print(f"✅ PLAYER JOINED - UUID: {game_id} | Friendly Code: {db_game.friendly_code} | Player: {current_user.username} | Player ID: {game_player.id} | Total Players: {len(player_names)}/{db_game.max_players}")
 
+    # Broadcast player_joined to all connected players
+    await manager.broadcast(
+        json.dumps({
+            "type": "player_joined",
+            "player_name": current_user.username,
+            "player_count": len(player_names),
+            "max_players": db_game.max_players,
+            "players": player_names
+        }),
+        game_id
+    )
+
     # Auto-start game if room is now full
     if len(player_names) >= db_game.max_players and db_game.status == "waiting":
         print(f"🚀 AUTO-STARTING GAME - Room is full ({len(player_names)}/{db_game.max_players})")
@@ -729,6 +741,18 @@ async def join_game_by_code(
             player_names.append(user.username)
 
     print(f"✅ PLAYER JOINED BY CODE - UUID: {db_game.id} | Friendly Code: {friendly_code} | Player: {current_user.username} | Player ID: {game_player.id} | Total Players: {len(player_names)}/{db_game.max_players}")
+
+    # Broadcast player_joined to all connected players
+    await manager.broadcast(
+        json.dumps({
+            "type": "player_joined",
+            "player_name": current_user.username,
+            "player_count": len(player_names),
+            "max_players": db_game.max_players,
+            "players": player_names
+        }),
+        db_game.id
+    )
 
     # Auto-start game if room is now full
     if len(player_names) >= db_game.max_players and db_game.status == "waiting":

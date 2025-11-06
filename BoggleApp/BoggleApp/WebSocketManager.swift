@@ -52,6 +52,14 @@ struct GameStartedMessage: Codable {
     let time_limit: Int?
 }
 
+struct PlayerJoinedMessage: Codable {
+    let type: String
+    let player_name: String
+    let player_count: Int
+    let max_players: Int
+    let players: [String]
+}
+
 // MARK: - WebSocket Manager
 
 enum ConnectionStatus {
@@ -78,6 +86,7 @@ class WebSocketManager: ObservableObject {
     var onGameEnded: ((GameEndedMessage) -> Void)?
     var onGameStarted: ((GameStartedMessage) -> Void)?
     var onGameState: ((GameStateMessage) -> Void)?
+    var onPlayerJoined: ((PlayerJoinedMessage) -> Void)?
 
     init(gameId: String, playerId: String) {
         self.gameId = gameId
@@ -234,6 +243,14 @@ class WebSocketManager: ObservableObject {
                     DispatchQueue.main.async {
                         self.onGameStarted?(startMessage)
                         print("🎮 Game started!")
+                    }
+                }
+
+            case "player_joined":
+                if let joinedMessage = try? JSONDecoder().decode(PlayerJoinedMessage.self, from: data) {
+                    DispatchQueue.main.async {
+                        self.onPlayerJoined?(joinedMessage)
+                        print("👋 Player joined: \(joinedMessage.player_name) (\(joinedMessage.player_count)/\(joinedMessage.max_players))")
                     }
                 }
 
