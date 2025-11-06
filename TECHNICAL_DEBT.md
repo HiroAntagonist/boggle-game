@@ -79,7 +79,61 @@ This file tracks known issues, shortcuts, and improvements we want to make later
 
 ## Medium Priority (continued)
 
-### 10. OpenAPI Schema Code Generation for iOS Models (Week 6 Day 2)
+### 10. iOS GameView Layout Improvements (Week 6 Day 3)
+
+**Issue**: Multiple UX issues with the iOS game view layout and interactions
+
+**Current state**:
+- Swipe gesture for word building works but lacks visual feedback
+- Swipe is too sensitive and picks up adjacent letters unintentionally
+- Layout not optimized for iPhone Pro Max - Exit (X) and rotate buttons positioned incorrectly
+- Screen space underutilized - letter grid could be moved to top for better visibility
+
+**What needs to be done**:
+
+**A. Swipe Gesture Visual Feedback:**
+- Add trailing line or path overlay showing finger's travel path during swipe
+- Similar to how mobile keyboards show swipe gestures
+- Visual indicator should:
+  - Draw in real-time as finger moves
+  - Highlight tiles being selected
+  - Fade out when drag ends
+- Consider animation/highlight effect on tiles as they're swiped over
+
+**B. Swipe Gesture Sensitivity:**
+- Increase minimum distance threshold before registering adjacent letter
+- Add debouncing/filtering to prevent accidental adjacent letter pickup
+- Consider only registering tile if finger is within center region (not edge)
+- Test different tile detection algorithms (center-based vs area-based)
+
+**C. iPhone Pro Max Layout Fix:**
+- Exit button (X) and rotate button need proper constraints for larger screen sizes
+- Use `GeometryReader` or safe area insets to position buttons correctly
+- Test on multiple device sizes (standard, Plus, Pro Max, iPad)
+- Ensure buttons don't overlap with system UI elements
+
+**D. Layout Optimization:**
+- Move letter grid to top of screen instead of middle
+- Better utilizes vertical space on tall phones
+- Improves visibility of board (most important element)
+- Consider reordering: Timer/Status → Board → Word Display → Controls → Submitted Words
+- May need to adjust spacing and padding throughout
+
+**Files to modify**:
+- `BoggleApp/BoggleApp/GameView.swift` - Main layout and swipe gesture logic (lines 106-148, 421-465)
+
+**Estimated effort**:
+- Swipe visual feedback: 2-3 hours
+- Swipe sensitivity: 1-2 hours
+- Pro Max layout: 1-2 hours
+- Layout optimization: 1-2 hours
+- Total: 5-9 hours
+
+**Priority**: Medium - impacts UX but game is functional
+
+---
+
+### 11. OpenAPI Schema Code Generation for iOS Models (Week 6 Day 2)
 
 **Issue**: Swift API models are manually maintained separately from Python Pydantic models
 
