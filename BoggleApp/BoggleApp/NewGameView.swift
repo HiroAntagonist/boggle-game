@@ -75,6 +75,13 @@ struct NewGameView: View {
                     WaitingRoomView(navigationPath: $navigationPath, gameId: gameId, playerId: pid, maxPlayers: maxPlayers, friendlyCode: friendlyCode)
                 }
             }
+            .onAppear {
+                // Reset to defaults when view appears to prevent state persistence
+                boardSize = 4
+                timeLimit = 180
+                maxPlayers = 2
+                errorMessage = nil
+            }
     }
 
     private func createGame() async {

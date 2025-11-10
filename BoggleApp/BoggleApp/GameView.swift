@@ -45,110 +45,205 @@ struct GameView: View {
     }
 
     var body: some View {
-        VStack(spacing: 20) {
-            // Title, Exit button, and game info
-            HStack {
+        GeometryReader { geometry in
+            let isLandscape = geometry.size.width > geometry.size.height
+
+            ZStack {
+                // Main content - different layouts for portrait vs landscape
+                if isLandscape {
+                    landscapeLayout(containerSize: geometry.size)
+                } else {
+                    portraitLayout(containerSize: geometry.size)
+                }
+
+                // Overlay: Centered title (both orientations)
+                if !isLoading && errorMessage == nil {
+                    VStack {
+                        Text("Boggle")
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
+                            .frame(maxWidth: .infinity)
+                            .padding(.top)
+
+                        Spacer()
+                    }
+                }
+
+                // Exit button overlay (top-left corner, both orientations)
+                if !isLoading && errorMessage == nil {
+                    VStack {
+                        HStack {
+                            Button(action: {
+                                showExitConfirmation = true
+                            }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .foregroundStyle(.red)
+                            }
+                            .padding(.leading)
+                            .padding(.top)
+
+                            Spacer()
+                        }
+
+                        Spacer()
+                    }
+                }
+            }
+            .task {
+                await loadGame()
+            }
+            .navigationDestination(isPresented: $navigateToResults) {
+                if let results = gameResults {
+                    GameResultsView(navigationPath: $navigationPath, results: results)
+                }
+            }
+            .navigationBarBackButtonHidden(true)
+            .alert("Exit Game?", isPresented: $showExitConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Exit", role: .destructive) {
+                    navigationPath = NavigationPath()
+                }
+            } message: {
+                Text("Are you sure you want to exit? Your progress will be lost.")
+            }
+            .onAppear {
+                if isSmallDevice {
+                    AppDelegate.orientationLock = .portrait
+                    UIDevice.current.setValue(UIInterfaceOrientation.portrait.rawValue, forKey: "orientation")
+                    UIViewController.attemptRotationToDeviceOrientation()
+                }
+            }
+            .onDisappear {
+                AppDelegate.orientationLock = .all
+            }
+        }
+    }
+
+    // Portrait layout - vertical stack with percentage-based sizing
+    private func portraitLayout(containerSize: CGSize) -> some View {
+        let topHeight = containerSize.height * 0.20
+        let boardHeight = containerSize.height * 0.40
+        let controlsHeight = containerSize.height * 0.40
+
+        let spacing: CGFloat = 8
+        let padding: CGFloat = 16
+
+        // Calculate tile size to fit in 40% board area
+        let availableBoardHeight = boardHeight - padding * 2
+        let tileSize = (availableBoardHeight - CGFloat(board.count - 1) * spacing) / CGFloat(board.count)
+        // Cap at reasonable sizes
+        let finalTileSize = min(max(tileSize, 40), 70)
+
+        return VStack(spacing: 0) {
+            // Top 20%: Title, exit button, connection status, timer
+            VStack(spacing: 10) {
                 Spacer()
+                    .frame(height: 50)
 
-                VStack(spacing: 8) {
-                    Text("Boggle")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
+                // Timer, player count, and connection status
+                if !isLoading {
+                    HStack(spacing: 20) {
+                        connectionStatusView
 
-                    // Timer, player count, and connection status
-                    if !isLoading {
-                        HStack(spacing: 20) {
-                            // Connection status indicator
-                            connectionStatusView
+                        if let time = timeRemaining {
+                            Label("\(formatTime(time))", systemImage: "clock")
+                                .font(.headline)
+                                .foregroundStyle(time < 30 ? .red : .blue)
+                        }
 
-                            if let time = timeRemaining {
-                                Label("\(formatTime(time))", systemImage: "clock")
-                                    .font(.headline)
-                                    .foregroundStyle(time < 30 ? .red : .blue)
-                            }
-
-                            if playerCount > 0 {
-                                Label("\(playerCount) players", systemImage: "person.2")
-                                    .font(.headline)
-                                    .foregroundStyle(.gray)
-                            }
+                        if playerCount > 0 {
+                            Label("\(playerCount) players", systemImage: "person.2")
+                                .font(.headline)
+                                .foregroundStyle(.gray)
                         }
                     }
                 }
-
-                Spacer()
-
-                // Exit button in top-right
-                if !isLoading && errorMessage == nil {
-                    Button(action: {
-                        showExitConfirmation = true
-                    }) {
-                        Image(systemName: "xmark.circle")
-                            .font(.title2)
-                            .foregroundStyle(.red)
-                    }
-                    .padding(.trailing)
-                }
             }
+            .frame(height: topHeight)
 
+            // Middle 40%: Board grid (centered)
             if isLoading {
-                ProgressView("Creating game...")
-            } else if let error = errorMessage {
-                Text("Error: \(error)")
-                    .foregroundStyle(.red)
-                Button("Try Again") {
-                    Task {
-                        await loadGame()
-                    }
+                VStack {
+                    Spacer()
+                    ProgressView("Creating game...")
+                    Spacer()
                 }
+                .frame(height: boardHeight)
+            } else if let error = errorMessage {
+                VStack {
+                    Spacer()
+                    Text("Error: \(error)")
+                        .foregroundStyle(.red)
+                    Button("Try Again") {
+                        Task {
+                            await loadGame()
+                        }
+                    }
+                    Spacer()
+                }
+                .frame(height: boardHeight)
             } else {
-                // Board grid with rotation button and drag gesture
-                ZStack(alignment: .topTrailing) {
-                    GeometryReader { geometry in
-                        VStack(spacing: 8) {
-                            ForEach(0..<board.count, id: \.self) { row in
-                                HStack(spacing: 8) {
-                                    ForEach(0..<board[row].count, id: \.self) { col in
-                                        LetterTile(letter: board[row][col]) {
-                                            selectedWord += board[row][col]
+                HStack {
+                    Spacer()
+
+                    ZStack(alignment: .topTrailing) {
+                        // Background with board
+                        GeometryReader { geometry in
+                            VStack(spacing: spacing) {
+                                ForEach(0..<board.count, id: \.self) { row in
+                                    HStack(spacing: spacing) {
+                                        ForEach(0..<board[row].count, id: \.self) { col in
+                                            LetterTile(letter: board[row][col], size: finalTileSize) {
+                                                selectedWord += board[row][col]
+                                            }
                                         }
                                     }
                                 }
                             }
+                            .padding()
+                            .background(
+                                RoundedRectangle(cornerRadius: 15)
+                                    .fill(.gray.opacity(0.1))
+                            )
+                            .gesture(
+                                DragGesture(minimumDistance: 0)
+                                    .onChanged { value in
+                                        handleDrag(at: value.location, in: geometry.size)
+                                    }
+                                    .onEnded { _ in
+                                        endDrag()
+                                    }
+                            )
                         }
-                        .padding()
-                        .background(
-                            RoundedRectangle(cornerRadius: 15)
-                                .fill(.gray.opacity(0.1))
-                        )
-                        .gesture(
-                            DragGesture(minimumDistance: 0)
-                                .onChanged { value in
-                                    handleDrag(at: value.location, in: geometry.size)
-                                }
-                                .onEnded { _ in
-                                    endDrag()
-                                }
-                        )
-                    }
-                    .frame(height: CGFloat(board.count * 78 + 16))  // 70px tiles + 8px spacing + padding
 
-                    // Rotate button
-                    Button(action: {
-                        rotateBoard()
-                    }) {
-                        Image(systemName: "rotate.right")
-                            .font(.title3)
-                            .foregroundStyle(.blue)
-                            .padding(8)
-                            .background(Circle().fill(.white))
-                            .shadow(radius: 2)
+                        // Rotate button - anchored to grey background corner
+                        Button(action: {
+                            rotateBoard()
+                        }) {
+                            Image(systemName: "rotate.right")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.blue)
+                                .padding(6)
+                                .background(
+                                    Circle()
+                                        .fill(.white.opacity(0.95))
+                                        .shadow(color: .black.opacity(0.15), radius: 3, x: 0, y: 1)
+                                )
+                        }
+                        .offset(x: -6, y: 6)
                     }
-                    .padding(8)
+                    .frame(width: CGFloat(board.count) * finalTileSize + CGFloat(board.count - 1) * spacing + padding * 2)
+
+                    Spacer()
                 }
+                .frame(height: boardHeight)
+            }
 
-                // Word display and controls
-                VStack(spacing: 10) {
+            // Bottom 40%: Word controls and submitted words
+            VStack(spacing: 10) {
+                if !isLoading && errorMessage == nil {
                     Text("Word: \(isSubmitting ? submittingWord + "..." : selectedWord)")
                         .font(.title2)
                         .fontWeight(.semibold)
@@ -186,45 +281,205 @@ struct GameView: View {
                         .disabled(selectedWord.isEmpty || selectedWord.count < 3)
                     }
 
-                    // Submitted words list
+                    // Submitted words list (3 columns on small devices, 2 on larger)
                     if !submittedWords.isEmpty {
+                        let recentWords = Array(submittedWords.suffix(30).reversed())
+                        let columnCount = isSmallDevice ? 3 : 2
+                        let columns = Array(repeating: GridItem(.flexible()), count: columnCount)
+
                         VStack(alignment: .leading, spacing: 5) {
                             Text("Your words:")
                                 .font(.caption)
                                 .foregroundStyle(.gray)
                             ScrollView {
-                                VStack(alignment: .leading, spacing: 3) {
-                                    ForEach(submittedWords, id: \.self) { word in
+                                LazyVGrid(columns: columns, alignment: .leading, spacing: 3) {
+                                    ForEach(recentWords, id: \.self) { word in
                                         Text(word)
                                             .font(.caption)
+                                            .lineLimit(1)
                                     }
                                 }
                             }
-                            .frame(maxHeight: 100)
                         }
                     }
                 }
             }
+            .frame(height: controlsHeight)
+            .padding(.horizontal)
+        }
+    }
+
+    // Landscape layout - side-by-side (board on left, controls on right)
+    private func landscapeLayout(containerSize: CGSize) -> some View {
+        let tileSize = calculateTileSize(containerHeight: containerSize.height, boardSize: board.count, isLandscape: true)
+        let spacing: CGFloat = 8
+        let boardHeight = CGFloat(board.count) * tileSize + CGFloat(board.count - 1) * spacing + 16
+
+        return HStack(spacing: 20) {
+            // Left side: Board
+            VStack {
+                // Spacer for overlay (title + exit button)
+                Spacer()
+                    .frame(height: 50)
+
+                // Timer, player count, and connection status
+                if !isLoading {
+                    HStack(spacing: 20) {
+                        connectionStatusView
+
+                        if let time = timeRemaining {
+                            Label("\(formatTime(time))", systemImage: "clock")
+                                .font(.headline)
+                                .foregroundStyle(time < 30 ? .red : .blue)
+                        }
+
+                        if playerCount > 0 {
+                            Label("\(playerCount) players", systemImage: "person.2")
+                                .font(.headline)
+                                .foregroundStyle(.gray)
+                        }
+                    }
+                }
+
+                if isLoading {
+                    ProgressView("Creating game...")
+                } else if let error = errorMessage {
+                    Text("Error: \(error)")
+                        .foregroundStyle(.red)
+                    Button("Try Again") {
+                        Task {
+                            await loadGame()
+                        }
+                    }
+                } else {
+                    // Board grid with rotation button
+                    GeometryReader { geometry in
+                        ZStack(alignment: .topTrailing) {
+                            // Background with board
+                            VStack(spacing: spacing) {
+                                ForEach(0..<board.count, id: \.self) { row in
+                                    HStack(spacing: spacing) {
+                                        ForEach(0..<board[row].count, id: \.self) { col in
+                                            LetterTile(letter: board[row][col], size: tileSize) {
+                                                selectedWord += board[row][col]
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            .padding()
+                            .background(
+                                RoundedRectangle(cornerRadius: 15)
+                                    .fill(.gray.opacity(0.1))
+                            )
+                            .gesture(
+                                DragGesture(minimumDistance: 0)
+                                    .onChanged { value in
+                                        handleDrag(at: value.location, in: geometry.size)
+                                    }
+                                    .onEnded { _ in
+                                        endDrag()
+                                    }
+                            )
+
+                            // Rotate button - anchored to grey background corner
+                            Button(action: {
+                                rotateBoard()
+                            }) {
+                                Image(systemName: "rotate.right")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.blue)
+                                    .padding(6)
+                                    .background(
+                                        Circle()
+                                            .fill(.white.opacity(0.95))
+                                            .shadow(color: .black.opacity(0.15), radius: 3, x: 0, y: 1)
+                                    )
+                            }
+                            .offset(x: -6, y: 6)
+                        }
+                    }
+                    .frame(height: boardHeight)
+                }
+
+                Spacer()
+            }
+            .frame(maxWidth: .infinity)
+
+            // Right side: Word controls and submitted words
+            VStack(spacing: 20) {
+                // Spacer for overlay
+                Spacer()
+                    .frame(height: 50)
+
+                if !isLoading && errorMessage == nil {
+                    VStack(spacing: 10) {
+                        Text("Word: \(isSubmitting ? submittingWord + "..." : selectedWord)")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                            .foregroundStyle((isSubmitting || !selectedWord.isEmpty) ? .blue : .gray)
+
+                        // Feedback message (fixed height to prevent jumping)
+                        Text(feedbackMessage ?? " ")
+                            .font(.caption)
+                            .foregroundStyle(feedbackMessage?.contains("✅") == true ? .green : .red)
+                            .frame(height: 20)
+
+                        HStack(spacing: 15) {
+                            Button("Clear") {
+                                selectedWord = ""
+                                feedbackMessage = nil
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(selectedWord.isEmpty)
+
+                            Button(action: {
+                                if !selectedWord.isEmpty {
+                                    selectedWord.removeLast()
+                                    feedbackMessage = nil
+                                }
+                            }) {
+                                Image(systemName: "delete.left")
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(selectedWord.isEmpty)
+
+                            Button("Submit") {
+                                submitWord()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(selectedWord.isEmpty || selectedWord.count < 3)
+                        }
+
+                        // Submitted words list (3 columns in landscape)
+                        if !submittedWords.isEmpty {
+                            let recentWords = Array(submittedWords.suffix(30).reversed())
+                            let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
+
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text("Your words:")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                                ScrollView {
+                                    LazyVGrid(columns: columns, alignment: .leading, spacing: 3) {
+                                        ForEach(recentWords, id: \.self) { word in
+                                            Text(word)
+                                                .font(.caption)
+                                                .lineLimit(1)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer()
+            }
+            .frame(maxWidth: .infinity)
         }
         .padding()
-        .task {
-            await loadGame()
-        }
-        .navigationDestination(isPresented: $navigateToResults) {
-            if let results = gameResults {
-                GameResultsView(navigationPath: $navigationPath, results: results)
-            }
-        }
-        .navigationBarBackButtonHidden(true)
-        .alert("Exit Game?", isPresented: $showExitConfirmation) {
-            Button("Cancel", role: .cancel) { }
-            Button("Exit", role: .destructive) {
-                // Clear navigation path to go back to lobby
-                navigationPath = NavigationPath()
-            }
-        } message: {
-            Text("Are you sure you want to exit? Your progress will be lost.")
-        }
     }
 
     private func loadGame() async {
@@ -486,21 +741,48 @@ struct GameView: View {
             }
         }
     }
+
+    private var isSmallDevice: Bool {
+        UIScreen.main.bounds.width <= 375
+    }
+
+    private func calculateTileSize(containerHeight: CGFloat, boardSize: Int, isLandscape: Bool) -> CGFloat {
+        let spacing: CGFloat = 8
+        let padding: CGFloat = 16
+        let timerHeight: CGFloat = 50
+        let spacerHeight: CGFloat = 50
+
+        // In landscape, word controls and list are beside the board (not below)
+        // In portrait, they're stacked below the board
+        let wordControlsHeight: CGFloat = isLandscape ? 0 : 150  // Word display + buttons + feedback
+        let wordsListHeight: CGFloat = isLandscape ? 0 : 100     // Submitted words list space
+
+        // Available height after UI elements
+        let availableHeight = containerHeight - timerHeight - spacerHeight - wordControlsHeight - wordsListHeight - padding
+
+        // Calculate max tile size that fits
+        // Formula: availableHeight = boardSize * tileSize + (boardSize - 1) * spacing
+        let maxTileSize = (availableHeight - CGFloat(boardSize - 1) * spacing) / CGFloat(boardSize)
+
+        // Cap at 70px maximum to avoid oversized tiles on large screens
+        return min(maxTileSize, 70)
+    }
 }
 
 // Reusable letter tile component
 struct LetterTile: View {
     let letter: String
+    let size: CGFloat
     let onTap: () -> Void
 
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 10)
                 .fill(.blue)
-                .frame(width: 70, height: 70)
+                .frame(width: size, height: size)
 
             Text(letter)
-                .font(.title)
+                .font(.system(size: size * 0.4))
                 .fontWeight(.bold)
                 .foregroundStyle(.white)
         }

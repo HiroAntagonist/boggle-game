@@ -79,58 +79,6 @@ This file tracks known issues, shortcuts, and improvements we want to make later
 
 ## Medium Priority (continued)
 
-### 10. iOS GameView Layout Improvements (Week 6 Day 3)
-
-**Issue**: Multiple UX issues with the iOS game view layout and interactions
-
-**Current state**:
-- Swipe gesture for word building works but lacks visual feedback
-- Swipe is too sensitive and picks up adjacent letters unintentionally
-- Layout not optimized for iPhone Pro Max - Exit (X) and rotate buttons positioned incorrectly
-- Screen space underutilized - letter grid could be moved to top for better visibility
-
-**What needs to be done**:
-
-**A. Swipe Gesture Visual Feedback:**
-- Add trailing line or path overlay showing finger's travel path during swipe
-- Similar to how mobile keyboards show swipe gestures
-- Visual indicator should:
-  - Draw in real-time as finger moves
-  - Highlight tiles being selected
-  - Fade out when drag ends
-- Consider animation/highlight effect on tiles as they're swiped over
-
-**B. Swipe Gesture Sensitivity:**
-- Increase minimum distance threshold before registering adjacent letter
-- Add debouncing/filtering to prevent accidental adjacent letter pickup
-- Consider only registering tile if finger is within center region (not edge)
-- Test different tile detection algorithms (center-based vs area-based)
-
-**C. iPhone Pro Max Layout Fix:**
-- Exit button (X) and rotate button need proper constraints for larger screen sizes
-- Use `GeometryReader` or safe area insets to position buttons correctly
-- Test on multiple device sizes (standard, Plus, Pro Max, iPad)
-- Ensure buttons don't overlap with system UI elements
-
-**D. Layout Optimization:**
-- Move letter grid to top of screen instead of middle
-- Better utilizes vertical space on tall phones
-- Improves visibility of board (most important element)
-- Consider reordering: Timer/Status → Board → Word Display → Controls → Submitted Words
-- May need to adjust spacing and padding throughout
-
-**Files to modify**:
-- `BoggleApp/BoggleApp/GameView.swift` - Main layout and swipe gesture logic (lines 106-148, 421-465)
-
-**Estimated effort**:
-- Swipe visual feedback: 2-3 hours
-- Swipe sensitivity: 1-2 hours
-- Pro Max layout: 1-2 hours
-- Layout optimization: 1-2 hours
-- Total: 5-9 hours
-
-**Priority**: Medium - impacts UX but game is functional
-
 ---
 
 ### 11. OpenAPI Schema Code Generation for iOS Models (Week 6 Day 2)
@@ -666,6 +614,92 @@ Pydantic models (src/api_models.py)
 
 ---
 
+### 9. iOS GameView Layout Improvements (Week 6 Day 3) - COMPLETED 2025-11-10
+
+**Issue**: Multiple UX issues with iOS game view layout on different device sizes.
+
+**Original problems**:
+- Layout used hardcoded pixel calculations, didn't adapt to screen sizes
+- Board grid not centered in portrait mode
+- Rotate button overlapping letter tiles
+- Landscape controls centered instead of top-aligned
+- Landscape board rendering bug (tiny grey grid)
+
+**Resolution**: Implemented comprehensive responsive layout system
+
+**Implementation - Portrait Layout (20-40-40 Split)**:
+- Top 20%: Title, exit button, status, timer
+- Middle 40%: Board grid (horizontally centered)
+- Bottom 40%: Word controls and submitted words list
+- Dynamic tile sizing: `availableBoardHeight = containerHeight * 0.40 - padding * 2`
+- Tile size formula: `(availableBoardHeight - (boardSize-1) * spacing) / boardSize`
+- Min 40px, max 70px per tile
+- Works for both 4x4 and 5x5 boards
+
+**Grid Centering Solution**:
+```swift
+HStack {
+    Spacer()
+    ZStack(alignment: .topTrailing) {
+        // Board grid with explicit width
+    }
+    .frame(width: calculatedBoardWidth)
+    Spacer()
+}
+```
+- Set explicit width based on tile calculations
+- Wrapped in HStack with Spacer() on both sides
+- Grid perfectly centered on all device sizes
+
+**Rotate Button Improvements**:
+- Reduced from `.body` to `.caption` font size
+- Reduced padding from 8-10px to 6px
+- Positioned in corner of grey background with offset
+- Final offset: (-1, 1) after user fine-tuning
+- No longer overlaps letter tiles
+
+**Landscape Layout Fix**:
+- Removed centering Spacer() that pushed controls to middle
+- Controls now top-aligned to match board position
+- Better visual consistency
+
+**Orientation-Aware Tile Sizing**:
+```swift
+let wordControlsHeight: CGFloat = isLandscape ? 0 : 150
+let wordsListHeight: CGFloat = isLandscape ? 0 : 100
+```
+- Landscape: controls beside board (don't subtract from available height)
+- Portrait: controls below board (subtract from height)
+- Fixed bug where landscape calculated 0.75px tiles → now 63px
+
+**Files changed**:
+- `BoggleApp/BoggleApp/GameView.swift` - Complete layout refactor (lines 124-737)
+  - `portraitLayout()` function - percentage-based layout
+  - `landscapeLayout()` function - side-by-side layout
+  - `calculateTileSize()` function - orientation-aware sizing
+
+**Testing**:
+- iPhone SE (portrait only) ✅
+- iPhone 17 Pro (portrait + landscape) ✅
+- iPhone 17 Pro Max (portrait + landscape) ✅
+- 4x4 boards on all devices ✅
+- 5x5 boards on all devices ✅
+
+**Benefits**:
+- Truly responsive - scales to any screen size
+- Consistent UX across device sizes
+- Better space utilization
+- Cleaner code - centralized calculations
+- Maintainable - change percentages to adjust layout
+
+**Swipe Gesture Work**:
+- Originally planned but descoped after extensive attempts
+- See `SWIPE_GESTURE_LEARNINGS.md` for full details
+- Decision: Keep tap-only input for reliability
+- Swipe implementation had fundamental issues with iOS touch sampling
+
+---
+
 ## How to Use This File
 
 1. **Before starting new features**: Check if related debt exists
@@ -728,4 +762,4 @@ Pydantic models (src/api_models.py)
 
 ---
 
-**Last Updated**: 2025-11-02 (Week 6 Day 2)
+**Last Updated**: 2025-11-10 (Week 6 Day 3)

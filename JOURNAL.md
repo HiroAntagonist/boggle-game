@@ -3706,3 +3706,206 @@ The flyctl logs command causes issues and should be avoided. Use alternative met
 ### Next Steps
 - Consider adding visual/audio alert when time is running out
 - Possible UX improvement: Show timer during waiting room (countdown to auto-start)
+
+## 2025-11-10 - iOS Layout Improvements & Critical Bug Fixes
+
+### Completed Features
+- **Implemented percentage-based portrait layout** with 20-40-40 split (top/board/controls)
+- **Fixed board grid centering** in portrait mode with proper HStack alignment
+- **Improved rotate button** - smaller size and better positioning in corner
+- **Fixed landscape controls alignment** - top-aligned instead of centered
+- **CRITICAL: Fixed database connection pool exhaustion** in production backend
+- **Fixed NewGameView state persistence bug** causing wrong board sizes
+
+### iOS GameView Layout Improvements (GameView.swift)
+
+**Problem**: Hardcoded pixel calculations didn't adapt well to different screen sizes. Layout issues on various devices.
+
+**Portrait Layout Refactor (20-40-40 Split)**:
+- Top 20%: Title, exit button, status, timer
+- Middle 40%: Board grid (centered horizontally)
+- Bottom 40%: Word controls and submitted words list
+- Dynamic tile sizing based on available board area
+- Formula: `availableBoardHeight = containerHeight * 0.40 - padding * 2`
+- Tile size calculation accounts for spacing between tiles
+
+**Grid Centering Fix**:
+```swift
+HStack {
+    Spacer()
+    ZStack(alignment: .topTrailing) {
+        // Board tiles...
+    }
+    .frame(width: CGFloat(board.count) * finalTileSize + ...)
+    Spacer()
+}
+```
+- Set explicit width for board container
+- Wrapped in HStack with Spacer() on both sides
+- Works for both 4x4 and 5x5 boards
+
+**Rotate Button Improvements**:
+- Reduced font size from `.body` to `.caption`
+- Reduced padding from 8-10px to 6px
+- Adjusted offset to position in corner of grey background
+- Final offset: (-1, 1) after user fine-tuning
+- Button now fits cleanly in corner without overlapping tiles
+
+**Landscape Layout Fix**:
+- Removed centering Spacer() that pushed controls to middle
+- Controls now top-aligned to match board grid position
+- Better visual consistency between portrait and landscape
+
+**Orientation-Aware Tile Sizing**:
+```swift
+private func calculateTileSize(containerHeight: CGFloat, boardSize: Int, isLandscape: Bool) -> CGFloat {
+    let wordControlsHeight: CGFloat = isLandscape ? 0 : 150
+    let wordsListHeight: CGFloat = isLandscape ? 0 : 100
+    // ... calculate available height
+}
+```
+- Landscape mode: word controls beside board (don't subtract their height)
+- Portrait mode: word controls below board (subtract their height)
+- Fixed bug where landscape grid appeared tiny and grey
+
+### Backend Critical Bug Fix (api_server.py)
+
+**Problem**: Database connection pool exhaustion in production
+```
+QueuePool limit of size 5 overflow 10 reached, connection timed out, timeout 30.00
+```
+
+**Root Cause**: Session creation in `monitor_game_timers()` was outside try block
+```python
+# BEFORE (broken):
+db = SessionLocal()  # Line 216 - OUTSIDE try
+try:
+    active_games = db.query(...).all()  # Line 223 - TIMEOUT HERE
+finally:
+    db.close()  # Line 251 - NEVER REACHED
+```
+
+When query timeout occurred, exception raised before entering try block, so finally never executed and session never closed. All 15 connections gradually leaked until pool exhausted.
+
+**Solution**: Move session creation inside try block
+```python
+# AFTER (fixed):
+db = None  # Initialize to None
+try:
+    await asyncio.sleep(5)
+    db = SessionLocal()  # INSIDE try block
+    active_games = db.query(...).all()
+    # ... process games
+except Exception as e:
+    print(f"Error in game timer monitor: {e}")
+    traceback.print_exc()
+finally:
+    if db:  # Always close if created
+        db.close()
+```
+
+**Result**: All connections properly cleaned up, production stable, no more pool exhaustion errors.
+
+### iOS State Persistence Bug Fix (NewGameView.swift)
+
+**Problem**: Sometimes creating new game after 5x5 game would show 4x4 in UI but create 5x5 board.
+
+**Root Cause**: SwiftUI NavigationStack keeps views in memory. @State variables (boardSize, timeLimit, maxPlayers) retained old values from previous game. Picker UI reset visually but underlying state was stale.
+
+**Solution**: Added `.onAppear` to reset form values
+```swift
+.onAppear {
+    // Reset to defaults when view appears to prevent state persistence
+    boardSize = 4
+    timeLimit = 180
+    maxPlayers = 2
+    errorMessage = nil
+}
+```
+
+**Result**: Form always resets to defaults when view appears, no more UI/data mismatches.
+
+### Technical Challenges & Solutions
+
+**Challenge 1: Landscape Board Rendering - Tiny Grey Grid**
+- **Problem**: Grid appeared ~0.75px per tile in landscape
+- **Diagnosis**: Subtracting wordControlsHeight (150px) + wordsListHeight (100px) even though they're BESIDE board in landscape
+- **Calculation**: 393px height - 50 - 50 - 150 - 100 - 16 = 27px available → tiles ≈ 0.75px
+- **Fix**: Made heights orientation-aware: 0px in landscape, proper values in portrait
+- **Result**: 393 - 50 - 50 - 0 - 0 - 16 = 277px → tiles ≈ 63px
+
+**Challenge 2: Rotate Button Overlap**
+- **Problem**: Button covering top-right letter tile
+- **Attempts**:
+  1. Padding 10 → 8, offset (-4, 4) - still overlapping
+  2. User adjusted to (-1, 1) - better but not ideal
+- **Final Solution**: Smaller font (.caption), smaller padding (6), better offset
+- **Result**: Button fits cleanly in corner of grey rounded background
+
+**Challenge 3: Database Session Leak Detection**
+- **Problem**: Hard to diagnose - only failed after many games
+- **Debugging**: Analyzed exception flow, realized finally bypassed
+- **Insight**: Python try/finally only executes if try block entered
+- **Prevention**: Initialize `db = None`, use `if db:` check in finally
+
+### Files Modified
+- `BoggleApp/BoggleApp/GameView.swift` - Portrait layout refactor, grid centering, rotate button, landscape alignment
+- `src/api_server.py` - Connection pool leak fix in monitor_game_timers()
+- `BoggleApp/BoggleApp/NewGameView.swift` - State persistence fix with .onAppear
+
+### Testing & Deployment
+- Tested on iPhone SE (portrait only) ✅
+- Tested on iPhone 17 Pro (portrait + landscape) ✅
+- Tested on iPhone 17 Pro Max (portrait + landscape) ✅
+- 4x4 boards work on all devices ✅
+- 5x5 boards work on all devices (pending final verification)
+- Backend fix deployed to production ✅
+- No more connection pool exhaustion errors ✅
+- State persistence bug verified fixed ✅
+
+### Architecture Decisions
+
+**Percentage-Based Layout (chosen over fixed pixels)**
+- Pros: Scales to any screen size, works for 4x4 and 5x5, more maintainable
+- Cons: Slightly more complex calculation logic
+- Result: Much better user experience across all device sizes
+
+**Client-Side UI State Reset**
+- Alternative: Could track state in parent or use different SwiftUI navigation
+- Chosen: Simple .onAppear reset - explicit, predictable, no side effects
+- Trade-off: Must remember to reset all relevant state variables
+
+### Lessons Learned
+
+**Swift/SwiftUI**:
+1. @State variables in NavigationStack can persist across navigations
+2. GeometryReader enables responsive percentage-based layouts
+3. Orientation-specific calculations require explicit conditionals
+4. Visual issues (grey grid) often indicate incorrect size calculations
+
+**Python/SQLAlchemy**:
+1. Session leaks are insidious - only appear under load over time
+2. Exception handling must account for where exceptions occur
+3. Initialize resources to None, check in finally: `if resource:`
+4. Production monitoring (health endpoint) crucial for catching leaks early
+
+**Process**:
+1. User screenshots were invaluable for diagnosing layout issues
+2. Systematic approach to session lifecycle prevented future leaks
+3. Testing on multiple device sizes catches edge cases
+4. State persistence bugs are subtle - need explicit reset logic
+
+### Reflection
+
+This session demonstrated the importance of defensive programming:
+- **Backend**: A single line outside a try block caused catastrophic production failure
+- **Frontend**: SwiftUI's state management requires explicit lifecycle handling
+- **Testing**: Multi-device testing reveals issues invisible on single device
+
+The percentage-based layout is a significant improvement over hardcoded pixels, making the app truly responsive. The connection pool fix was critical - 15 leaked connections over time would have caused total service outage.
+
+### Next Steps
+- Final verification of 5x5 board layout on all devices
+- Consider adding visual alert when timer running low
+- Monitor production for any remaining connection issues
+- Potential future: investigate SwiftUI state scoping alternatives
