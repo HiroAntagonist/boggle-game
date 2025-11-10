@@ -208,52 +208,54 @@ async def monitor_game_timers() -> None:
     print("Game timer monitor started")
 
     while True:
+        db = None
         try:
             # Check every 5 seconds
             await asyncio.sleep(5)
 
             # Create a new database session for this check
             db = SessionLocal()
-            try:
-                # Find all games that are in progress with a time limit
-                active_games = db.query(GameModel).filter(
-                    GameModel.status == "in_progress",
-                    GameModel.started_at.isnot(None),
-                    GameModel.time_limit.isnot(None)
-                ).all()
 
-                # Exit if no active games
-                if not active_games:
-                    print("No active games remaining - stopping timer monitor")
-                    break
+            # Find all games that are in progress with a time limit
+            active_games = db.query(GameModel).filter(
+                GameModel.status == "in_progress",
+                GameModel.started_at.isnot(None),
+                GameModel.time_limit.isnot(None)
+            ).all()
 
-                now = datetime.now(timezone.utc)
+            # Exit if no active games
+            if not active_games:
+                print("No active games remaining - stopping timer monitor")
+                break
 
-                for game in active_games:
-                    # Skip if missing required data
-                    if game.started_at is None or game.time_limit is None:
-                        continue
+            now = datetime.now(timezone.utc)
 
-                    # Ensure started_at is timezone-aware
-                    started_at = game.started_at
-                    if started_at.tzinfo is None:
-                        started_at = started_at.replace(tzinfo=timezone.utc)
+            for game in active_games:
+                # Skip if missing required data
+                if game.started_at is None or game.time_limit is None:
+                    continue
 
-                    # Calculate elapsed time
-                    elapsed = (now - started_at).total_seconds()
+                # Ensure started_at is timezone-aware
+                started_at = game.started_at
+                if started_at.tzinfo is None:
+                    started_at = started_at.replace(tzinfo=timezone.utc)
 
-                    # Check if time limit exceeded
-                    if elapsed >= game.time_limit:
-                        # Game has ended! Calculate final results
-                        await end_game(game.id, db)
+                # Calculate elapsed time
+                elapsed = (now - started_at).total_seconds()
 
-            finally:
-                db.close()
+                # Check if time limit exceeded
+                if elapsed >= game.time_limit:
+                    # Game has ended! Calculate final results
+                    await end_game(game.id, db)
 
         except Exception as e:
             print(f"Error in game timer monitor: {e}")
             import traceback
             traceback.print_exc()
+        finally:
+            # Always close session if it was created
+            if db:
+                db.close()
 
     print("Game timer monitor stopped")
 
