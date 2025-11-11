@@ -2,7 +2,7 @@
 
 Consolidated tracking of known issues, shortcuts, and future improvements.
 
-**Last Updated**: 2025-01-11
+**Last Updated**: 2025-11-11
 
 ---
 
@@ -15,14 +15,6 @@ Consolidated tracking of known issues, shortcuts, and future improvements.
 - [ ] **Implement refresh tokens**: Currently using 30-day JWT tokens; should implement refresh token mechanism for better security
 
 - [ ] **Add rate limiting**: OAuth endpoint needs rate limiting to prevent abuse
-
-### iOS App
-
-- [ ] **Implement secure token storage**: Currently storing JWT token in memory; should use iOS Keychain for persistent, secure storage
-  - Estimated effort: 2-3 hours
-
-- [ ] **Add OAuth error handling**: Better error messages for OAuth failures (network errors, invalid tokens, server errors)
-  - Estimated effort: 1 hour
 
 ### Database & Infrastructure
 
@@ -213,6 +205,18 @@ Consolidated tracking of known issues, shortcuts, and future improvements.
 - [x] Verify end-to-end OAuth flow
 - [x] Migrate authentication from username to email throughout stack
 
+### iOS Polish - Keychain & Error Handling (Week 6 Day 5 - Nov 11, 2025)
+- [x] Implement iOS Keychain for secure token storage
+- [x] Create KeychainService with save/load/delete/hasToken methods
+- [x] Replace in-memory token storage with Keychain-backed storage
+- [x] Add auto-authentication on app launch (check Keychain for existing token)
+- [x] Improve OAuth error handling with network-specific error messages
+- [x] Add URLError handling for internet connection, timeout, and host connection issues
+- [x] Add JWT token decoder to extract user info from token payload
+- [x] Implement sign-out functionality with navigation back to login
+- [x] Display user's display name or email in lobby welcome message
+- [x] Add sign-out button in lobby navigation bar
+
 ### OpenAPI Schema Generation (Week 6 Day 2 - Nov 2, 2025)
 - [x] Install openapi-generator tool
 - [x] Generate 22 Swift Codable models from backend OpenAPI schema
@@ -284,10 +288,10 @@ Consolidated tracking of known issues, shortcuts, and future improvements.
 
 Based on recent completions (OAuth + iOS Model Generation), suggested next priorities:
 
-**Path A - iOS Polish (3-4 hours remaining)**:
+**Path A - iOS Polish** ✅ **COMPLETED**:
 1. ✅ ~~Replace manual models with generated OpenAPI models~~ (COMPLETED)
-2. Implement iOS Keychain for secure token storage
-3. Add better OAuth error handling
+2. ✅ ~~Implement iOS Keychain for secure token storage~~ (COMPLETED)
+3. ✅ ~~Add better OAuth error handling~~ (COMPLETED)
 
 **Path B - Backend Security (2-3 hours)**:
 1. Add Client ID validation to OAuth endpoint
