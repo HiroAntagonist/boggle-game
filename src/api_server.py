@@ -28,6 +28,25 @@ if GOOGLE_CLIENT_ID is None:
         "Set it in .env file or environment variables for Google OAuth to work"
     )
 
+# Sentry Error Tracking (optional)
+# If SENTRY_DSN is set, initialize Sentry for error tracking and monitoring
+SENTRY_DSN = os.getenv("SENTRY_DSN")
+if SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        traces_sample_rate=1.0,  # Capture 100% of transactions for performance monitoring
+        profiles_sample_rate=1.0,  # Capture 100% of profiling data
+        integrations=[
+            FastApiIntegration(),
+        ],
+    )
+    print("✅ Sentry error tracking initialized")
+else:
+    print("⚠️ SENTRY_DSN not set - error tracking disabled")
+
 from src.api_models import (
     CreateGameRequest,
     CreateGameResponse,
