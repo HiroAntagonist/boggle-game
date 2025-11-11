@@ -9,8 +9,21 @@ import uuid
 from datetime import datetime, timezone, timedelta
 import asyncio
 import json
+import os
+from dotenv import load_dotenv
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Google OAuth Configuration
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+if GOOGLE_CLIENT_ID is None:
+    raise ValueError(
+        "GOOGLE_CLIENT_ID environment variable is not set. "
+        "Set it in .env file or environment variables for Google OAuth to work"
+    )
 
 from src.api_models import (
     CreateGameRequest,
@@ -1324,8 +1337,7 @@ def google_auth(request: GoogleAuthRequest, db: Session = Depends(get_db)) -> Lo
         idinfo = id_token.verify_oauth2_token(
             request.id_token,
             google_requests.Request(),
-            # We'll pass client_id from environment later, for now accept any
-            None
+            GOOGLE_CLIENT_ID
         )
 
         # Extract user info from verified token
