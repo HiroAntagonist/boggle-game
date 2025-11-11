@@ -313,11 +313,4 @@ enum APIError: Error, LocalizedError {
 }
 
 // MARK: - Request/Response Models
-
-struct GoogleAuthRequest: Codable {
-    let idToken: String
-
-    enum CodingKeys: String, CodingKey {
-        case idToken = "id_token"
-    }
-}
+// All models are now imported from OpenAPIClient (generated from backend schema)
