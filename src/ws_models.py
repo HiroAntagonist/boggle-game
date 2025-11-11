@@ -122,11 +122,13 @@ class GameStartedMessage(BaseModel):
         {
             "type": "game_started",
             "board": [["A", "B"], ["C", "D"]],
+            "started_at": "2025-11-11T12:00:00Z",
             "time_limit": 180
         }
     """
     type: Literal["game_started"]
     board: list[list[str]] = Field(description="Game board grid")
+    started_at: str = Field(description="ISO 8601 timestamp when game started")
     time_limit: int | None = Field(description="Time limit in seconds, None if no timer")
 
 
