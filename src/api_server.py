@@ -1,7 +1,7 @@
 # ABOUTME: FastAPI REST API server for Boggle game
 # ABOUTME: Manages game state and provides HTTP endpoints for game operations
 
-from fastapi import FastAPI, HTTPException, status, WebSocket, WebSocketDisconnect, Depends
+from fastapi import FastAPI, HTTPException, status, WebSocket, WebSocketDisconnect, Depends, Request
 from typing import Dict, Set
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -13,6 +13,9 @@ import os
 from dotenv import load_dotenv
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 # Load environment variables from .env file
 load_dotenv()
@@ -112,6 +115,11 @@ app = FastAPI(
     description="REST API for multiplayer Boggle game",
     version="1.0.0"
 )
+
+# Rate limiting configuration
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
 
 @app.on_event("startup")
@@ -1252,10 +1260,16 @@ async def websocket_endpoint(
 
 
 @app.post("/auth/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
-def register(request: RegisterRequest, db: Session = Depends(get_db)) -> RegisterResponse:
+@limiter.limit("10/minute")
+def register(
+    http_request: Request,
+    request: RegisterRequest,
+    db: Session = Depends(get_db)
+) -> RegisterResponse:
     """Register a new user account.
 
     Creates a new user with hashed password. Email must be unique.
+    Rate limited to 10 requests per minute per IP address.
     """
     # Check if email already exists
     existing_email = db.query(User).filter(User.email == request.email).first()
@@ -1296,7 +1310,12 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)) -> Registe
 
 
 @app.post("/auth/login", response_model=LoginResponse)
-def login(request: LoginRequest, db: Session = Depends(get_db)) -> LoginResponse:
+@limiter.limit("10/minute")
+def login(
+    http_request: Request,
+    request: LoginRequest,
+    db: Session = Depends(get_db)
+) -> LoginResponse:
     """Login and get JWT access token.
 
     Validates credentials and returns a JWT token that expires in 30 days.
@@ -1325,11 +1344,17 @@ def login(request: LoginRequest, db: Session = Depends(get_db)) -> LoginResponse
 
 
 @app.post("/auth/google", response_model=LoginResponse)
-def google_auth(request: GoogleAuthRequest, db: Session = Depends(get_db)) -> LoginResponse:
+@limiter.limit("5/minute")
+def google_auth(
+    http_request: Request,
+    request: GoogleAuthRequest,
+    db: Session = Depends(get_db)
+) -> LoginResponse:
     """Authenticate with Google OAuth and get JWT access token.
 
     Verifies Google ID token and creates user if doesn't exist, or links OAuth to existing email.
     Returns JWT token for subsequent API calls.
+    Rate limited to 5 requests per minute per IP address.
     """
     try:
         # Verify the Google ID token
