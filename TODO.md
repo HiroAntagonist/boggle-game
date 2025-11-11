@@ -10,11 +10,7 @@ Consolidated tracking of known issues, shortcuts, and future improvements.
 
 ### Authentication & Security
 
-- [ ] **Add Client ID validation**: OAuth endpoint should validate that the Client ID in the ID token matches our expected Client ID for additional security (src/api_server.py:1314-1392)
-
 - [ ] **Implement refresh tokens**: Currently using 30-day JWT tokens; should implement refresh token mechanism for better security
-
-- [ ] **Add rate limiting**: OAuth endpoint needs rate limiting to prevent abuse
 
 ### Database & Infrastructure
 
@@ -217,6 +213,16 @@ Consolidated tracking of known issues, shortcuts, and future improvements.
 - [x] Display user's display name or email in lobby welcome message
 - [x] Add sign-out button in lobby navigation bar
 
+### Backend Security - Path B (Week 6 Day 5 - Nov 11, 2025)
+- [x] Fix rate limiting crash (parameter naming conflict with slowapi)
+- [x] Add rate limiting to auth endpoints (10/min for register/login, 5/min for OAuth)
+- [x] Add Client ID validation to OAuth endpoint (defense in depth)
+- [x] Enhanced Sentry configuration with environment tagging and sampling
+- [x] Add SQLAlchemy integration to Sentry
+- [x] Disable rate limiting in all test fixtures
+- [x] Add comprehensive test for Client ID validation
+- [x] All 146 tests passing
+
 ### OpenAPI Schema Generation (Week 6 Day 2 - Nov 2, 2025)
 - [x] Install openapi-generator tool
 - [x] Generate 22 Swift Codable models from backend OpenAPI schema
@@ -293,10 +299,10 @@ Based on recent completions (OAuth + iOS Model Generation), suggested next prior
 2. ✅ ~~Implement iOS Keychain for secure token storage~~ (COMPLETED)
 3. ✅ ~~Add better OAuth error handling~~ (COMPLETED)
 
-**Path B - Backend Security (2-3 hours)**:
-1. Add Client ID validation to OAuth endpoint
-2. Implement rate limiting for OAuth endpoint
-3. Add Sentry error tracking
+**Path B - Backend Security** ✅ **COMPLETED**:
+1. ✅ ~~Add Client ID validation to OAuth endpoint~~ (COMPLETED)
+2. ✅ ~~Implement rate limiting for OAuth endpoint~~ (COMPLETED)
+3. ✅ ~~Add Sentry error tracking~~ (COMPLETED)
 
 **Path C - Testing (6-8 hours)**:
 1. Add OAuth integration tests with real database
