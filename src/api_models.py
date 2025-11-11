@@ -6,7 +6,10 @@ from typing import List, Dict
 
 
 class CreateGameRequest(BaseModel):
-    """Request model for creating a new game."""
+    """Request model for creating a new game.
+
+    Configures board size, time limit, and player capacity for the new game session.
+    """
     board_size: int = Field(default=4, ge=4, le=5, description="Board size (4 or 5)")
     time_limit_seconds: int = Field(default=180, gt=0, description="Game time limit in seconds")
     max_players: int = Field(default=4, ge=1, le=8, description="Maximum number of players")
