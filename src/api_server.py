@@ -31,19 +31,26 @@ if GOOGLE_CLIENT_ID is None:
 # Sentry Error Tracking (optional)
 # If SENTRY_DSN is set, initialize Sentry for error tracking and monitoring
 SENTRY_DSN = os.getenv("SENTRY_DSN")
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")  # production, development, staging
+
 if SENTRY_DSN:
     import sentry_sdk
     from sentry_sdk.integrations.fastapi import FastApiIntegration
+    from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 
     sentry_sdk.init(
         dsn=SENTRY_DSN,
-        traces_sample_rate=1.0,  # Capture 100% of transactions for performance monitoring
-        profiles_sample_rate=1.0,  # Capture 100% of profiling data
+        environment=ENVIRONMENT,  # Tag errors by environment
+        traces_sample_rate=1.0 if ENVIRONMENT == "development" else 0.1,  # 100% dev, 10% prod
+        profiles_sample_rate=1.0 if ENVIRONMENT == "development" else 0.1,
         integrations=[
             FastApiIntegration(),
+            SqlalchemyIntegration(),  # Track database queries
         ],
+        # Filter out sensitive data
+        before_send=lambda event, hint: event if event.get("level") != "info" else None,
     )
-    print("✅ Sentry error tracking initialized")
+    print(f"✅ Sentry error tracking initialized (environment: {ENVIRONMENT})")
 else:
     print("⚠️ SENTRY_DSN not set - error tracking disabled")
 
@@ -1281,8 +1288,8 @@ async def websocket_endpoint(
 @app.post("/auth/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
 @limiter.limit("10/minute")
 def register(
-    http_request: Request,
-    request: RegisterRequest,
+    request: Request,
+    body: RegisterRequest,
     db: Session = Depends(get_db)
 ) -> RegisterResponse:
     """Register a new user account.
@@ -1291,7 +1298,7 @@ def register(
     Rate limited to 10 requests per minute per IP address.
     """
     # Check if email already exists
-    existing_email = db.query(User).filter(User.email == request.email).first()
+    existing_email = db.query(User).filter(User.email == body.email).first()
     if existing_email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -1299,13 +1306,13 @@ def register(
         )
 
     # Hash password
-    hashed_password = hash_password(request.password)
+    hashed_password = hash_password(body.password)
 
     # Create new user
     new_user = User(
-        email=request.email,
+        email=body.email,
         password_hash=hashed_password,
-        display_name=request.display_name
+        display_name=body.display_name
     )
 
     # Save to database
@@ -1331,8 +1338,8 @@ def register(
 @app.post("/auth/login", response_model=LoginResponse)
 @limiter.limit("10/minute")
 def login(
-    http_request: Request,
-    request: LoginRequest,
+    request: Request,
+    body: LoginRequest,
     db: Session = Depends(get_db)
 ) -> LoginResponse:
     """Login and get JWT access token.
@@ -1340,10 +1347,10 @@ def login(
     Validates credentials and returns a JWT token that expires in 30 days.
     """
     # Find user by email
-    user = db.query(User).filter(User.email == request.email).first()
+    user = db.query(User).filter(User.email == body.email).first()
 
     # Verify user exists and password is correct
-    if not user or not user.password_hash or not verify_password(request.password, user.password_hash):
+    if not user or not user.password_hash or not verify_password(body.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password"
@@ -1365,8 +1372,8 @@ def login(
 @app.post("/auth/google", response_model=LoginResponse)
 @limiter.limit("5/minute")
 def google_auth(
-    http_request: Request,
-    request: GoogleAuthRequest,
+    request: Request,
+    body: GoogleAuthRequest,
     db: Session = Depends(get_db)
 ) -> LoginResponse:
     """Authenticate with Google OAuth and get JWT access token.
@@ -1379,7 +1386,7 @@ def google_auth(
         # Verify the Google ID token
         # This will raise ValueError if token is invalid
         idinfo = id_token.verify_oauth2_token(
-            request.id_token,
+            body.id_token,
             google_requests.Request(),
             GOOGLE_CLIENT_ID
         )
@@ -1388,11 +1395,20 @@ def google_auth(
         email = idinfo.get('email')
         google_id = idinfo.get('sub')  # Google's unique user ID
         name = idinfo.get('name')  # Full name from Google profile
+        audience = idinfo.get('aud')  # Client ID that token was issued for
 
+        # Validate required fields
         if not email or not google_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid Google token: missing email or user ID"
+            )
+
+        # Validate that the token was issued for our Client ID (defense in depth)
+        if audience != GOOGLE_CLIENT_ID:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid Google token: token was issued for a different application"
             )
 
     except ValueError as e:

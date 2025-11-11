@@ -15,6 +15,7 @@ from src.models import User, Game, GamePlayer
 
 # TEST DATABASE SETUP
 TEST_DATABASE_URL = "sqlite:///:memory:"
+TEST_GOOGLE_CLIENT_ID = "test-client-id.apps.googleusercontent.com"
 
 
 @pytest.fixture
@@ -47,11 +48,18 @@ def client():
 
     app.dependency_overrides[get_db] = override_get_db
 
-    with TestClient(app) as test_client:
-        yield test_client
+    # Disable rate limiting for tests
+    app.state.limiter.enabled = False
+
+    # Mock GOOGLE_CLIENT_ID for tests
+    with patch('src.api_server.GOOGLE_CLIENT_ID', TEST_GOOGLE_CLIENT_ID):
+        with TestClient(app) as test_client:
+            yield test_client
 
     Base.metadata.drop_all(bind=engine)
     app.dependency_overrides.clear()
+    # Re-enable rate limiting after tests
+    app.state.limiter.enabled = True
 
 
 # ============================================================================
@@ -66,7 +74,8 @@ def test_google_oauth_new_user(mock_verify, client: TestClient) -> None:
     mock_verify.return_value = {
         'email': 'newuser@gmail.com',
         'sub': 'google-id-123',
-        'name': 'New User'
+        'name': 'New User',
+        'aud': TEST_GOOGLE_CLIENT_ID
     }
 
     # Login with Google
@@ -105,7 +114,8 @@ def test_google_oauth_links_to_existing_email_password_user(mock_verify, client:
     mock_verify.return_value = {
         'email': 'existing@gmail.com',
         'sub': 'google-id-456',
-        'name': 'Existing User'
+        'name': 'Existing User',
+        'aud': TEST_GOOGLE_CLIENT_ID
     }
 
     # Login with Google
@@ -134,7 +144,8 @@ def test_google_oauth_existing_oauth_user(mock_verify, client: TestClient) -> No
     mock_verify.return_value = {
         'email': 'oauth@gmail.com',
         'sub': 'google-id-789',
-        'name': 'OAuth User'
+        'name': 'OAuth User',
+        'aud': TEST_GOOGLE_CLIENT_ID
     }
 
     first_response = client.post(
@@ -198,12 +209,34 @@ def test_google_oauth_missing_email(mock_verify, client: TestClient) -> None:
 
 
 @patch('src.api_server.id_token.verify_oauth2_token')
+def test_google_oauth_wrong_client_id(mock_verify, client: TestClient) -> None:
+    """Test Google OAuth fails if token has wrong client ID (audience claim)."""
+    # Mock Google token with wrong client ID
+    mock_verify.return_value = {
+        'email': 'user@gmail.com',
+        'sub': 'google-id-999',
+        'name': 'Test User',
+        'aud': 'wrong-client-id.apps.googleusercontent.com'  # Wrong Client ID!
+    }
+
+    response = client.post(
+        "/auth/google",
+        json={"id_token": "fake-token"}
+    )
+
+    assert response.status_code == 401
+    data = response.json()
+    assert "different application" in data["detail"].lower()
+
+
+@patch('src.api_server.id_token.verify_oauth2_token')
 def test_google_oauth_user_has_no_password(mock_verify, client: TestClient) -> None:
     """Test that OAuth-created user has no password set."""
     mock_verify.return_value = {
         'email': 'oauth_only@gmail.com',
         'sub': 'google-id-111',
-        'name': 'OAuth Only User'
+        'name': 'OAuth Only User',
+        'aud': TEST_GOOGLE_CLIENT_ID
     }
 
     # Create user via OAuth
@@ -232,7 +265,8 @@ def test_google_oauth_user_can_create_game(mock_verify, client: TestClient) -> N
     mock_verify.return_value = {
         'email': 'gamer@gmail.com',
         'sub': 'google-id-222',
-        'name': 'Gamer'
+        'name': 'Gamer',
+        'aud': TEST_GOOGLE_CLIENT_ID
     }
 
     # Login with Google
@@ -261,7 +295,8 @@ def test_google_oauth_display_name_from_profile(mock_verify, client: TestClient)
     mock_verify.return_value = {
         'email': 'john@gmail.com',
         'sub': 'google-id-333',
-        'name': 'John Doe'
+        'name': 'John Doe',
+        'aud': TEST_GOOGLE_CLIENT_ID
     }
 
     # Login with Google

@@ -55,6 +55,9 @@ def client():
 
     app.dependency_overrides[get_db] = override_get_db
 
+    # Disable rate limiting for tests
+    app.state.limiter.enabled = False
+
     # Create test client
     with TestClient(app) as test_client:
         yield test_client
@@ -62,6 +65,8 @@ def client():
     # Cleanup
     Base.metadata.drop_all(bind=engine)
     app.dependency_overrides.clear()
+    # Re-enable rate limiting after tests
+    app.state.limiter.enabled = True
 
 
 # ============================================================================
