@@ -100,6 +100,13 @@ struct LoginView: View {
             }
         }
         .padding()
+        .onAppear {
+            // Auto-authenticate if token exists in Keychain
+            if BoggleAPI.shared.isAuthenticated {
+                print("✅ Auto-authenticating with saved token")
+                isLoggedIn = true
+            }
+        }
     }
 
     private func handleAuth() async {
@@ -140,9 +147,23 @@ struct LoginView: View {
             }
             isLoggedIn = true
         } catch let error as APIError {
+            // Handle backend API errors
             errorMessage = error.errorDescription
+        } catch let urlError as URLError {
+            // Handle network errors
+            switch urlError.code {
+            case .notConnectedToInternet:
+                errorMessage = "No internet connection. Please check your network and try again"
+            case .timedOut:
+                errorMessage = "Request timed out. Please try again"
+            case .cannotFindHost, .cannotConnectToHost:
+                errorMessage = "Cannot reach server. Please try again later"
+            default:
+                errorMessage = "Network error: \(urlError.localizedDescription)"
+            }
         } catch {
-            errorMessage = "An unexpected error occurred"
+            // Catch-all for unexpected errors
+            errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
         }
 
         isLoading = false
@@ -161,11 +182,26 @@ struct LoginView: View {
 
             isLoggedIn = true
         } catch let error as GoogleAuthError {
-            errorMessage = error.errorDescription
+            // Handle Google Sign-In specific errors
+            errorMessage = "Google Sign-In Error: \(error.errorDescription ?? "Unknown error")"
         } catch let error as APIError {
-            errorMessage = error.errorDescription
+            // Handle backend API errors
+            errorMessage = "Authentication Error: \(error.errorDescription ?? "Unknown error")"
+        } catch let urlError as URLError {
+            // Handle network errors
+            switch urlError.code {
+            case .notConnectedToInternet:
+                errorMessage = "No internet connection. Please check your network and try again"
+            case .timedOut:
+                errorMessage = "Request timed out. Please try again"
+            case .cannotFindHost, .cannotConnectToHost:
+                errorMessage = "Cannot reach server. Please try again later"
+            default:
+                errorMessage = "Network error: \(urlError.localizedDescription)"
+            }
         } catch {
-            errorMessage = "Google Sign-In failed. Please try again"
+            // Catch-all for unexpected errors
+            errorMessage = "Google Sign-In failed: \(error.localizedDescription)"
         }
 
         isLoading = false

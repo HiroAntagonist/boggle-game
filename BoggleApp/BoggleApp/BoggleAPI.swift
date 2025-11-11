@@ -12,9 +12,30 @@ class BoggleAPI {
     static let shared = BoggleAPI()
 
     private let baseURL = "https://boggle-game-ar.fly.dev"
-    private var accessToken: String?
+    private let keychain = KeychainService.shared
 
-    private init() {}
+    private init() {
+        // Load token from Keychain on init for auto-authentication
+        if keychain.hasToken() {
+            print("✅ Found saved token in Keychain")
+        }
+    }
+
+    /// Get current access token from Keychain
+    private var accessToken: String? {
+        return keychain.loadToken()
+    }
+
+    /// Check if user is authenticated
+    var isAuthenticated: Bool {
+        return keychain.hasToken()
+    }
+
+    /// Log out user by clearing token from Keychain
+    func logout() {
+        keychain.deleteToken()
+        print("✅ User logged out")
+    }
 
     // Helper to check if HTTP status code indicates success
     private func isSuccessStatusCode(_ code: Int) -> Bool {
@@ -85,8 +106,11 @@ class BoggleAPI {
         }
 
         let loginResponse = try JSONDecoder().decode(LoginResponse.self, from: data)
-        self.accessToken = loginResponse.accessToken
-        print("✅ Login successful!")
+        if keychain.saveToken(loginResponse.accessToken) {
+            print("✅ Login successful!")
+        } else {
+            print("⚠️ Login successful but failed to save token to Keychain")
+        }
     }
 
     func loginWithGoogle(idToken: String) async throws {
@@ -114,8 +138,11 @@ class BoggleAPI {
         }
 
         let loginResponse = try JSONDecoder().decode(LoginResponse.self, from: data)
-        self.accessToken = loginResponse.accessToken
-        print("✅ Google login successful!")
+        if keychain.saveToken(loginResponse.accessToken) {
+            print("✅ Google login successful!")
+        } else {
+            print("⚠️ Google login successful but failed to save token to Keychain")
+        }
     }
 
     // MARK: - Game Management

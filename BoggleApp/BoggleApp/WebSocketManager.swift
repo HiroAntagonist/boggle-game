@@ -9,8 +9,13 @@ import Combine
 // MARK: - WebSocket Messages
 
 struct SubmitWordMessage: Codable {
-    let type: String = "submit_word"
+    let type: String
     let word: String
+
+    init(word: String) {
+        self.type = "submit_word"
+        self.word = word
+    }
 }
 
 struct WordResultMessage: Codable, Equatable {

@@ -12,10 +12,12 @@ struct GameView: View {
     let gameId: String?
     let playerId: String?
     let initialBoard: [[String]]?
-    let timeLimit: Int?
-    let startedAt: String?
+    let initialTimeLimit: Int?
+    let initialStartedAt: String?
 
     @State private var board: [[String]] = []
+    @State private var timeLimit: Int?
+    @State private var startedAt: String?
     @State private var selectedWord = ""
     @State private var isLoading = true
     @State private var errorMessage: String?
@@ -36,13 +38,13 @@ struct GameView: View {
     @State private var currentDragWord = ""
     @State private var lastDraggedTile: String? = nil  // Track last tile to avoid adding same letter multiple times in one position
 
-    init(navigationPath: Binding<NavigationPath>, gameId: String? = nil, playerId: String? = nil, initialBoard: [[String]]? = nil, timeLimit: Int? = nil, startedAt: String? = nil) {
+    init(navigationPath: Binding<NavigationPath>, gameId: String? = nil, playerId: String? = nil, initialBoard: [[String]]? = nil, initialTimeLimit: Int? = nil, initialStartedAt: String? = nil) {
         self._navigationPath = navigationPath
         self.gameId = gameId
         self.playerId = playerId
         self.initialBoard = initialBoard
-        self.timeLimit = timeLimit
-        self.startedAt = startedAt
+        self.initialTimeLimit = initialTimeLimit
+        self.initialStartedAt = initialStartedAt
     }
 
     var body: some View {
@@ -112,7 +114,10 @@ struct GameView: View {
                 if isSmallDevice {
                     AppDelegate.orientationLock = .portrait
                     UIDevice.current.setValue(UIInterfaceOrientation.portrait.rawValue, forKey: "orientation")
-                    UIViewController.attemptRotationToDeviceOrientation()
+                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                       let viewController = windowScene.windows.first?.rootViewController {
+                        viewController.setNeedsUpdateOfSupportedInterfaceOrientations()
+                    }
                 }
             }
             .onDisappear {
@@ -487,9 +492,23 @@ struct GameView: View {
         // If game data is provided (coming from waiting room), use it
         if let gid = gameId, let pid = playerId, let initBoard = initialBoard {
             board = initBoard
+            timeLimit = initialTimeLimit
+            startedAt = initialStartedAt
 
             // Connect WebSocket
             let wsManager = WebSocketManager(gameId: gid, playerId: pid)
+            wsManager.onGameStarted = { startMessage in
+                print("🎮 Game started via WebSocket!")
+                self.board = startMessage.board
+                self.timeLimit = startMessage.timeLimit
+                self.startedAt = startMessage.startedAt
+
+                // Start countdown timer now that we have the timing info
+                if let limit = startMessage.timeLimit {
+                    print("🕐 Starting countdown timer: timeLimit=\(limit), startedAt=\(startMessage.startedAt)")
+                    self.startCountdownTimer(from: limit, startedAt: startMessage.startedAt)
+                }
+            }
             wsManager.onWordResult = { result in
                 self.handleWordResult(result)
             }
@@ -744,7 +763,10 @@ struct GameView: View {
     }
 
     private var isSmallDevice: Bool {
-        UIScreen.main.bounds.width <= 375
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+            return windowScene.screen.bounds.width <= 375
+        }
+        return false
     }
 
     private func calculateTileSize(containerHeight: CGFloat, boardSize: Int, isLandscape: Bool) -> CGFloat {

@@ -90,7 +90,7 @@ struct WaitingRoomView: View {
         }
         .navigationDestination(isPresented: $navigateToGame) {
             if !board.isEmpty {
-                GameView(navigationPath: $navigationPath, gameId: gameId, playerId: playerId, initialBoard: board, timeLimit: timeLimit, startedAt: startedAt)
+                GameView(navigationPath: $navigationPath, gameId: gameId, playerId: playerId, initialBoard: board, initialTimeLimit: timeLimit, initialStartedAt: startedAt)
             }
         }
         .navigationBarBackButtonHidden(true)
@@ -151,6 +151,8 @@ struct WaitingRoomView: View {
             // Get updated game state with started_at timestamp
             let gameState = try await BoggleAPI.shared.getGameState(gameId: gameId)
             board = gameState.board
+            timeLimit = gameState.timeLimit
+            startedAt = gameState.startedAt
 
             // Navigate to game
             navigateToGame = true

@@ -13,8 +13,8 @@ class GoogleAuthService {
 
     /// Sign in with Google and return the ID token
     func signIn() async throws -> String {
-        guard let windowScene = await UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let rootViewController = await windowScene.windows.first?.rootViewController else {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let rootViewController = windowScene.windows.first?.rootViewController else {
             throw GoogleAuthError.noViewController
         }
 

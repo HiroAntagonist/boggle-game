@@ -2,7 +2,7 @@
 
 Consolidated tracking of known issues, shortcuts, and future improvements.
 
-**Last Updated**: 2025-11-11
+**Last Updated**: 2025-01-11
 
 ---
 
@@ -17,11 +17,6 @@ Consolidated tracking of known issues, shortcuts, and future improvements.
 - [ ] **Add rate limiting**: OAuth endpoint needs rate limiting to prevent abuse
 
 ### iOS App
-
-- [ ] **Replace manual models with generated ones**: BoggleAPI.swift has manually defined models (lines 315+); should use OpenAPI-generated models from `BoggleApp/Generated/Sources/OpenAPIClient/Models/`
-  - Generated models already exist (completed Week 6 Day 2)
-  - Need to: Add generated files to Xcode project, replace manual structs in BoggleAPI.swift
-  - Estimated effort: 1-2 hours
 
 - [ ] **Implement secure token storage**: Currently storing JWT token in memory; should use iOS Keychain for persistent, secure storage
   - Estimated effort: 2-3 hours
@@ -200,6 +195,13 @@ Consolidated tracking of known issues, shortcuts, and future improvements.
 
 ## Completed Items
 
+### iOS Model Generation & Integration (Week 6 Day 4 - Nov 11, 2025)
+- [x] Replace manual models with generated OpenAPI models
+- [x] Remove all manual struct definitions from BoggleAPI.swift
+- [x] Add all generated files to Xcode project
+- [x] Update imports to use OpenAPIClient package
+- [x] Achieve single source of truth for iOS models (auto-generated from backend)
+
 ### OAuth Implementation (Week 6 Day 4 - Nov 11, 2025)
 - [x] Implement Google OAuth authentication with native iOS SDK
 - [x] Add account linking by email (OAuth + email/password on same account)
@@ -280,10 +282,10 @@ Consolidated tracking of known issues, shortcuts, and future improvements.
 
 ## Next Steps Recommendation
 
-Based on OAuth just being completed, suggested next priorities:
+Based on recent completions (OAuth + iOS Model Generation), suggested next priorities:
 
-**Path A - iOS Polish (2-4 hours)**:
-1. Replace manual models with generated OpenAPI models
+**Path A - iOS Polish (3-4 hours remaining)**:
+1. ✅ ~~Replace manual models with generated OpenAPI models~~ (COMPLETED)
 2. Implement iOS Keychain for secure token storage
 3. Add better OAuth error handling
 
