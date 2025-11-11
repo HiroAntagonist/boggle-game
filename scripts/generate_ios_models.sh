@@ -53,7 +53,29 @@ else
     exit 1
 fi
 
-# Step 5: Summary
+# Step 5: Post-generation fixes
+echo "🔧 Applying post-generation fixes..."
+
+# Fix 1: Rename ValidationError<T> to InputValidationError<T> to avoid conflict
+VALIDATION_FILE="$OUTPUT_DIR/Sources/OpenAPIClient/Validation.swift"
+if [ -f "$VALIDATION_FILE" ]; then
+    echo "  - Fixing ValidationError conflict in Validation.swift..."
+    sed -i '' 's/public struct ValidationError</public struct InputValidationError</g' "$VALIDATION_FILE"
+    sed -i '' 's/ValidationError</InputValidationError</g' "$VALIDATION_FILE"
+    echo "  ✓ Renamed ValidationError<T> → InputValidationError<T>"
+fi
+
+# Fix 2: Correct Package.swift path
+PACKAGE_FILE="$OUTPUT_DIR/Package.swift"
+if [ -f "$PACKAGE_FILE" ]; then
+    echo "  - Fixing Package.swift path..."
+    sed -i '' 's|path: "OpenAPIClient/Classes"|path: "Sources/OpenAPIClient"|g' "$PACKAGE_FILE"
+    echo "  ✓ Updated path: OpenAPIClient/Classes → Sources/OpenAPIClient"
+fi
+
+echo "✅ Applied post-generation fixes"
+
+# Step 6: Summary
 echo ""
 echo "✨ Generation complete!"
 echo ""

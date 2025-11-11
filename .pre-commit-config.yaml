@@ -1,0 +1,27 @@
+# ABOUTME: Pre-commit hook configuration for automated quality checks and iOS model generation.
+# ABOUTME: Automatically regenerates iOS models when Pydantic schemas change.
+
+repos:
+  # Standard pre-commit hooks for code quality
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: mixed-line-ending
+
+  # Custom local hook to regenerate iOS models when schemas change
+  - repo: local
+    hooks:
+      - id: regenerate-ios-models
+        name: Regenerate iOS models from OpenAPI schema
+        entry: ./scripts/generate_ios_models.sh
+        language: system
+        files: ^src/(api_models|models|ws_models)\.py$
+        pass_filenames: false
+        verbose: true
