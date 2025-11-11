@@ -16,7 +16,7 @@ struct LoginView: View {
 
     var body: some View {
         if isLoggedIn {
-            LobbyView()
+            LobbyView(isLoggedIn: $isLoggedIn)
         } else {
             loginForm
         }

@@ -37,6 +37,42 @@ class BoggleAPI {
         print("✅ User logged out")
     }
 
+    /// Get current user info from JWT token
+    func getCurrentUser() -> (email: String, displayName: String?)? {
+        guard let token = accessToken else { return nil }
+
+        // JWT format: header.payload.signature
+        let parts = token.components(separatedBy: ".")
+        guard parts.count == 3 else {
+            print("❌ Invalid JWT format")
+            return nil
+        }
+
+        // Decode the payload (second part)
+        let payload = parts[1]
+
+        // Base64url decode - need to handle padding
+        var base64 = payload
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+
+        // Add padding if needed
+        let remainder = base64.count % 4
+        if remainder > 0 {
+            base64 += String(repeating: "=", count: 4 - remainder)
+        }
+
+        guard let data = Data(base64Encoded: base64),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let email = json["email"] as? String else {
+            print("❌ Failed to decode JWT payload")
+            return nil
+        }
+
+        let displayName = json["display_name"] as? String
+        return (email: email, displayName: displayName)
+    }
+
     // Helper to check if HTTP status code indicates success
     private func isSuccessStatusCode(_ code: Int) -> Bool {
         return code == 200 || code == 201

@@ -6,7 +6,10 @@
 import SwiftUI
 
 struct LobbyView: View {
+    @Binding var isLoggedIn: Bool
     @State private var navigationPath = NavigationPath()
+    @State private var userDisplayName: String?
+    @State private var userEmail: String?
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
@@ -14,6 +17,17 @@ struct LobbyView: View {
                 Text("Boggle")
                     .font(.largeTitle)
                     .fontWeight(.bold)
+
+                // Display logged-in user info
+                if let displayName = userDisplayName {
+                    Text("Welcome, \(displayName)!")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                } else if let email = userEmail {
+                    Text("Logged in as \(email)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
 
                 Text("Ready to play?")
                     .font(.title2)
@@ -36,6 +50,18 @@ struct LobbyView: View {
                 }
             }
             .padding()
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        handleSignOut()
+                    } label: {
+                        Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                    }
+                }
+            }
+            .onAppear {
+                loadUserInfo()
+            }
             .navigationDestination(for: String.self) { destination in
                 switch destination {
                 case "newGame":
@@ -48,8 +74,21 @@ struct LobbyView: View {
             }
         }
     }
+
+    private func loadUserInfo() {
+        if let user = BoggleAPI.shared.getCurrentUser() {
+            userEmail = user.email
+            userDisplayName = user.displayName
+            print("✅ Loaded user info: \(user.displayName ?? user.email)")
+        }
+    }
+
+    private func handleSignOut() {
+        BoggleAPI.shared.logout()
+        isLoggedIn = false
+    }
 }
 
 #Preview {
-    LobbyView()
+    LobbyView(isLoggedIn: .constant(true))
 }
