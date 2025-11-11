@@ -60,8 +60,9 @@ echo "🔧 Applying post-generation fixes..."
 VALIDATION_FILE="$OUTPUT_DIR/Sources/OpenAPIClient/Validation.swift"
 if [ -f "$VALIDATION_FILE" ]; then
     echo "  - Fixing ValidationError conflict in Validation.swift..."
-    sed -i '' 's/public struct ValidationError</public struct InputValidationError</g' "$VALIDATION_FILE"
-    sed -i '' 's/ValidationError</InputValidationError</g' "$VALIDATION_FILE"
+    # Use a single sed with word boundary to avoid double-replacement
+    sed -i '' 's/\([^a-zA-Z]\)ValidationError</\1InputValidationError</g' "$VALIDATION_FILE"
+    sed -i '' 's/^ValidationError</InputValidationError</g' "$VALIDATION_FILE"
     echo "  ✓ Renamed ValidationError<T> → InputValidationError<T>"
 fi
 
