@@ -9,6 +9,8 @@ import uuid
 from datetime import datetime, timezone, timedelta
 import asyncio
 import json
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
 
 from src.api_models import (
     CreateGameRequest,
@@ -23,6 +25,7 @@ from src.api_models import (
     RegisterResponse,
     LoginRequest,
     LoginResponse,
+    GoogleAuthRequest,
     UserResponse,
     HealthCheckResponse,
     DatabaseHealth,
@@ -41,6 +44,24 @@ from src.database import get_db
 from src.models import User
 from src.auth import hash_password, verify_password, create_access_token, get_current_user_from_db
 import random
+
+
+def get_display_name(user: User) -> str:
+    """Get the display name for a user.
+
+    Returns display_name if set, otherwise falls back to email prefix.
+    For example: john@gmail.com -> "john"
+
+    Args:
+        user: User object from database
+
+    Returns:
+        Display name string
+    """
+    if user.display_name:
+        return user.display_name
+    # Fallback to email prefix (before @)
+    return user.email.split('@')[0]
 
 
 def generate_friendly_code(db: Session) -> str:
@@ -282,7 +303,7 @@ async def end_game(game_id: str, db: Session) -> None:
     player_words: Dict[str, list[str]] = {}
     for gp in game_players:
         words = json.loads(gp.words_found) if gp.words_found else [] if gp.words_found else []
-        player_words[gp.user.username] = words
+        player_words[get_display_name(gp.user)] = words
 
     # Find duplicate words (words submitted by multiple players)
     word_counts: Dict[str, int] = {}
@@ -311,7 +332,7 @@ async def end_game(game_id: str, db: Session) -> None:
             ))
 
         results.append(PlayerFinalResult(
-            player_name=gp.user.username,
+            player_name=get_display_name(gp.user),
             words=word_results,
             total_score=total_score
         ))
@@ -516,7 +537,7 @@ def create_game(
             db.refresh(db_game)
 
             # Log successful game creation
-            print(f"✅ GAME CREATED - UUID: {db_game.id} | Friendly Code: {db_game.friendly_code} | Creator: {current_user.username}")
+            print(f"✅ GAME CREATED - UUID: {db_game.id} | Friendly Code: {db_game.friendly_code} | Creator: {get_display_name(current_user)}")
 
             break  # Success - exit retry loop
 
@@ -571,7 +592,7 @@ async def join_game(
     # Check if game exists
     db_game = db.query(GameModel).filter(GameModel.id == game_id).first()
     if not db_game:
-        print(f"❌ JOIN FAILED - Game not found | UUID: {game_id} | User: {current_user.username}")
+        print(f"❌ JOIN FAILED - Game not found | UUID: {game_id} | User: {get_display_name(current_user)}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Game {game_id} not found"
@@ -579,7 +600,7 @@ async def join_game(
 
     # Check if game is full
     current_player_count = db.query(GamePlayer).filter(GamePlayer.game_id == game_id).count()
-    print(f"🔍 JOIN REQUEST - UUID: {db_game.id} | Friendly Code: {db_game.friendly_code} | User: {current_user.username} | Current Players: {current_player_count}/{db_game.max_players}")
+    print(f"🔍 JOIN REQUEST - UUID: {db_game.id} | Friendly Code: {db_game.friendly_code} | User: {get_display_name(current_user)} | Current Players: {current_player_count}/{db_game.max_players}")
     if current_player_count >= db_game.max_players:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -615,15 +636,15 @@ async def join_game(
     for gp in all_players:
         user = db.query(User).filter(User.id == gp.user_id).first()
         if user:
-            player_names.append(user.username)
+            player_names.append(get_display_name(user))
 
-    print(f"✅ PLAYER JOINED - UUID: {game_id} | Friendly Code: {db_game.friendly_code} | Player: {current_user.username} | Player ID: {game_player.id} | Total Players: {len(player_names)}/{db_game.max_players}")
+    print(f"✅ PLAYER JOINED - UUID: {game_id} | Friendly Code: {db_game.friendly_code} | Player: {get_display_name(current_user)} | Player ID: {game_player.id} | Total Players: {len(player_names)}/{db_game.max_players}")
 
     # Broadcast player_joined to all connected players
     await manager.broadcast(
         json.dumps({
             "type": "player_joined",
-            "player_name": current_user.username,
+            "player_name": get_display_name(current_user),
             "player_count": len(player_names),
             "max_players": db_game.max_players,
             "players": player_names
@@ -693,10 +714,10 @@ async def join_game_by_code(
     from src.models import Game as GameModel, GamePlayer
 
     # Look up game by friendly code
-    print(f"🔍 JOIN BY CODE REQUEST - Friendly Code: {friendly_code} | User: {current_user.username}")
+    print(f"🔍 JOIN BY CODE REQUEST - Friendly Code: {friendly_code} | User: {get_display_name(current_user)}")
     db_game = db.query(GameModel).filter(GameModel.friendly_code == friendly_code).first()
     if not db_game:
-        print(f"❌ JOIN BY CODE FAILED - Game not found | Friendly Code: {friendly_code} | User: {current_user.username}")
+        print(f"❌ JOIN BY CODE FAILED - Game not found | Friendly Code: {friendly_code} | User: {get_display_name(current_user)}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Game with code {friendly_code} not found"
@@ -741,15 +762,15 @@ async def join_game_by_code(
     for gp in all_players:
         user = db.query(User).filter(User.id == gp.user_id).first()
         if user:
-            player_names.append(user.username)
+            player_names.append(get_display_name(user))
 
-    print(f"✅ PLAYER JOINED BY CODE - UUID: {db_game.id} | Friendly Code: {friendly_code} | Player: {current_user.username} | Player ID: {game_player.id} | Total Players: {len(player_names)}/{db_game.max_players}")
+    print(f"✅ PLAYER JOINED BY CODE - UUID: {db_game.id} | Friendly Code: {friendly_code} | Player: {get_display_name(current_user)} | Player ID: {game_player.id} | Total Players: {len(player_names)}/{db_game.max_players}")
 
     # Broadcast player_joined to all connected players
     await manager.broadcast(
         json.dumps({
             "type": "player_joined",
-            "player_name": current_user.username,
+            "player_name": get_display_name(current_user),
             "player_count": len(player_names),
             "max_players": db_game.max_players,
             "players": player_names
@@ -833,7 +854,7 @@ def get_game_state(
     for gp in all_players:
         user = db.query(User).filter(User.id == gp.user_id).first()
         if user:
-            player_names.append(user.username)
+            player_names.append(get_display_name(user))
 
     # Calculate time remaining if game is in progress
     time_remaining = None
@@ -984,7 +1005,7 @@ def get_game_results(
         valid_words = [w for w in all_words if w not in duplicates]
 
         player_results.append(PlayerResult(
-            name=user.username,
+            name=get_display_name(user),
             score=gp.score,
             words=all_words,
             valid_words=valid_words
@@ -1053,7 +1074,7 @@ async def websocket_endpoint(
         if not user:
             await websocket.close(code=1008, reason="User not found")
             return
-        player = Player(player_id=player_id, name=user.username)
+        player = Player(player_id=player_id, name=get_display_name(user))
 
         # Load existing words from database
         existing_words = json.loads(db_player.words_found) if db_player.words_found else []
@@ -1067,7 +1088,7 @@ async def websocket_endpoint(
         from src.ws_models import PlayerConnectedMessage
         connect_msg = PlayerConnectedMessage(
             type="player_connected",
-            player_name=user.username
+            player_name=get_display_name(user)
         )
         await manager.broadcast(
             connect_msg.model_dump_json(),
@@ -1138,7 +1159,7 @@ async def websocket_endpoint(
                 if is_valid:
                     broadcast = WordSubmittedMessage(
                         type="word_submitted",
-                        player_name=user.username,
+                        player_name=get_display_name(user),
                         word=word,
                         score=score
                     )
@@ -1188,7 +1209,7 @@ async def websocket_endpoint(
         # Notify others that player disconnected
         from src.ws_models import PlayerDisconnectedMessage
         # Get username for disconnect message
-        username = user.username if 'user' in locals() and user else "Unknown"
+        username = get_display_name(user) if 'user' in locals() and user else "Unknown"
         disconnect_msg = PlayerDisconnectedMessage(
             type="player_disconnected",
             player_name=username
@@ -1221,16 +1242,8 @@ async def websocket_endpoint(
 def register(request: RegisterRequest, db: Session = Depends(get_db)) -> RegisterResponse:
     """Register a new user account.
 
-    Creates a new user with hashed password. Username and email must be unique.
+    Creates a new user with hashed password. Email must be unique.
     """
-    # Check if username already exists
-    existing_user = db.query(User).filter(User.username == request.username).first()
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username already registered"
-        )
-
     # Check if email already exists
     existing_email = db.query(User).filter(User.email == request.email).first()
     if existing_email:
@@ -1244,9 +1257,9 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)) -> Registe
 
     # Create new user
     new_user = User(
-        username=request.username,
         email=request.email,
-        password_hash=hashed_password
+        password_hash=hashed_password,
+        display_name=request.display_name
     )
 
     # Save to database
@@ -1258,12 +1271,13 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)) -> Registe
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username or email already registered"
+            detail="Email already registered"
         )
 
     return RegisterResponse(
         user_id=new_user.id,
-        username=new_user.username,
+        email=new_user.email,
+        display_name=new_user.display_name,
         message="User registered successfully"
     )
 
@@ -1274,20 +1288,101 @@ def login(request: LoginRequest, db: Session = Depends(get_db)) -> LoginResponse
 
     Validates credentials and returns a JWT token that expires in 30 days.
     """
-    # Find user by username
-    user = db.query(User).filter(User.username == request.username).first()
+    # Find user by email
+    user = db.query(User).filter(User.email == request.email).first()
 
     # Verify user exists and password is correct
-    if not user or not verify_password(request.password, user.password_hash):
+    if not user or not user.password_hash or not verify_password(request.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid username or password"
+            detail="Invalid email or password"
         )
 
     # Create JWT token with user info
     token_data = {
         "user_id": user.id,
-        "username": user.username
+        "email": user.email
+    }
+    access_token = create_access_token(token_data, expires_delta=timedelta(days=30))
+
+    return LoginResponse(
+        access_token=access_token,
+        token_type="bearer"
+    )
+
+
+@app.post("/auth/google", response_model=LoginResponse)
+def google_auth(request: GoogleAuthRequest, db: Session = Depends(get_db)) -> LoginResponse:
+    """Authenticate with Google OAuth and get JWT access token.
+
+    Verifies Google ID token and creates user if doesn't exist, or links OAuth to existing email.
+    Returns JWT token for subsequent API calls.
+    """
+    try:
+        # Verify the Google ID token
+        # This will raise ValueError if token is invalid
+        idinfo = id_token.verify_oauth2_token(
+            request.id_token,
+            google_requests.Request(),
+            # We'll pass client_id from environment later, for now accept any
+            None
+        )
+
+        # Extract user info from verified token
+        email = idinfo.get('email')
+        google_id = idinfo.get('sub')  # Google's unique user ID
+        name = idinfo.get('name')  # Full name from Google profile
+
+        if not email or not google_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid Google token: missing email or user ID"
+            )
+
+    except ValueError as e:
+        # Token verification failed
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid Google ID token: {str(e)}"
+        )
+
+    # Check if user with this email already exists
+    user = db.query(User).filter(User.email == email).first()
+
+    if user:
+        # User exists - link OAuth if not already linked
+        if not user.oauth_provider:
+            user.oauth_provider = "google"
+            user.oauth_id = google_id
+            db.commit()
+            db.refresh(user)
+    else:
+        # Create new user with OAuth
+        user = User(
+            email=email,
+            password_hash=None,  # No password for OAuth users
+            display_name=name,  # Use Google profile name
+            oauth_provider="google",
+            oauth_id=google_id
+        )
+        db.add(user)
+        try:
+            db.commit()
+            db.refresh(user)
+        except IntegrityError:
+            # Handle race condition where user was created between check and insert
+            db.rollback()
+            user = db.query(User).filter(User.email == email).first()
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to create user account"
+                )
+
+    # Create JWT token
+    token_data = {
+        "user_id": user.id,
+        "email": user.email
     }
     access_token = create_access_token(token_data, expires_delta=timedelta(days=30))
 
@@ -1306,6 +1401,6 @@ def get_current_user_info(current_user: User = Depends(get_current_user_from_db)
     """
     return UserResponse(
         user_id=current_user.id,
-        username=current_user.username,
-        email=current_user.email
+        email=current_user.email,
+        display_name=current_user.display_name
     )

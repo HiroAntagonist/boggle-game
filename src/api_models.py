@@ -75,21 +75,22 @@ class GameResultsResponse(BaseModel):
 
 class RegisterRequest(BaseModel):
     """Request model for user registration."""
-    username: str = Field(min_length=3, max_length=50)
     email: str = Field(pattern=r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
     password: str = Field(min_length=8)
+    display_name: str | None = Field(default=None, min_length=1, max_length=50, description="Optional display name")
 
 
 class RegisterResponse(BaseModel):
     """Response model after successful registration."""
     user_id: str
-    username: str
+    email: str
+    display_name: str | None
     message: str
 
 
 class LoginRequest(BaseModel):
     """Request model for user login."""
-    username: str
+    email: str
     password: str
 
 
@@ -99,11 +100,16 @@ class LoginResponse(BaseModel):
     token_type: str = "bearer"
 
 
+class GoogleAuthRequest(BaseModel):
+    """Request model for Google OAuth authentication."""
+    id_token: str = Field(description="Google ID token from native SDK")
+
+
 class UserResponse(BaseModel):
     """Response model for user information."""
     user_id: str
-    username: str
     email: str
+    display_name: str | None
 
 
 class DatabaseHealth(BaseModel):
