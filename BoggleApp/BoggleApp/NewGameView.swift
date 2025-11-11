@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import OpenAPIClient
 
 struct NewGameView: View {
     @Binding var navigationPath: NavigationPath
@@ -94,12 +95,12 @@ struct NewGameView: View {
                 timeLimitSeconds: timeLimit,
                 maxPlayers: maxPlayers
             )
-            createdGameId = game.game_id
-            createdFriendlyCode = game.friendly_code
+            createdGameId = game.gameId
+            createdFriendlyCode = game.friendlyCode
 
             // Join the game
-            let joinResponse = try await BoggleAPI.shared.joinGame(gameId: game.game_id)
-            playerId = joinResponse.player_id
+            let joinResponse = try await BoggleAPI.shared.joinGame(gameId: game.gameId)
+            playerId = joinResponse.playerId
 
             // Navigate to waiting room
             navigateToWaitingRoom = true

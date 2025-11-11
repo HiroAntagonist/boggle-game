@@ -15,9 +15,11 @@ class User(Base):
 
     This becomes a database table called 'users' with columns:
     - id (UUID primary key, not guessable for security)
-    - username (unique, required)
-    - email (unique, required)
-    - password_hash (required)
+    - email (unique, required) - primary login identifier
+    - password_hash (nullable) - null for OAuth users
+    - display_name (nullable) - shown in games, not unique
+    - oauth_provider (nullable) - "google", "github", etc.
+    - oauth_id (nullable) - provider's user ID
     - created_at (timestamp)
     """
 
@@ -40,16 +42,23 @@ class User(Base):
         default=lambda: str(uuid.uuid4())
     )
 
-    # Username - must be unique and can't be null
-    # String(50) means max 50 characters
-    username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    # Email - primary login identifier, must be unique
+    email: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
 
-    # Email - must be unique and can't be null
-    email: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    # Password hash - nullable for OAuth users
+    # We NEVER store plain passwords! We hash them before storing
+    password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
-    # Password hash - we NEVER store plain passwords!
-    # We'll hash passwords before storing (Week 5 Part 2)
-    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Display name - shown in games, can be changed, NOT unique
+    # If null, fallback to email prefix (john@gmail.com -> "john")
+    display_name: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+
+    # OAuth fields - for Google, GitHub, etc. authentication
+    # Provider: "google", "github", null for traditional email/password
+    oauth_provider: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+
+    # Provider's unique user ID - combined with provider, must be unique
+    oauth_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
 
     # Created timestamp - when user registered
     # default=lambda: datetime.now(timezone.utc) sets it automatically
@@ -69,9 +78,8 @@ class User(Base):
     )
 
     # String representation - useful for debugging
-    # When you print a User object, you'll see: <User(username='amritansh')>
     def __repr__(self) -> str:
-        return f"<User(username='{self.username}')>"
+        return f"<User(email='{self.email}')>"
 
 
 class Game(Base):

@@ -64,25 +64,19 @@ def client():
     manager.active_connections.clear()
 
 
-def create_test_user_and_login(client: TestClient, username: str = "testuser", email: str = "test@example.com", password: str = "testpass123") -> str:
+def create_test_user_and_login(client: TestClient, email: str = "test@example.com", password: str = "testpass123", display_name: str | None = None) -> str:
     """Helper function to create a user and return their auth token."""
     # Register user
-    client.post(
-        "/auth/register",
-        json={
-            "username": username,
-            "email": email,
-            "password": password
-        }
-    )
+    register_data = {"email": email, "password": password}
+    if display_name is not None:
+        register_data["display_name"] = display_name
+
+    client.post("/auth/register", json=register_data)
 
     # Login to get token
     login_response = client.post(
         "/auth/login",
-        json={
-            "username": username,
-            "password": password
-        }
+        json={"email": email, "password": password}
     )
 
     return login_response.json()["access_token"]
@@ -182,8 +176,8 @@ def test_in_progress_game_not_deleted_when_players_disconnect(client: TestClient
 def test_waiting_game_not_deleted_when_some_players_remain(client: TestClient) -> None:
     """Test that waiting games are NOT deleted when some players remain connected."""
     # Create two users
-    token1 = create_test_user_and_login(client, username="alice", email="alice@example.com")
-    token2 = create_test_user_and_login(client, username="bob", email="bob@example.com")
+    token1 = create_test_user_and_login(client, email="alice@example.com")
+    token2 = create_test_user_and_login(client, email="bob@example.com")
 
     # Create game
     create_response = client.post("/games", headers=auth_headers(token1))

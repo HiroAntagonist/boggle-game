@@ -5,6 +5,7 @@
 
 import SwiftUI
 import Combine
+import OpenAPIClient
 
 struct GameView: View {
     @Binding var navigationPath: NavigationPath
@@ -493,8 +494,8 @@ struct GameView: View {
                 self.handleWordResult(result)
             }
             wsManager.onGameState = { state in
-                self.timeRemaining = state.time_remaining
-                self.playerCount = state.player_count
+                self.timeRemaining = state.timeRemaining
+                self.playerCount = state.playerCount
             }
             wsManager.onGameEnded = { endMessage in
                 self.stopCountdownTimer()
@@ -535,19 +536,19 @@ struct GameView: View {
             board = game.board
 
             // Join the game
-            let joinResponse = try await BoggleAPI.shared.joinGame(gameId: game.game_id)
+            let joinResponse = try await BoggleAPI.shared.joinGame(gameId: game.gameId)
 
             // Start the game
-            try await BoggleAPI.shared.startGame(gameId: game.game_id)
+            try await BoggleAPI.shared.startGame(gameId: game.gameId)
 
             // Connect WebSocket
-            let wsManager = WebSocketManager(gameId: game.game_id, playerId: joinResponse.player_id)
+            let wsManager = WebSocketManager(gameId: game.gameId, playerId: joinResponse.playerId)
             wsManager.onWordResult = { result in
                 self.handleWordResult(result)
             }
             wsManager.onGameState = { state in
-                self.timeRemaining = state.time_remaining
-                self.playerCount = state.player_count
+                self.timeRemaining = state.timeRemaining
+                self.playerCount = state.playerCount
             }
             wsManager.onGameEnded = { endMessage in
                 self.stopCountdownTimer()

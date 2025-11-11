@@ -57,7 +57,6 @@ def test_create_user(db_session):
     """Test creating a user with UUID."""
     # Create a user
     user = User(
-        username="amritansh",
         email="a@example.com",
         password_hash="fake_hash_for_now"  # We'll do real password hashing later
     )
@@ -69,7 +68,7 @@ def test_create_user(db_session):
     # Verify user was saved
     assert user.id is not None  # UUID was auto-generated
     assert len(user.id) == 36  # UUIDs are exactly 36 characters
-    assert user.username == "amritansh"
+    
     assert user.email == "a@example.com"
 
     # Verify it's a valid UUID format
@@ -83,7 +82,6 @@ def test_retrieve_user(db_session):
     """Test retrieving a user from database."""
     # Create and save user
     user = User(
-        username="alice",
         email="alice@example.com",
         password_hash="fake_hash"
     )
@@ -99,25 +97,23 @@ def test_retrieve_user(db_session):
     # Verify it's the same user
     assert retrieved_user is not None
     assert retrieved_user.id == user_id
-    assert retrieved_user.username == "alice"
+    
     assert retrieved_user.email == "alice@example.com"
 
 
 def test_unique_username_constraint(db_session):
-    """Test that usernames must be unique."""
+    """Test that emails must be unique (username constraint is obsolete)."""
     # Create first user
     user1 = User(
-        username="bob",
-        email="bob1@example.com",
+        email="bob@example.com",
         password_hash="fake_hash"
     )
     db_session.add(user1)
     db_session.commit()
 
-    # Try to create second user with same username
+    # Try to create second user with same email
     user2 = User(
-        username="bob",  # Duplicate!
-        email="bob2@example.com",
+        email="bob@example.com",  # Duplicate!
         password_hash="fake_hash"
     )
     db_session.add(user2)
@@ -131,7 +127,6 @@ def test_unique_email_constraint(db_session):
     """Test that emails must be unique."""
     # Create first user
     user1 = User(
-        username="charlie",
         email="charlie@example.com",
         password_hash="fake_hash"
     )
@@ -140,7 +135,6 @@ def test_unique_email_constraint(db_session):
 
     # Try to create second user with same email
     user2 = User(
-        username="charlie2",
         email="charlie@example.com",  # Duplicate!
         password_hash="fake_hash"
     )
@@ -157,7 +151,6 @@ def test_uuid_is_not_guessable(db_session):
     users = []
     for i in range(5):
         user = User(
-            username=f"user{i}",
             email=f"user{i}@example.com",
             password_hash="fake_hash"
         )
@@ -186,7 +179,6 @@ def test_create_game(db_session):
     """Test creating a game with a creator."""
     # First create a user (games need a creator)
     user = User(
-        username="amritansh",
         email="a@example.com",
         password_hash="fake_hash"
     )
@@ -217,7 +209,6 @@ def test_game_creator_relationship(db_session):
     """Test the relationship between Game and User (creator)."""
     # Create user
     user = User(
-        username="alice",
         email="alice@example.com",
         password_hash="fake_hash"
     )
@@ -231,7 +222,7 @@ def test_game_creator_relationship(db_session):
 
     # Test relationship: game.creator should give us the User object
     assert game.creator is not None
-    assert game.creator.username == "alice"
+    
     assert game.creator.id == user.id
 
     # Test reverse relationship: user.created_games should include this game
@@ -256,7 +247,7 @@ def test_game_foreign_key_constraint(db_session):
 def test_retrieve_game_by_id(db_session):
     """Test retrieving a game by its ID."""
     # Create user and game
-    user = User(username="bob", email="bob@example.com", password_hash="fake_hash")
+    user = User(email="bob@example.com", password_hash="fake_hash")
     db_session.add(user)
     db_session.commit()
 
@@ -279,7 +270,7 @@ def test_retrieve_game_by_id(db_session):
 def test_update_game_status(db_session):
     """Test updating game status from waiting to in_progress."""
     # Create user and game
-    user = User(username="charlie", email="charlie@example.com", password_hash="fake_hash")
+    user = User(email="charlie@example.com", password_hash="fake_hash")
     db_session.add(user)
     db_session.commit()
 
@@ -309,7 +300,7 @@ def test_update_game_status(db_session):
 def test_add_player_to_game(db_session):
     """Test adding a player to a game via GamePlayer."""
     # Create user and game
-    user = User(username="dave", email="dave@example.com", password_hash="fake_hash")
+    user = User(email="dave@example.com", password_hash="fake_hash")
     db_session.add(user)
     db_session.commit()
 
@@ -337,9 +328,9 @@ def test_add_player_to_game(db_session):
 def test_multiple_players_in_game(db_session):
     """Test a game with multiple players."""
     # Create 3 users
-    alice = User(username="alice", email="alice@example.com", password_hash="fake_hash")
-    bob = User(username="bob", email="bob@example.com", password_hash="fake_hash")
-    charlie = User(username="charlie", email="charlie@example.com", password_hash="fake_hash")
+    alice = User(email="alice@example.com", password_hash="fake_hash")
+    bob = User(email="bob@example.com", password_hash="fake_hash")
+    charlie = User(email="charlie@example.com", password_hash="fake_hash")
 
     db_session.add_all([alice, bob, charlie])
     db_session.commit()
@@ -370,7 +361,7 @@ def test_multiple_players_in_game(db_session):
 def test_gameplayer_relationships(db_session):
     """Test GamePlayer → Game and GamePlayer → User relationships."""
     # Create user and game
-    user = User(username="eve", email="eve@example.com", password_hash="fake_hash")
+    user = User(email="eve@example.com", password_hash="fake_hash")
     db_session.add(user)
     db_session.commit()
 
@@ -390,14 +381,14 @@ def test_gameplayer_relationships(db_session):
 
     # Test GamePlayer → User relationship
     assert game_player.user is not None
-    assert game_player.user.username == "eve"
+    
     assert game_player.user.id == user.id
 
 
 def test_user_can_join_multiple_games(db_session):
     """Test that a user can be in multiple games (many-to-many)."""
     # Create 1 user
-    user = User(username="frank", email="frank@example.com", password_hash="fake_hash")
+    user = User(email="frank@example.com", password_hash="fake_hash")
     db_session.add(user)
     db_session.commit()
 
@@ -431,7 +422,7 @@ def test_user_can_join_multiple_games(db_session):
 def test_update_player_score_and_words(db_session):
     """Test updating a player's score and words during gameplay."""
     # Create user and game
-    user = User(username="grace", email="grace@example.com", password_hash="fake_hash")
+    user = User(email="grace@example.com", password_hash="fake_hash")
     db_session.add(user)
     db_session.commit()
 
@@ -463,7 +454,7 @@ def test_update_player_score_and_words(db_session):
 def test_cascade_delete_game_players(db_session):
     """Test that deleting a game deletes all associated GamePlayer records."""
     # Create user and game
-    user = User(username="henry", email="henry@example.com", password_hash="fake_hash")
+    user = User(email="henry@example.com", password_hash="fake_hash")
     db_session.add(user)
     db_session.commit()
 

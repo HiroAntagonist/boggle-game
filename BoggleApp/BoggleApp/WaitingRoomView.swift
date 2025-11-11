@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import OpenAPIClient
 
 struct WaitingRoomView: View {
     @Binding var navigationPath: NavigationPath
@@ -101,8 +102,8 @@ struct WaitingRoomView: View {
             let gameState = try await BoggleAPI.shared.getGameState(gameId: gameId)
             board = gameState.board
             players = gameState.players
-            timeLimit = gameState.time_limit
-            startedAt = gameState.started_at
+            timeLimit = gameState.timeLimit
+            startedAt = gameState.startedAt
 
             // Check if game has already started (handles race condition where game
             // auto-started before we connected to WebSocket)
@@ -125,8 +126,8 @@ struct WaitingRoomView: View {
             wsManager.onGameStarted = { startMessage in
                 // Auto-start: game started by another player or when room filled
                 self.board = startMessage.board
-                self.timeLimit = startMessage.time_limit
-                self.startedAt = startMessage.started_at
+                self.timeLimit = startMessage.timeLimit
+                self.startedAt = startMessage.startedAt
                 self.navigateToGame = true
             }
 

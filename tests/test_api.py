@@ -63,25 +63,19 @@ def client():
     app.dependency_overrides.clear()
 
 
-def create_test_user_and_login(client: TestClient, username: str = "testuser", email: str = "test@example.com", password: str = "testpass123") -> str:
+def create_test_user_and_login(client: TestClient, email: str = "test@example.com", password: str = "testpass123", display_name: str | None = None) -> str:
     """Helper function to create a user and return their auth token."""
     # Register user
-    client.post(
-        "/auth/register",
-        json={
-            "username": username,
-            "email": email,
-            "password": password
-        }
-    )
+    register_data = {"email": email, "password": password}
+    if display_name is not None:
+        register_data["display_name"] = display_name
+
+    client.post("/auth/register", json=register_data)
 
     # Login to get token
     login_response = client.post(
         "/auth/login",
-        json={
-            "username": username,
-            "password": password
-        }
+        json={"email": email, "password": password}
     )
 
     return login_response.json()["access_token"]
@@ -155,14 +149,14 @@ def test_join_game_success(client: TestClient) -> None:
 
     assert "player_id" in data
     assert data["player_name"] == "Alice"
-    assert data["players"] == ["testuser"]  # Should show username, not player_name
+    assert data["players"] == ["test"]  # Should show display_name (or email prefix), not player_name
 
 
 def test_join_game_multiple_players(client: TestClient) -> None:
     """Test multiple players joining a game."""
     # Create two users
-    token1 = create_test_user_and_login(client, username="alice", email="alice@example.com")
-    token2 = create_test_user_and_login(client, username="bob", email="bob@example.com")
+    token1 = create_test_user_and_login(client, email="alice@example.com")
+    token2 = create_test_user_and_login(client, email="bob@example.com")
 
     # First user creates game
     create_response = client.post("/games", headers=auth_headers(token1))
@@ -181,7 +175,7 @@ def test_join_game_multiple_players(client: TestClient) -> None:
     assert response2.status_code == 201
     data2 = response2.json()
 
-    # Both players should be in the list (by username)
+    # Both players should be in the list (by display_name or email prefix)
     assert "alice" in data2["players"]
     assert "bob" in data2["players"]
     assert len(data2["players"]) == 2
@@ -190,9 +184,9 @@ def test_join_game_multiple_players(client: TestClient) -> None:
 def test_join_game_room_full(client: TestClient) -> None:
     """Test joining a full game."""
     # Create three users
-    token1 = create_test_user_and_login(client, username="alice", email="alice@example.com")
-    token2 = create_test_user_and_login(client, username="bob", email="bob@example.com")
-    token3 = create_test_user_and_login(client, username="charlie", email="charlie@example.com")
+    token1 = create_test_user_and_login(client, email="alice@example.com")
+    token2 = create_test_user_and_login(client, email="bob@example.com")
+    token3 = create_test_user_and_login(client, email="charlie@example.com")
 
     # Create game with max 2 players
     create_response = client.post("/games", headers=auth_headers(token1), json={"max_players": 2})
@@ -242,7 +236,7 @@ def test_get_game_state_success(client: TestClient) -> None:
     assert "board" in data
     assert data["status"] == "waiting"
     assert len(data["players"]) == 1
-    assert data["players"][0] == "testuser"  # Should show username
+    assert data["players"][0] == "test"  # Should show display_name (or email prefix)
 
 
 def test_get_game_state_nonexistent(client: TestClient) -> None:
@@ -350,8 +344,8 @@ def test_get_results_nonexistent_game(client: TestClient) -> None:
 def test_authorization_non_participant_cannot_view_game(client: TestClient) -> None:
     """Test that non-participants cannot view game state."""
     # Create two users
-    token1 = create_test_user_and_login(client, username="alice", email="alice@example.com")
-    token2 = create_test_user_and_login(client, username="bob", email="bob@example.com")
+    token1 = create_test_user_and_login(client, email="alice@example.com")
+    token2 = create_test_user_and_login(client, email="bob@example.com")
 
     # Alice creates and joins a game
     create_response = client.post("/games", headers=auth_headers(token1))
@@ -368,8 +362,8 @@ def test_authorization_non_participant_cannot_view_game(client: TestClient) -> N
 def test_authorization_non_participant_cannot_start_game(client: TestClient) -> None:
     """Test that non-participants cannot start a game."""
     # Create two users
-    token1 = create_test_user_and_login(client, username="alice", email="alice@example.com")
-    token2 = create_test_user_and_login(client, username="bob", email="bob@example.com")
+    token1 = create_test_user_and_login(client, email="alice@example.com")
+    token2 = create_test_user_and_login(client, email="bob@example.com")
 
     # Alice creates and joins a game
     create_response = client.post("/games", headers=auth_headers(token1))
@@ -386,8 +380,8 @@ def test_authorization_non_participant_cannot_start_game(client: TestClient) -> 
 def test_authorization_non_participant_cannot_view_results(client: TestClient) -> None:
     """Test that non-participants cannot view game results."""
     # Create two users
-    token1 = create_test_user_and_login(client, username="alice", email="alice@example.com")
-    token2 = create_test_user_and_login(client, username="bob", email="bob@example.com")
+    token1 = create_test_user_and_login(client, email="alice@example.com")
+    token2 = create_test_user_and_login(client, email="bob@example.com")
 
     # Alice creates, joins, and starts a game
     create_response = client.post("/games", headers=auth_headers(token1))

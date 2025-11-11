@@ -24,8 +24,15 @@ struct WordResultMessage: Codable, Equatable {
 struct GameStateMessage: Codable {
     let type: String
     let status: String
-    let time_remaining: Int?
-    let player_count: Int
+    let timeRemaining: Int?
+    let playerCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case status
+        case timeRemaining = "time_remaining"
+        case playerCount = "player_count"
+    }
 }
 
 struct PlayerWordResult: Codable {
@@ -35,9 +42,15 @@ struct PlayerWordResult: Codable {
 }
 
 struct PlayerFinalResult: Codable {
-    let player_name: String
+    let playerName: String
     let words: [PlayerWordResult]
-    let total_score: Int
+    let totalScore: Int
+
+    enum CodingKeys: String, CodingKey {
+        case playerName = "player_name"
+        case words
+        case totalScore = "total_score"
+    }
 }
 
 struct GameEndedMessage: Codable {
@@ -49,16 +62,31 @@ struct GameEndedMessage: Codable {
 struct GameStartedMessage: Codable {
     let type: String
     let board: [[String]]
-    let started_at: String
-    let time_limit: Int?
+    let startedAt: String
+    let timeLimit: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case board
+        case startedAt = "started_at"
+        case timeLimit = "time_limit"
+    }
 }
 
 struct PlayerJoinedMessage: Codable {
     let type: String
-    let player_name: String
-    let player_count: Int
-    let max_players: Int
+    let playerName: String
+    let playerCount: Int
+    let maxPlayers: Int
     let players: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case playerName = "player_name"
+        case playerCount = "player_count"
+        case maxPlayers = "max_players"
+        case players
+    }
 }
 
 // MARK: - WebSocket Manager
@@ -225,9 +253,9 @@ class WebSocketManager: ObservableObject {
             case "game_state":
                 if let state = try? JSONDecoder().decode(GameStateMessage.self, from: data) {
                     DispatchQueue.main.async {
-                        self.timeRemaining = state.time_remaining
+                        self.timeRemaining = state.timeRemaining
                         self.onGameState?(state)
-                        print("✅ Game state: \(state.status), time: \(state.time_remaining ?? 0)s")
+                        print("✅ Game state: \(state.status), time: \(state.timeRemaining ?? 0)s")
                     }
                 }
 
@@ -251,7 +279,7 @@ class WebSocketManager: ObservableObject {
                 if let joinedMessage = try? JSONDecoder().decode(PlayerJoinedMessage.self, from: data) {
                     DispatchQueue.main.async {
                         self.onPlayerJoined?(joinedMessage)
-                        print("👋 Player joined: \(joinedMessage.player_name) (\(joinedMessage.player_count)/\(joinedMessage.max_players))")
+                        print("👋 Player joined: \(joinedMessage.playerName) (\(joinedMessage.playerCount)/\(joinedMessage.maxPlayers))")
                     }
                 }
 

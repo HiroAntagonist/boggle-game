@@ -78,7 +78,7 @@ def test_verify_password_empty_password() -> None:
 
 def test_create_access_token_returns_string() -> None:
     """Test that JWT token creation returns a string token."""
-    data = {"user_id": "test-uuid-123", "username": "alice"}
+    data = {"user_id": "test-uuid-123", "email": "test@example.com"}
     expires_delta = timedelta(minutes=30)
 
     token = create_access_token(data, expires_delta)
@@ -93,7 +93,7 @@ def test_create_access_token_returns_string() -> None:
 
 def test_decode_access_token_valid_token() -> None:
     """Test that valid JWT token can be decoded."""
-    original_data = {"user_id": "test-uuid-456", "username": "bob"}
+    original_data = {"user_id": "test-uuid-456", "email": "bob@example.com"}
     expires_delta = timedelta(minutes=30)
 
     # Create token
@@ -105,7 +105,7 @@ def test_decode_access_token_valid_token() -> None:
     # Should successfully decode
     assert decoded_data is not None
     assert decoded_data["user_id"] == "test-uuid-456"
-    assert decoded_data["username"] == "bob"
+    assert decoded_data["email"] == "bob@example.com"
 
 
 def test_decode_access_token_invalid_token() -> None:
@@ -120,7 +120,7 @@ def test_decode_access_token_invalid_token() -> None:
 
 def test_decode_access_token_expired_token() -> None:
     """Test that expired JWT token returns None."""
-    data = {"user_id": "test-uuid-789", "username": "charlie"}
+    data = {"user_id": "test-uuid-789", "email": "expired@example.com"}
     # Token that expires immediately (negative timedelta)
     expires_delta = timedelta(seconds=-1)
 

@@ -6,7 +6,7 @@
 import SwiftUI
 
 struct LoginView: View {
-    @State private var username = ""
+    @State private var displayName = ""
     @State private var email = ""
     @State private var password = ""
     @State private var isRegistering = false
@@ -29,21 +29,20 @@ struct LoginView: View {
                 .fontWeight(.bold)
 
             VStack(spacing: 15) {
-                TextField("Username", text: $username)
+                TextField("Email", text: $email)
                     .textFieldStyle(.roundedBorder)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-
-                if isRegistering {
-                    TextField("Email", text: $email)
-                        .textFieldStyle(.roundedBorder)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .keyboardType(.emailAddress)
-                }
+                    .keyboardType(.emailAddress)
 
                 SecureField("Password", text: $password)
                     .textFieldStyle(.roundedBorder)
+
+                if isRegistering {
+                    TextField("Display Name (optional)", text: $displayName)
+                        .textFieldStyle(.roundedBorder)
+                        .autocorrectionDisabled()
+                }
             }
             .padding(.horizontal)
 
@@ -59,13 +58,42 @@ struct LoginView: View {
                 }
             }
             .buttonStyle(.borderedProminent)
-            .disabled(isLoading || username.isEmpty || password.isEmpty || (isRegistering && email.isEmpty))
+            .disabled(isLoading || email.isEmpty || password.isEmpty)
 
             Button(isRegistering ? "Already have an account? Login" : "Need an account? Register") {
                 isRegistering.toggle()
                 errorMessage = nil
             }
             .font(.caption)
+
+            // OR divider
+            HStack {
+                Rectangle()
+                    .frame(height: 1)
+                    .foregroundStyle(.gray.opacity(0.3))
+                Text("OR")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                Rectangle()
+                    .frame(height: 1)
+                    .foregroundStyle(.gray.opacity(0.3))
+            }
+            .padding(.vertical, 10)
+
+            // Google Sign-In button
+            Button {
+                Task {
+                    await handleGoogleSignIn()
+                }
+            } label: {
+                HStack {
+                    Image(systemName: "g.circle.fill")
+                    Text("Sign in with Google")
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .disabled(isLoading)
 
             if isLoading {
                 ProgressView()
@@ -80,11 +108,6 @@ struct LoginView: View {
 
         // Client-side validation
         if isRegistering {
-            if username.count < 3 {
-                errorMessage = "Username must be at least 3 characters"
-                isLoading = false
-                return
-            }
             if password.count < 8 {
                 errorMessage = "Password must be at least 8 characters"
                 isLoading = false
@@ -100,18 +123,18 @@ struct LoginView: View {
         do {
             if isRegistering {
                 try await BoggleAPI.shared.register(
-                    username: username,
                     email: email,
-                    password: password
+                    password: password,
+                    displayName: displayName.isEmpty ? nil : displayName
                 )
                 // After registration, automatically login
                 try await BoggleAPI.shared.login(
-                    username: username,
+                    email: email,
                     password: password
                 )
             } else {
                 try await BoggleAPI.shared.login(
-                    username: username,
+                    email: email,
                     password: password
                 )
             }
@@ -120,6 +143,29 @@ struct LoginView: View {
             errorMessage = error.errorDescription
         } catch {
             errorMessage = "An unexpected error occurred"
+        }
+
+        isLoading = false
+    }
+
+    private func handleGoogleSignIn() async {
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            // Get ID token from Google
+            let idToken = try await GoogleAuthService.shared.signIn()
+
+            // Send ID token to backend
+            try await BoggleAPI.shared.loginWithGoogle(idToken: idToken)
+
+            isLoggedIn = true
+        } catch let error as GoogleAuthError {
+            errorMessage = error.errorDescription
+        } catch let error as APIError {
+            errorMessage = error.errorDescription
+        } catch {
+            errorMessage = "Google Sign-In failed. Please try again"
         }
 
         isLoading = false

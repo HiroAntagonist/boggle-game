@@ -10,11 +10,11 @@ struct GameResultsView: View {
     let results: GameEndedMessage
 
     private var sortedResults: [PlayerFinalResult] {
-        results.results.sorted { $0.total_score > $1.total_score }
+        results.results.sorted { $0.totalScore > $1.totalScore }
     }
 
     var body: some View {
-        VStack(spacing: 25) {
+        VStack(spacing: 0) {
             // Winner announcement
             VStack(spacing: 10) {
                 Text("Game Over!")
@@ -31,28 +31,33 @@ struct GameResultsView: View {
                         .foregroundStyle(.orange)
                 }
             }
+            .padding(.top, 20)
+            .padding(.bottom, 15)
 
-            // Player results
+            // Player results - scrollable
             ScrollView {
                 VStack(spacing: 20) {
-                    ForEach(sortedResults, id: \.player_name) { playerResult in
+                    ForEach(sortedResults, id: \.playerName) { playerResult in
                         PlayerResultCard(
                             result: playerResult,
-                            isWinner: playerResult.player_name == results.winner
+                            isWinner: playerResult.playerName == results.winner
                         )
                     }
                 }
                 .padding(.horizontal)
+                .padding(.bottom, 20)
             }
 
+            // Button at bottom
             Button("Back to Lobby") {
                 // Clear navigation path to return to lobby
                 navigationPath = NavigationPath()
             }
             .buttonStyle(.borderedProminent)
             .font(.title3)
+            .padding(.vertical, 15)
+            .padding(.horizontal)
         }
-        .padding()
         .navigationBarBackButtonHidden(true)
     }
 }
@@ -73,14 +78,14 @@ struct PlayerResultCard: View {
         VStack(alignment: .leading, spacing: 12) {
             // Player name and score header
             HStack {
-                Text(result.player_name)
+                Text(result.playerName)
                     .font(.title2)
                     .fontWeight(.bold)
                     .foregroundStyle(isWinner ? .green : .primary)
 
                 Spacer()
 
-                Text("\(result.total_score) pts")
+                Text("\(result.totalScore) pts")
                     .font(.title3)
                     .fontWeight(.semibold)
                     .foregroundStyle(isWinner ? .green : .blue)
@@ -123,21 +128,21 @@ struct PlayerResultCard: View {
         winner: "alice",
         results: [
             PlayerFinalResult(
-                player_name: "alice",
+                playerName: "alice",
                 words: [
                     PlayerWordResult(word: "CAT", score: 1, valid: true),
                     PlayerWordResult(word: "DOG", score: 1, valid: true),
                     PlayerWordResult(word: "HOUSE", score: 3, valid: true)
                 ],
-                total_score: 5
+                totalScore: 5
             ),
             PlayerFinalResult(
-                player_name: "bob",
+                playerName: "bob",
                 words: [
                     PlayerWordResult(word: "CAT", score: 0, valid: false),
                     PlayerWordResult(word: "FISH", score: 2, valid: true)
                 ],
-                total_score: 2
+                totalScore: 2
             )
         ]
     )

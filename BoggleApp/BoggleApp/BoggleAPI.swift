@@ -4,60 +4,7 @@
 //
 
 import Foundation
-
-// MARK: - API Models
-
-struct RegisterRequest: Codable {
-    let username: String
-    let email: String
-    let password: String
-}
-
-struct LoginRequest: Codable {
-    let username: String
-    let password: String
-}
-
-struct LoginResponse: Codable {
-    let access_token: String
-    let token_type: String
-}
-
-struct CreateGameRequest: Codable {
-    let board_size: Int
-    let time_limit_seconds: Int
-    let max_players: Int
-}
-
-struct CreateGameResponse: Codable {
-    let game_id: String
-    let friendly_code: String
-    let board: [[String]]
-    let created_at: String
-    let status: String
-}
-
-struct GameResponse: Codable {
-    let game_id: String
-    let board: [[String]]
-    let status: String
-    let time_limit: Int?
-    let started_at: String?
-    let time_remaining: Int?
-    let players: [String]
-    let max_players: Int
-}
-
-struct JoinGameRequest: Codable {
-    let player_name: String
-}
-
-struct JoinGameResponse: Codable {
-    let game_id: String
-    let player_id: String
-    let player_name: String
-    let players: [String]
-}
+import OpenAPIClient
 
 // MARK: - API Client
 
@@ -76,8 +23,8 @@ class BoggleAPI {
 
     // MARK: - Authentication
 
-    func register(username: String, email: String, password: String) async throws {
-        let request = RegisterRequest(username: username, email: email, password: password)
+    func register(email: String, password: String, displayName: String? = nil) async throws {
+        let request = RegisterRequest(email: email, password: password, displayName: displayName)
         let url = URL(string: "\(baseURL)/auth/register")!
 
         var urlRequest = URLRequest(url: url)
@@ -85,7 +32,7 @@ class BoggleAPI {
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.httpBody = try JSONEncoder().encode(request)
 
-        print("🔵 Registering user: \(username)")
+        print("🔵 Registering user: \(email)")
 
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
 
@@ -104,7 +51,7 @@ class BoggleAPI {
             if httpResponse.statusCode == 422,
                let errorString = String(data: data, encoding: .utf8) {
                 print("❌ Validation error: \(errorString)")
-                throw APIError.registrationFailed("Validation error - check username (min 3 chars), email format, and password (min 8 chars)")
+                throw APIError.registrationFailed("Validation error - check email format and password (min 8 chars)")
             }
 
             throw APIError.registrationFailed("Status code: \(httpResponse.statusCode)")
@@ -113,8 +60,8 @@ class BoggleAPI {
         print("✅ Registration successful!")
     }
 
-    func login(username: String, password: String) async throws {
-        let request = LoginRequest(username: username, password: password)
+    func login(email: String, password: String) async throws {
+        let request = LoginRequest(email: email, password: password)
         let url = URL(string: "\(baseURL)/auth/login")!
 
         var urlRequest = URLRequest(url: url)
@@ -122,7 +69,7 @@ class BoggleAPI {
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.httpBody = try JSONEncoder().encode(request)
 
-        print("🔵 Logging in user: \(username)")
+        print("🔵 Logging in user: \(email)")
 
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
 
@@ -138,8 +85,37 @@ class BoggleAPI {
         }
 
         let loginResponse = try JSONDecoder().decode(LoginResponse.self, from: data)
-        self.accessToken = loginResponse.access_token
+        self.accessToken = loginResponse.accessToken
         print("✅ Login successful!")
+    }
+
+    func loginWithGoogle(idToken: String) async throws {
+        let request = GoogleAuthRequest(idToken: idToken)
+        let url = URL(string: "\(baseURL)/auth/google")!
+
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.httpBody = try JSONEncoder().encode(request)
+
+        print("🔵 Logging in with Google")
+
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.googleAuthFailed
+        }
+
+        if !isSuccessStatusCode(httpResponse.statusCode) {
+            if let errorString = String(data: data, encoding: .utf8) {
+                print("❌ Google auth error (\(httpResponse.statusCode)): \(errorString)")
+            }
+            throw APIError.googleAuthFailed
+        }
+
+        let loginResponse = try JSONDecoder().decode(LoginResponse.self, from: data)
+        self.accessToken = loginResponse.accessToken
+        print("✅ Google login successful!")
     }
 
     // MARK: - Game Management
@@ -150,9 +126,9 @@ class BoggleAPI {
         }
 
         let request = CreateGameRequest(
-            board_size: boardSize,
-            time_limit_seconds: timeLimitSeconds,
-            max_players: maxPlayers
+            boardSize: boardSize,
+            timeLimitSeconds: timeLimitSeconds,
+            maxPlayers: maxPlayers
         )
         let url = URL(string: "\(baseURL)/games")!
 
@@ -184,7 +160,7 @@ class BoggleAPI {
             throw APIError.notAuthenticated
         }
 
-        let request = JoinGameRequest(player_name: playerName)
+        let request = JoinGameRequest(playerName: playerName)
         let url = URL(string: "\(baseURL)/games/\(gameId)/players")!
 
         var urlRequest = URLRequest(url: url)
@@ -217,7 +193,7 @@ class BoggleAPI {
             throw APIError.notAuthenticated
         }
 
-        let request = JoinGameRequest(player_name: playerName)
+        let request = JoinGameRequest(playerName: playerName)
         let url = URL(string: "\(baseURL)/games/code/\(friendlyCode)/join")!
 
         var urlRequest = URLRequest(url: url)
@@ -274,7 +250,7 @@ class BoggleAPI {
         print("✅ Game started successfully!")
     }
 
-    func getGameState(gameId: String) async throws -> GameResponse {
+    func getGameState(gameId: String) async throws -> GameStateResponse {
         guard let token = accessToken else {
             throw APIError.notAuthenticated
         }
@@ -298,7 +274,7 @@ class BoggleAPI {
             throw APIError.fetchGameFailed
         }
 
-        return try JSONDecoder().decode(GameResponse.self, from: data)
+        return try JSONDecoder().decode(GameStateResponse.self, from: data)
     }
 }
 
@@ -308,6 +284,7 @@ enum APIError: Error, LocalizedError {
     case notAuthenticated
     case registrationFailed(String)
     case loginFailed
+    case googleAuthFailed
     case gameCreationFailed
     case joinGameFailed
     case startGameFailed
@@ -320,7 +297,9 @@ enum APIError: Error, LocalizedError {
         case .registrationFailed(let message):
             return "Registration failed: \(message)"
         case .loginFailed:
-            return "Login failed. Check your username and password"
+            return "Login failed. Check your email and password"
+        case .googleAuthFailed:
+            return "Google Sign-In failed. Please try again"
         case .gameCreationFailed:
             return "Failed to create game"
         case .joinGameFailed:
@@ -330,5 +309,15 @@ enum APIError: Error, LocalizedError {
         case .fetchGameFailed:
             return "Failed to fetch game state"
         }
+    }
+}
+
+// MARK: - Request/Response Models
+
+struct GoogleAuthRequest: Codable {
+    let idToken: String
+
+    enum CodingKeys: String, CodingKey {
+        case idToken = "id_token"
     }
 }

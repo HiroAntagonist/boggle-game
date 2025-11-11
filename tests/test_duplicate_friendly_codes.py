@@ -63,25 +63,19 @@ def client():
     app.dependency_overrides.clear()
 
 
-def create_test_user_and_login(client: TestClient, username: str = "testuser", email: str = "test@example.com", password: str = "testpass123") -> str:
+def create_test_user_and_login(client: TestClient, email: str = "test@example.com", password: str = "testpass123", display_name: str | None = None) -> str:
     """Helper function to create a user and return their auth token."""
     # Register user
-    client.post(
-        "/auth/register",
-        json={
-            "username": username,
-            "email": email,
-            "password": password
-        }
-    )
+    register_data = {"email": email, "password": password}
+    if display_name is not None:
+        register_data["display_name"] = display_name
+
+    client.post("/auth/register", json=register_data)
 
     # Login to get token
     login_response = client.post(
         "/auth/login",
-        json={
-            "username": username,
-            "password": password
-        }
+        json={"email": email, "password": password}
     )
 
     return login_response.json()["access_token"]

@@ -6,6 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		22D72AFA2EC311C300509855 /* OpenAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = 22D72AF92EC311C300509855 /* OpenAPIClient */; };
+		22D72B752EC32E1700509855 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 22D72B742EC32E1700509855 /* GoogleSignIn */; };
+		22D72B772EC32E1700509855 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 22D72B762EC32E1700509855 /* GoogleSignInSwift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		226F50A92EB6B27D00F16E9F /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -27,11 +33,25 @@
 		226F509B2EB6B27A00F16E9F /* BoggleApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BoggleApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		226F50A82EB6B27D00F16E9F /* BoggleAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BoggleAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		226F50B22EB6B27D00F16E9F /* BoggleAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BoggleAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		22D72AF72EC3118700509855 /* Generated */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Generated; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		22D72BA92EC332D100509855 /* Exceptions for "BoggleApp" folder in "BoggleApp" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 226F509A2EB6B27A00F16E9F /* BoggleApp */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		226F509D2EB6B27A00F16E9F /* BoggleApp */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				22D72BA92EC332D100509855 /* Exceptions for "BoggleApp" folder in "BoggleApp" target */,
+			);
 			path = BoggleApp;
 			sourceTree = "<group>";
 		};
@@ -52,6 +72,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				22D72B772EC32E1700509855 /* GoogleSignInSwift in Frameworks */,
+				22D72AFA2EC311C300509855 /* OpenAPIClient in Frameworks */,
+				22D72B752EC32E1700509855 /* GoogleSignIn in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -78,6 +101,7 @@
 				226F509D2EB6B27A00F16E9F /* BoggleApp */,
 				226F50AB2EB6B27D00F16E9F /* BoggleAppTests */,
 				226F50B52EB6B27D00F16E9F /* BoggleAppUITests */,
+				22D72AF62EC3118600509855 /* Frameworks */,
 				226F509C2EB6B27A00F16E9F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -90,6 +114,14 @@
 				226F50B22EB6B27D00F16E9F /* BoggleAppUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		22D72AF62EC3118600509855 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				22D72AF72EC3118700509855 /* Generated */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -112,6 +144,9 @@
 			);
 			name = BoggleApp;
 			packageProductDependencies = (
+				22D72AF92EC311C300509855 /* OpenAPIClient */,
+				22D72B742EC32E1700509855 /* GoogleSignIn */,
+				22D72B762EC32E1700509855 /* GoogleSignInSwift */,
 			);
 			productName = BoggleApp;
 			productReference = 226F509B2EB6B27A00F16E9F /* BoggleApp.app */;
@@ -195,6 +230,10 @@
 			);
 			mainGroup = 226F50922EB6B27A00F16E9F;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				22D72AF82EC311C300509855 /* XCLocalSwiftPackageReference "Generated" */,
+				22D72B732EC32E1700509855 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 226F509C2EB6B27A00F16E9F /* Products */;
 			projectDirPath = "";
@@ -396,7 +435,9 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = BoggleApp/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Clauddle;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -407,7 +448,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.drishtilabs.BoggleApp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.drishtilabs.Clauddle;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -427,7 +468,9 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = BoggleApp/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Clauddle;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -438,7 +481,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.drishtilabs.BoggleApp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.drishtilabs.Clauddle;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -459,7 +502,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.drishtilabs.BoggleAppTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.drishtilabs.ClauddleTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -480,7 +523,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.drishtilabs.BoggleAppTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.drishtilabs.ClauddleTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -499,7 +542,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.drishtilabs.BoggleAppUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.drishtilabs.ClauddleUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -518,7 +561,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.drishtilabs.BoggleAppUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.drishtilabs.ClauddleUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -570,6 +613,41 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		22D72AF82EC311C300509855 /* XCLocalSwiftPackageReference "Generated" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Generated;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		22D72B732EC32E1700509855 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		22D72AF92EC311C300509855 /* OpenAPIClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = OpenAPIClient;
+		};
+		22D72B742EC32E1700509855 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 22D72B732EC32E1700509855 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+		22D72B762EC32E1700509855 /* GoogleSignInSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 22D72B732EC32E1700509855 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignInSwift;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 226F50932EB6B27A00F16E9F /* Project object */;
 }

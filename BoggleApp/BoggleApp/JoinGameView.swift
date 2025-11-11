@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import OpenAPIClient
 
 struct JoinGameView: View {
     @Binding var navigationPath: NavigationPath
@@ -78,13 +79,13 @@ struct JoinGameView: View {
         do {
             // Join the game by friendly code
             let joinResponse = try await BoggleAPI.shared.joinGameByCode(friendlyCode: friendlyCode)
-            playerId = joinResponse.player_id
-            gameId = joinResponse.game_id
+            playerId = joinResponse.playerId
+            gameId = joinResponse.gameId
 
             // Fetch game state to get the actual max_players value
             if let gid = gameId {
                 let gameState = try await BoggleAPI.shared.getGameState(gameId: gid)
-                maxPlayers = gameState.max_players
+                maxPlayers = gameState.maxPlayers
             } else {
                 maxPlayers = 4 // Fallback if gameId is somehow nil
             }

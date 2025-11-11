@@ -63,25 +63,19 @@ def client():
     app.dependency_overrides.clear()
 
 
-def create_test_user_and_login(client: TestClient, username: str = "testuser", email: str = "test@example.com", password: str = "testpass123") -> str:
+def create_test_user_and_login(client: TestClient, email: str = "test@example.com", password: str = "testpass123", display_name: str | None = None) -> str:
     """Helper function to create a user and return their auth token."""
     # Register user
-    client.post(
-        "/auth/register",
-        json={
-            "username": username,
-            "email": email,
-            "password": password
-        }
-    )
+    register_data = {"email": email, "password": password}
+    if display_name is not None:
+        register_data["display_name"] = display_name
+
+    client.post("/auth/register", json=register_data)
 
     # Login to get token
     login_response = client.post(
         "/auth/login",
-        json={
-            "username": username,
-            "password": password
-        }
+        json={"email": email, "password": password}
     )
 
     return login_response.json()["access_token"]
@@ -160,8 +154,8 @@ def test_websocket_word_submission(client: TestClient) -> None:
 def test_websocket_multiplayer_broadcast(client: TestClient) -> None:
     """Test that word submissions are broadcast to other players."""
     # Create two users
-    token1 = create_test_user_and_login(client, username="alice", email="alice@example.com")
-    token2 = create_test_user_and_login(client, username="bob", email="bob@example.com")
+    token1 = create_test_user_and_login(client, email="alice@example.com")
+    token2 = create_test_user_and_login(client, email="bob@example.com")
 
     # Create game with 2 players
     create_response = client.post("/games", headers=auth_headers(token1))
@@ -182,7 +176,7 @@ def test_websocket_multiplayer_broadcast(client: TestClient) -> None:
             data = alice_ws.receive_text()
             message = json.loads(data)
             assert message["type"] == "player_connected"
-            assert message["player_name"] == "bob"  # Should show username
+            assert message["player_name"] == "bob"  # Should show display_name (or email prefix)
 
             # Alice submits a word
             alice_ws.send_text(json.dumps({"type": "submit_word", "word": "TEST"}))
@@ -195,7 +189,7 @@ def test_websocket_multiplayer_broadcast(client: TestClient) -> None:
             if alice_result["valid"]:
                 bob_broadcast = json.loads(bob_ws.receive_text())
                 assert bob_broadcast["type"] == "word_submitted"
-                assert bob_broadcast["player_name"] == "alice"  # Should show username
+                assert bob_broadcast["player_name"] == "alice"  # Should show display_name (or email prefix)
 
 
 def test_websocket_invalid_message_format(client: TestClient) -> None:

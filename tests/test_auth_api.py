@@ -74,7 +74,6 @@ def test_register_success(client: TestClient) -> None:
     response = client.post(
         "/auth/register",
         json={
-            "username": "alice",
             "email": "alice@example.com",
             "password": "securepassword123"
         }
@@ -85,7 +84,7 @@ def test_register_success(client: TestClient) -> None:
 
     # Should return user info
     assert "user_id" in data
-    assert data["username"] == "alice"
+    assert data["email"] == "alice@example.com"
     assert "message" in data
 
     # Password should not be in response
@@ -93,30 +92,28 @@ def test_register_success(client: TestClient) -> None:
 
 
 def test_register_duplicate_username(client: TestClient) -> None:
-    """Test registration fails with duplicate username."""
+    """Test registration fails with duplicate email (username test is obsolete)."""
     # Register first user
     client.post(
         "/auth/register",
         json={
-            "username": "bob",
-            "email": "bob1@example.com",
+            "email": "bob@example.com",
             "password": "password123"
         }
     )
 
-    # Try to register with same username but different email
+    # Try to register with same email again
     response = client.post(
         "/auth/register",
         json={
-            "username": "bob",  # Duplicate!
-            "email": "bob2@example.com",
+            "email": "bob@example.com",  # Duplicate!
             "password": "password456"
         }
     )
 
     assert response.status_code == 400
     data = response.json()
-    assert "username" in data["detail"].lower()
+    assert "email" in data["detail"].lower()
 
 
 def test_register_duplicate_email(client: TestClient) -> None:
@@ -125,7 +122,6 @@ def test_register_duplicate_email(client: TestClient) -> None:
     client.post(
         "/auth/register",
         json={
-            "username": "charlie",
             "email": "charlie@example.com",
             "password": "password123"
         }
@@ -135,7 +131,6 @@ def test_register_duplicate_email(client: TestClient) -> None:
     response = client.post(
         "/auth/register",
         json={
-            "username": "charlie2",
             "email": "charlie@example.com",  # Duplicate!
             "password": "password456"
         }
@@ -151,7 +146,6 @@ def test_register_invalid_email(client: TestClient) -> None:
     response = client.post(
         "/auth/register",
         json={
-            "username": "dave",
             "email": "not-an-email",  # Invalid!
             "password": "password123"
         }
@@ -168,7 +162,6 @@ def test_register_password_hashed(client: TestClient) -> None:
     response = client.post(
         "/auth/register",
         json={
-            "username": "eve",
             "email": "eve@example.com",
             "password": password
         }
@@ -195,7 +188,6 @@ def test_login_success(client: TestClient) -> None:
     client.post(
         "/auth/register",
         json={
-            "username": "frank",
             "email": "frank@example.com",
             "password": "frankpassword"
         }
@@ -205,7 +197,7 @@ def test_login_success(client: TestClient) -> None:
     response = client.post(
         "/auth/login",
         json={
-            "username": "frank",
+            "email": "frank@example.com",
             "password": "frankpassword"
         }
     )
@@ -231,7 +223,6 @@ def test_login_wrong_password(client: TestClient) -> None:
     client.post(
         "/auth/register",
         json={
-            "username": "grace",
             "email": "grace@example.com",
             "password": "correctpassword"
         }
@@ -241,7 +232,7 @@ def test_login_wrong_password(client: TestClient) -> None:
     response = client.post(
         "/auth/login",
         json={
-            "username": "grace",
+            "email": "grace@example.com",
             "password": "wrongpassword"  # Wrong!
         }
     )
@@ -252,11 +243,11 @@ def test_login_wrong_password(client: TestClient) -> None:
 
 
 def test_login_nonexistent_user(client: TestClient) -> None:
-    """Test login fails with non-existent username."""
+    """Test login fails with non-existent email."""
     response = client.post(
         "/auth/login",
         json={
-            "username": "doesnotexist",
+            "email": "nonexistent@example.com",
             "password": "anypassword"
         }
     )
@@ -272,7 +263,6 @@ def test_login_token_contains_user_info(client: TestClient) -> None:
     register_response = client.post(
         "/auth/register",
         json={
-            "username": "henry",
             "email": "henry@example.com",
             "password": "henrypass"
         }
@@ -283,7 +273,7 @@ def test_login_token_contains_user_info(client: TestClient) -> None:
     login_response = client.post(
         "/auth/login",
         json={
-            "username": "henry",
+            "email": "henry@example.com",
             "password": "henrypass"
         }
     )
@@ -296,7 +286,7 @@ def test_login_token_contains_user_info(client: TestClient) -> None:
 
     assert decoded is not None
     assert decoded["user_id"] == user_id
-    assert decoded["username"] == "henry"
+    assert decoded["email"] == "henry@example.com"
 
 
 # ============================================================================
@@ -310,7 +300,6 @@ def test_get_current_user_valid_token(client: TestClient) -> None:
     client.post(
         "/auth/register",
         json={
-            "username": "iris",
             "email": "iris@example.com",
             "password": "irispassword"
         }
@@ -318,7 +307,7 @@ def test_get_current_user_valid_token(client: TestClient) -> None:
     login_response = client.post(
         "/auth/login",
         json={
-            "username": "iris",
+            "email": "iris@example.com",
             "password": "irispassword"
         }
     )
@@ -333,7 +322,7 @@ def test_get_current_user_valid_token(client: TestClient) -> None:
 
     assert response.status_code == 200
     data = response.json()
-    assert data["username"] == "iris"
+    assert data["email"] == "iris@example.com"
     assert "user_id" in data
 
 
@@ -367,7 +356,7 @@ def test_get_current_user_expired_token(client: TestClient) -> None:
     from src.auth import create_access_token
 
     # Create token that expires in -1 seconds (already expired)
-    token_data = {"user_id": "fake-uuid", "username": "expired"}
+    token_data = {"user_id": "test-uuid", "email": "expired@example.com"}
     expired_token = create_access_token(token_data, expires_delta=timedelta(seconds=-1))
 
     # Call protected endpoint with expired token
@@ -401,7 +390,6 @@ def test_create_game_with_auth_success(client: TestClient) -> None:
     client.post(
         "/auth/register",
         json={
-            "username": "gamer1",
             "email": "gamer1@example.com",
             "password": "password123"
         }
@@ -409,7 +397,7 @@ def test_create_game_with_auth_success(client: TestClient) -> None:
     login_response = client.post(
         "/auth/login",
         json={
-            "username": "gamer1",
+            "email": "gamer1@example.com",
             "password": "password123"
         }
     )
@@ -434,14 +422,16 @@ def test_join_game_requires_auth(client: TestClient) -> None:
     client.post(
         "/auth/register",
         json={
-            "username": "creator",
             "email": "creator@example.com",
             "password": "password123"
         }
     )
     login_response = client.post(
         "/auth/login",
-        json={"username": "creator", "password": "password123"}
+        json={
+            "email": "creator@example.com",
+            "password": "password123"
+        }
     )
     token = login_response.json()["access_token"]
 
@@ -467,7 +457,6 @@ def test_join_game_with_auth_success(client: TestClient) -> None:
     client.post(
         "/auth/register",
         json={
-            "username": "creator",
             "email": "creator@example.com",
             "password": "password123"
         }
@@ -475,7 +464,6 @@ def test_join_game_with_auth_success(client: TestClient) -> None:
     client.post(
         "/auth/register",
         json={
-            "username": "joiner",
             "email": "joiner@example.com",
             "password": "password123"
         }
@@ -484,7 +472,10 @@ def test_join_game_with_auth_success(client: TestClient) -> None:
     # Creator logs in and creates game
     creator_login = client.post(
         "/auth/login",
-        json={"username": "creator", "password": "password123"}
+        json={
+            "email": "creator@example.com",
+            "password": "password123"
+        }
     )
     creator_token = creator_login.json()["access_token"]
 
@@ -497,7 +488,10 @@ def test_join_game_with_auth_success(client: TestClient) -> None:
     # Joiner logs in and joins game
     joiner_login = client.post(
         "/auth/login",
-        json={"username": "joiner", "password": "password123"}
+        json={
+            "email": "joiner@example.com",
+            "password": "password123"
+        }
     )
     joiner_token = joiner_login.json()["access_token"]
 
