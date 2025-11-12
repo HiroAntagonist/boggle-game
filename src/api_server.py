@@ -144,7 +144,9 @@ app = FastAPI(
 )
 
 # Rate limiting configuration
-limiter = Limiter(key_func=get_remote_address)
+# Note: auto_check=False prevents slowapi from automatically checking all routes (including WebSockets)
+# Rate limiting will only apply to routes explicitly decorated with @limiter.limit()
+limiter = Limiter(key_func=get_remote_address, auto_check=False)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
@@ -1375,7 +1377,6 @@ def get_game_results(
 
 
 @app.websocket("/ws/{game_id}/{player_id}")
-@limiter.exempt  # WebSocket endpoints don't support rate limiting (no Request object)
 async def websocket_endpoint(
     websocket: WebSocket,
     game_id: str,
