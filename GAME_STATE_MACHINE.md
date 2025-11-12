@@ -145,23 +145,24 @@ This document defines the state machines for:
   - Duplicate word tracking
 
 #### 5. **ABANDONED**
-- **Description**: Game was created but never completed
+- **Description**: Players joined but game never started properly
+- **Key Insight**: ABANDONED only applies to WAITING state, never IN_PROGRESS
 - **Entry Conditions**:
-  - All players leave before game starts (WAITING → ABANDONED)
-  - All players disconnect during game for > 5 minutes (IN_PROGRESS → ABANDONED)
-  - Timeout in WAITING state (10 min)
-  - Timeout in CREATED state (5 min)
+  - All players leave WAITING room (WAITING → ABANDONED)
+  - Timeout in WAITING state (10 min with no game start)
+  - **Note**: CREATED timeouts go directly to DELETED (not ABANDONED)
+  - **Note**: IN_PROGRESS games NEVER become ABANDONED (always finish via timer)
 - **While in State**:
   - Game is marked for cleanup
   - No further player actions allowed
-  - Results show as "Game Abandoned"
+  - If player tries to access: "Game was abandoned"
 - **Exit Conditions**:
-  - Cleanup job runs → DELETED
-  - Immediate deletion possible since no valuable data
+  - Cleanup job runs → DELETED (immediate deletion, no retention)
 - **Data**:
   - `status = "abandoned"`
-  - `ended_at` timestamp (time of abandonment)
-  - Partial game data preserved for debugging
+  - `abandoned_at` timestamp (time of abandonment)
+  - Minimal game data preserved for debugging/metrics
+  - Player list and join times preserved
 
 #### 6. **DELETED**
 - **Description**: Game has been removed from database
