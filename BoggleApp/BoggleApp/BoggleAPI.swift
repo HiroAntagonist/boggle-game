@@ -339,6 +339,61 @@ class BoggleAPI {
 
         return try JSONDecoder().decode(GameStateResponse.self, from: data)
     }
+
+    // MARK: - Reconnection Support
+
+    /// Save active game state for reconnection after app restart/crash
+    func saveActiveGame(gameId: String, playerId: String) {
+        UserDefaults.standard.set(gameId, forKey: "activeGameId")
+        UserDefaults.standard.set(playerId, forKey: "activePlayerId")
+        print("💾 Saved active game: \(gameId), player: \(playerId)")
+    }
+
+    /// Get saved active game state (if any)
+    func getActiveGame() -> (gameId: String, playerId: String)? {
+        guard let gameId = UserDefaults.standard.string(forKey: "activeGameId"),
+              let playerId = UserDefaults.standard.string(forKey: "activePlayerId") else {
+            return nil
+        }
+        return (gameId, playerId)
+    }
+
+    /// Clear saved game state (call when game ends)
+    func clearActiveGame() {
+        UserDefaults.standard.removeObject(forKey: "activeGameId")
+        UserDefaults.standard.removeObject(forKey: "activePlayerId")
+        print("🗑️  Cleared active game state")
+    }
+
+    /// Attempt to rejoin a previously active game
+    func attemptReconnect() async throws -> JoinGameResponse? {
+        guard let (gameId, playerId) = getActiveGame() else {
+            print("ℹ️  No active game to reconnect to")
+            return nil
+        }
+
+        print("🔄 Attempting to reconnect to game: \(gameId), player: \(playerId)")
+
+        do {
+            // Call the join endpoint - backend now allows rejoining!
+            let response = try await joinGame(gameId: gameId, playerName: "Reconnecting")
+
+            // Verify we got the same player_id back (sanity check)
+            if response.playerId == playerId {
+                print("✅ Successfully reconnected to game!")
+                return response
+            } else {
+                print("⚠️  Reconnected but got different player_id - clearing old state")
+                clearActiveGame()
+                return nil
+            }
+        } catch {
+            print("❌ Failed to reconnect: \(error.localizedDescription)")
+            // Game might have ended or been deleted - clear saved state
+            clearActiveGame()
+            throw error
+        }
+    }
 }
 
 // MARK: - Errors

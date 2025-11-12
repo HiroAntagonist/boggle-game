@@ -102,6 +102,9 @@ struct NewGameView: View {
             let joinResponse = try await BoggleAPI.shared.joinGame(gameId: game.gameId)
             playerId = joinResponse.playerId
 
+            // Save active game for reconnection
+            BoggleAPI.shared.saveActiveGame(gameId: game.gameId, playerId: joinResponse.playerId)
+
             // Navigate to waiting room
             navigateToWaitingRoom = true
 

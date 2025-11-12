@@ -4,12 +4,17 @@
 //
 
 import SwiftUI
+import OpenAPIClient
 
 struct LobbyView: View {
     @Binding var isLoggedIn: Bool
     @State private var navigationPath = NavigationPath()
     @State private var userDisplayName: String?
     @State private var userEmail: String?
+    @State private var isReconnecting = false
+    @State private var reconnectError: String?
+    @State private var reconnectedGameState: JoinGameResponse?
+    @State private var navigateToReconnectedGame = false
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
@@ -61,15 +66,74 @@ struct LobbyView: View {
             }
             .onAppear {
                 loadUserInfo()
+                attemptReconnection()
+            }
+            .overlay {
+                if isReconnecting {
+                    ZStack {
+                        Color.black.opacity(0.4)
+                            .ignoresSafeArea()
+
+                        VStack(spacing: 20) {
+                            ProgressView()
+                                .scaleEffect(1.5)
+
+                            Text("Reconnecting to game...")
+                                .font(.title3)
+                                .foregroundStyle(.white)
+
+                            if let error = reconnectError {
+                                Text(error)
+                                    .font(.caption)
+                                    .foregroundStyle(.red)
+                                    .padding()
+                                    .background(Color.white)
+                                    .cornerRadius(8)
+
+                                Button("Continue") {
+                                    isReconnecting = false
+                                    reconnectError = nil
+                                }
+                                .buttonStyle(.borderedProminent)
+                            }
+                        }
+                        .padding()
+                    }
+                }
             }
             .navigationDestination(for: String.self) { destination in
-                switch destination {
-                case "newGame":
+                if destination == "newGame" {
                     NewGameView(navigationPath: $navigationPath)
-                case "joinGame":
+                } else if destination == "joinGame" {
                     JoinGameView(navigationPath: $navigationPath)
-                default:
+                } else if destination.hasPrefix("waitingRoom:") {
+                    // Parse reconnection to waiting room: "waitingRoom:gameId:playerId:maxPlayers"
+                    let parts = destination.split(separator: ":").map(String.init)
+                    if parts.count == 4 {
+                        WaitingRoomView(
+                            navigationPath: $navigationPath,
+                            gameId: parts[1],
+                            playerId: parts[2],
+                            maxPlayers: Int(parts[3]) ?? 2,
+                            friendlyCode: "RECONNECTED"
+                        )
+                    } else {
+                        EmptyView()
+                    }
+                } else {
                     EmptyView()
+                }
+            }
+            .navigationDestination(isPresented: $navigateToReconnectedGame) {
+                if let gameState = reconnectedGameState {
+                    GameView(
+                        navigationPath: $navigationPath,
+                        gameId: gameState.gameId,
+                        playerId: gameState.playerId,
+                        initialBoard: gameState.board,
+                        initialTimeLimit: gameState.timeLimit,
+                        initialStartedAt: gameState.startedAt
+                    )
                 }
             }
         }
@@ -86,6 +150,58 @@ struct LobbyView: View {
     private func handleSignOut() {
         BoggleAPI.shared.logout()
         isLoggedIn = false
+    }
+
+    private func attemptReconnection() {
+        Task {
+            isReconnecting = true
+            reconnectError = nil
+
+            do {
+                if let gameState = try await BoggleAPI.shared.attemptReconnect() {
+                    // Successfully reconnected! Navigate to the game
+                    print("🎮 Reconnected to game (status: \(gameState.status)), navigating...")
+
+                    // Save the active game state for future reconnections
+                    BoggleAPI.shared.saveActiveGame(gameId: gameState.gameId, playerId: gameState.playerId)
+
+                    // Navigate based on game status
+                    switch gameState.status {
+                    case "waiting":
+                        // Game hasn't started yet - go to waiting room
+                        // Note: Using "RECONNECTED" as placeholder for friendlyCode since we don't have it
+                        navigationPath.append("waitingRoom:\(gameState.gameId):\(gameState.playerId):\(gameState.maxPlayers)")
+                        isReconnecting = false
+
+                    case "in_progress":
+                        // Game is active - go directly to game view with full state
+                        reconnectedGameState = gameState
+                        navigateToReconnectedGame = true
+                        isReconnecting = false
+
+                    case "finished":
+                        // Game already ended - clear state and show message
+                        BoggleAPI.shared.clearActiveGame()
+                        reconnectError = "Game has ended. Starting fresh from lobby."
+                        // Keep isReconnecting = true so user sees the message
+
+                    default:
+                        // Unknown status
+                        BoggleAPI.shared.clearActiveGame()
+                        reconnectError = "Game in unknown state. Starting fresh from lobby."
+                    }
+
+                } else {
+                    // No active game to reconnect to
+                    isReconnecting = false
+                }
+            } catch {
+                // Clear the saved game since it's invalid
+                BoggleAPI.shared.clearActiveGame()
+                reconnectError = "Failed to reconnect: \(error.localizedDescription)"
+                // Keep isReconnecting = true so user can see error and dismiss
+            }
+        }
     }
 }
 

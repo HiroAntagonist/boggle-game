@@ -113,7 +113,7 @@ class WebSocketManager: ObservableObject {
     private let gameId: String
     private let playerId: String
     private var reconnectAttempts = 0
-    private let maxReconnectAttempts = 5
+    private let maxReconnectAttempts = 3  // Reduced from 5 to avoid excessive retries on permanent failures
     private var reconnectTask: Task<Void, Never>?
 
     var onWordResult: ((WordResultMessage) -> Void)?

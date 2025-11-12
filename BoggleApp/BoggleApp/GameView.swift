@@ -105,6 +105,8 @@ struct GameView: View {
             .alert("Exit Game?", isPresented: $showExitConfirmation) {
                 Button("Cancel", role: .cancel) { }
                 Button("Exit", role: .destructive) {
+                    // Clear active game state when manually exiting
+                    BoggleAPI.shared.clearActiveGame()
                     navigationPath = NavigationPath()
                 }
             } message: {

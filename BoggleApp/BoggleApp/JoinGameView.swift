@@ -90,6 +90,11 @@ struct JoinGameView: View {
                 maxPlayers = 4 // Fallback if gameId is somehow nil
             }
 
+            // Save active game for reconnection
+            if let gid = gameId, let pid = playerId {
+                BoggleAPI.shared.saveActiveGame(gameId: gid, playerId: pid)
+            }
+
             // Navigate to waiting room
             navigateToWaitingRoom = true
 
