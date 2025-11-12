@@ -15,10 +15,18 @@ struct LoginView: View {
     @State private var isLoggedIn = false
 
     var body: some View {
-        if isLoggedIn {
-            LobbyView(isLoggedIn: $isLoggedIn)
-        } else {
-            loginForm
+        Group {
+            if isLoggedIn {
+                LobbyView(isLoggedIn: $isLoggedIn)
+            } else {
+                loginForm
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .forceLogout)) { _ in
+            // Server returned 401 - user no longer exists in database
+            isLoggedIn = false
+            errorMessage = "Session expired. Please log in again."
+            print("⚠️ Force logout triggered - user returned to login screen")
         }
     }
 

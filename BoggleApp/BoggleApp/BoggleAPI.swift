@@ -6,6 +6,12 @@
 import Foundation
 import OpenAPIClient
 
+// MARK: - Notification Names
+
+extension Notification.Name {
+    static let forceLogout = Notification.Name("forceLogout")
+}
+
 // MARK: - API Client
 
 class BoggleAPI {
@@ -34,7 +40,18 @@ class BoggleAPI {
     /// Log out user by clearing token from Keychain
     func logout() {
         keychain.deleteToken()
+        clearActiveGame()
         print("✅ User logged out")
+    }
+
+    /// Handle 401 Unauthorized - token is invalid (user deleted from database)
+    private func handleUnauthorized(_ statusCode: Int) {
+        if statusCode == 401 {
+            print("⚠️ 401 Unauthorized - Token invalid, forcing logout")
+            logout()
+            // Post notification to force re-login in UI
+            NotificationCenter.default.post(name: .forceLogout, object: nil)
+        }
     }
 
     /// Get current user info from JWT token
@@ -208,6 +225,7 @@ class BoggleAPI {
         }
 
         if !isSuccessStatusCode(httpResponse.statusCode) {
+            handleUnauthorized(httpResponse.statusCode)
             if let errorString = String(data: data, encoding: .utf8) {
                 print("❌ Game creation error (\(httpResponse.statusCode)): \(errorString)")
             }
@@ -241,6 +259,7 @@ class BoggleAPI {
         }
 
         if !isSuccessStatusCode(httpResponse.statusCode) {
+            handleUnauthorized(httpResponse.statusCode)
             if let errorString = String(data: data, encoding: .utf8) {
                 print("❌ Join game error (\(httpResponse.statusCode)): \(errorString)")
             }
@@ -274,6 +293,7 @@ class BoggleAPI {
         }
 
         if !isSuccessStatusCode(httpResponse.statusCode) {
+            handleUnauthorized(httpResponse.statusCode)
             if let errorString = String(data: data, encoding: .utf8) {
                 print("❌ Join game by code error (\(httpResponse.statusCode)): \(errorString)")
             }
@@ -304,6 +324,7 @@ class BoggleAPI {
         }
 
         if !isSuccessStatusCode(httpResponse.statusCode) {
+            handleUnauthorized(httpResponse.statusCode)
             if let errorString = String(data: data, encoding: .utf8) {
                 print("❌ Start game error (\(httpResponse.statusCode)): \(errorString)")
             }
@@ -331,6 +352,7 @@ class BoggleAPI {
         }
 
         if !isSuccessStatusCode(httpResponse.statusCode) {
+            handleUnauthorized(httpResponse.statusCode)
             if let errorString = String(data: data, encoding: .utf8) {
                 print("❌ Get game state error (\(httpResponse.statusCode)): \(errorString)")
             }
