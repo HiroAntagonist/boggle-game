@@ -218,6 +218,8 @@ class BoggleAPI {
         urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         urlRequest.httpBody = try JSONEncoder().encode(request)
 
+        print("🔵 Creating game: boardSize=\(boardSize), timeLimit=\(timeLimitSeconds)s, maxPlayers=\(maxPlayers)")
+
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
 
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -232,8 +234,9 @@ class BoggleAPI {
             throw APIError.gameCreationFailed
         }
 
-        print("✅ Game created successfully!")
-        return try JSONDecoder().decode(CreateGameResponse.self, from: data)
+        let game = try JSONDecoder().decode(CreateGameResponse.self, from: data)
+        print("✅ Game created successfully: gameId=\(game.gameId), code=\(game.friendlyCode)")
+        return game
     }
 
     func joinGame(gameId: String, playerName: String = "Player") async throws -> JoinGameResponse {
@@ -266,8 +269,9 @@ class BoggleAPI {
             throw APIError.joinGameFailed
         }
 
-        print("✅ Joined game successfully!")
-        return try JSONDecoder().decode(JoinGameResponse.self, from: data)
+        let joinResponse = try JSONDecoder().decode(JoinGameResponse.self, from: data)
+        print("✅ Joined game successfully: playerId=\(joinResponse.playerId), status=\(joinResponse.status)")
+        return joinResponse
     }
 
     func joinGameByCode(friendlyCode: String, playerName: String = "Player") async throws -> JoinGameResponse {
@@ -300,8 +304,9 @@ class BoggleAPI {
             throw APIError.joinGameFailed
         }
 
-        print("✅ Joined game by code successfully!")
-        return try JSONDecoder().decode(JoinGameResponse.self, from: data)
+        let joinResponse = try JSONDecoder().decode(JoinGameResponse.self, from: data)
+        print("✅ Joined game by code successfully: gameId=\(joinResponse.gameId), playerId=\(joinResponse.playerId), status=\(joinResponse.status)")
+        return joinResponse
     }
 
     func startGame(gameId: String) async throws {
@@ -345,6 +350,8 @@ class BoggleAPI {
         urlRequest.httpMethod = "GET"
         urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
+        print("🔵 Getting game state: \(gameId)")
+
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
 
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -359,7 +366,9 @@ class BoggleAPI {
             throw APIError.fetchGameFailed
         }
 
-        return try JSONDecoder().decode(GameStateResponse.self, from: data)
+        let gameState = try JSONDecoder().decode(GameStateResponse.self, from: data)
+        print("✅ Game state fetched: status=\(gameState.status), players=\(gameState.players.count)")
+        return gameState
     }
 
     // MARK: - Reconnection Support
