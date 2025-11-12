@@ -1375,6 +1375,7 @@ def get_game_results(
 
 
 @app.websocket("/ws/{game_id}/{player_id}")
+@limiter.exempt  # WebSocket endpoints don't support rate limiting (no Request object)
 async def websocket_endpoint(
     websocket: WebSocket,
     game_id: str,
