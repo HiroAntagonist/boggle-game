@@ -218,19 +218,19 @@ class ConnectionManager:
         """
         await websocket.accept()
 
-        if game_id not in self.active_connections:
-            self.active_connections[game_id] = {}
+        # Ensure game_id dict exists (atomic operation - prevents race conditions)
+        player_connections = self.active_connections.setdefault(game_id, {})
 
         # Close old connection if player is reconnecting
-        if player_id in self.active_connections[game_id]:
-            old_ws = self.active_connections[game_id][player_id]
+        if player_id in player_connections:
+            old_ws = player_connections[player_id]
             try:
                 await old_ws.close(code=1000, reason="Reconnected from another session")
             except Exception:
                 pass  # Old connection might already be dead
 
         # Store new connection
-        self.active_connections[game_id][player_id] = websocket
+        player_connections[player_id] = websocket
 
     def disconnect(self, websocket: WebSocket, game_id: str, player_id: str) -> bool:
         """Remove a WebSocket connection.
