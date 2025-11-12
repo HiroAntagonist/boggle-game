@@ -24,7 +24,7 @@ struct LoginView: View {
 
     private var loginForm: some View {
         VStack(spacing: 20) {
-            Text("Boggle")
+            Text("Clauddle")
                 .font(.largeTitle)
                 .fontWeight(.bold)
 

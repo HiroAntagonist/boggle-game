@@ -35,12 +35,12 @@ struct WaitingRoomView: View {
 
                 Text(friendlyCode)
                     .font(.system(size: 36, weight: .bold, design: .monospaced))
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(.purple)
                     .tracking(3)
                     .textSelection(.enabled)
                     .padding(.horizontal)
                     .padding(.vertical, 12)
-                    .background(Color.blue.opacity(0.1))
+                    .background(Color.purple.opacity(0.1))
                     .cornerRadius(10)
             }
             .padding(.bottom, 10)
@@ -53,7 +53,7 @@ struct WaitingRoomView: View {
                 List(players, id: \.self) { player in
                     HStack {
                         Image(systemName: "person.fill")
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(.purple)
                         Text(player)
                     }
                 }

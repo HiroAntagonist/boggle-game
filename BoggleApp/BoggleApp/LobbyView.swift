@@ -14,7 +14,7 @@ struct LobbyView: View {
     var body: some View {
         NavigationStack(path: $navigationPath) {
             VStack(spacing: 30) {
-                Text("Boggle")
+                Text("Clauddle")
                     .font(.largeTitle)
                     .fontWeight(.bold)
 

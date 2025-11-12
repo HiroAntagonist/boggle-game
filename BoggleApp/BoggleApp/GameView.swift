@@ -62,7 +62,7 @@ struct GameView: View {
                 // Overlay: Centered title (both orientations)
                 if !isLoading && errorMessage == nil {
                     VStack {
-                        Text("Boggle")
+                        Text("Clauddle")
                             .font(.largeTitle)
                             .fontWeight(.bold)
                             .frame(maxWidth: .infinity)
@@ -155,7 +155,7 @@ struct GameView: View {
                         if let time = timeRemaining {
                             Label("\(formatTime(time))", systemImage: "clock")
                                 .font(.headline)
-                                .foregroundStyle(time < 30 ? .red : .blue)
+                                .foregroundStyle(time < 30 ? .red : .purple)
                         }
 
                         if playerCount > 0 {
@@ -230,7 +230,7 @@ struct GameView: View {
                             Image(systemName: "rotate.right")
                                 .font(.caption)
                                 .fontWeight(.semibold)
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(.purple)
                                 .padding(6)
                                 .background(
                                     Circle()
@@ -253,7 +253,7 @@ struct GameView: View {
                     Text("Word: \(isSubmitting ? submittingWord + "..." : selectedWord)")
                         .font(.title2)
                         .fontWeight(.semibold)
-                        .foregroundStyle((isSubmitting || !selectedWord.isEmpty) ? .blue : .gray)
+                        .foregroundStyle((isSubmitting || !selectedWord.isEmpty) ? .purple : .gray)
 
                     // Feedback message (fixed height to prevent jumping)
                     Text(feedbackMessage ?? " ")
@@ -336,7 +336,7 @@ struct GameView: View {
                         if let time = timeRemaining {
                             Label("\(formatTime(time))", systemImage: "clock")
                                 .font(.headline)
-                                .foregroundStyle(time < 30 ? .red : .blue)
+                                .foregroundStyle(time < 30 ? .red : .purple)
                         }
 
                         if playerCount > 0 {
@@ -801,7 +801,7 @@ struct LetterTile: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 10)
-                .fill(.blue)
+                .fill(.purple)
                 .frame(width: size, height: size)
 
             Text(letter)

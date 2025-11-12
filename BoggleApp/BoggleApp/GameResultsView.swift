@@ -88,7 +88,7 @@ struct PlayerResultCard: View {
                 Text("\(result.totalScore) pts")
                     .font(.title3)
                     .fontWeight(.semibold)
-                    .foregroundStyle(isWinner ? .green : .blue)
+                    .foregroundStyle(isWinner ? .green : .purple)
             }
 
             // Words list
@@ -105,7 +105,7 @@ struct PlayerResultCard: View {
 
                             Text("\(wordResult.score) pts")
                                 .font(.caption)
-                                .foregroundStyle(wordResult.valid ? Color.blue : Color.gray)
+                                .foregroundStyle(wordResult.valid ? Color.purple : Color.gray)
                         }
                     }
                 }
