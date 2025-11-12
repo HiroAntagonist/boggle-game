@@ -2,7 +2,7 @@
 
 Consolidated tracking of known issues, shortcuts, and future improvements.
 
-**Last Updated**: 2025-11-11
+**Last Updated**: 2025-11-12
 
 ---
 
@@ -160,9 +160,6 @@ Consolidated tracking of known issues, shortcuts, and future improvements.
 - [ ] **Structured Logging**: Add structured logging with JSON format, request IDs, and context
   - Estimated effort: 1 hour
 
-- [ ] **Error Tracking**: Set up Sentry for error tracking and alerting
-  - Estimated effort: 1 hour
-
 - [ ] **Performance Metrics**: Add Prometheus metrics endpoint tracking request count, latency, active games
   - Estimated effort: 2 hours
 
@@ -222,6 +219,16 @@ Consolidated tracking of known issues, shortcuts, and future improvements.
 - [x] Disable rate limiting in all test fixtures
 - [x] Add comprehensive test for Client ID validation
 - [x] All 146 tests passing
+
+### Production Logging & Monitoring (Week 6 Day 6 - Nov 12, 2025)
+- [x] Set up Sentry error tracking for production monitoring
+- [x] Configure Sentry DSN and environment variables in Fly.io
+- [x] Verified Sentry integration with test error capture
+- [x] Implement single-line logging formatter for stack traces
+- [x] Enhanced SingleLineFormatter to handle exceptions and multi-line logs
+- [x] Applied formatter globally to all uvicorn and FastAPI loggers
+- [x] Stack traces now formatted as single lines with '|' separators
+- [x] Improved production log readability for cloud logging systems
 
 ### OpenAPI Schema Generation (Week 6 Day 2 - Nov 2, 2025)
 - [x] Install openapi-generator tool
