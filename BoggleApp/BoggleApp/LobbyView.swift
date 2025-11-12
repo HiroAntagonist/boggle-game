@@ -132,7 +132,8 @@ struct LobbyView: View {
                         playerId: gameState.playerId,
                         initialBoard: gameState.board,
                         initialTimeLimit: gameState.timeLimit,
-                        initialStartedAt: gameState.startedAt
+                        initialStartedAt: gameState.startedAt,
+                        initialWords: gameState.wordsByPlayer[gameState.playerId] ?? []
                     )
                 }
             }

@@ -14,6 +14,7 @@ struct GameView: View {
     let initialBoard: [[String]]?
     let initialTimeLimit: Int?
     let initialStartedAt: String?
+    let initialWords: [String]?
 
     @State private var board: [[String]] = []
     @State private var timeLimit: Int?
@@ -38,13 +39,19 @@ struct GameView: View {
     @State private var currentDragWord = ""
     @State private var lastDraggedTile: String? = nil  // Track last tile to avoid adding same letter multiple times in one position
 
-    init(navigationPath: Binding<NavigationPath>, gameId: String? = nil, playerId: String? = nil, initialBoard: [[String]]? = nil, initialTimeLimit: Int? = nil, initialStartedAt: String? = nil) {
+    init(navigationPath: Binding<NavigationPath>, gameId: String? = nil, playerId: String? = nil, initialBoard: [[String]]? = nil, initialTimeLimit: Int? = nil, initialStartedAt: String? = nil, initialWords: [String]? = nil) {
         self._navigationPath = navigationPath
         self.gameId = gameId
         self.playerId = playerId
         self.initialBoard = initialBoard
         self.initialTimeLimit = initialTimeLimit
         self.initialStartedAt = initialStartedAt
+        self.initialWords = initialWords
+
+        // Initialize submittedWords with previously submitted words (for reconnection)
+        if let words = initialWords {
+            self._submittedWords = State(initialValue: words)
+        }
     }
 
     var body: some View {
