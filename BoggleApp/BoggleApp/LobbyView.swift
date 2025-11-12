@@ -180,15 +180,16 @@ struct LobbyView: View {
                         isReconnecting = false
 
                     case "finished":
-                        // Game already ended - clear state and show message
+                        // Game already ended - clear state and go to lobby
                         BoggleAPI.shared.clearActiveGame()
-                        reconnectError = "Game has ended. Starting fresh from lobby."
-                        // Keep isReconnecting = true so user sees the message
+                        print("ℹ️  Reconnected to finished game - clearing state")
+                        isReconnecting = false
 
                     default:
-                        // Unknown status
+                        // Unknown status - clear state and go to lobby
                         BoggleAPI.shared.clearActiveGame()
-                        reconnectError = "Game in unknown state. Starting fresh from lobby."
+                        print("⚠️  Reconnected to game in unknown state: \(gameState.status)")
+                        isReconnecting = false
                     }
 
                 } else {
@@ -196,10 +197,11 @@ struct LobbyView: View {
                     isReconnecting = false
                 }
             } catch {
-                // Clear the saved game since it's invalid
+                // Clear the saved game since it's invalid (game deleted, player removed, etc.)
                 BoggleAPI.shared.clearActiveGame()
-                reconnectError = "Failed to reconnect: \(error.localizedDescription)"
-                // Keep isReconnecting = true so user can see error and dismiss
+                print("ℹ️  Reconnection failed (expected - game no longer exists): \(error.localizedDescription)")
+                // Silently dismiss - don't show error for stale game state
+                isReconnecting = false
             }
         }
     }
