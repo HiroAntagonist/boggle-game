@@ -144,7 +144,7 @@ class WebSocketManager: ObservableObject {
         webSocketTask?.resume()
         isConnected = true
         connectionStatus = .connected
-        reconnectAttempts = 0  // Reset on successful connection
+        // Note: reconnectAttempts is reset in handleMessage() after first successful message
 
         // Start listening for messages
         receiveMessage()
@@ -238,6 +238,12 @@ class WebSocketManager: ObservableObject {
 
     private func handleMessage(_ text: String) {
         print("📩 Received: \(text)")
+
+        // Reset reconnection counter on first successful message (proves connection works)
+        if reconnectAttempts > 0 {
+            print("✅ Connection verified - resetting reconnection counter")
+            reconnectAttempts = 0
+        }
 
         guard let data = text.data(using: .utf8) else { return }
 

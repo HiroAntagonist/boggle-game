@@ -94,6 +94,11 @@ struct WaitingRoomView: View {
             }
         }
         .navigationBarBackButtonHidden(true)
+        .onDisappear {
+            // Disconnect WebSocket when leaving waiting room (GameView will create its own)
+            webSocketManager?.disconnect()
+            print("🔵 WaitingRoomView disconnected WebSocket")
+        }
     }
 
     private func loadGameState() async {
