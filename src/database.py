@@ -11,14 +11,37 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Configure SQLAlchemy logging to output SQL on single lines
-# This prevents multi-line SQL statements from creating fragmented log entries
+# Configure logging to output on single lines
+# This prevents multi-line SQL statements and stack traces from creating fragmented log entries
 class SingleLineFormatter(logging.Formatter):
-    """Custom formatter that replaces newlines with spaces in log messages."""
+    """Custom formatter that replaces newlines with spaces in log messages and stack traces."""
     def format(self, record: logging.LogRecord) -> str:
-        # Replace newlines and multiple spaces with single space
+        # Replace newlines and multiple spaces with single space in message
         record.msg = ' '.join(str(record.msg).split())
-        return super().format(record)
+
+        # If there's exception info, format it on a single line
+        if record.exc_info or record.exc_text:
+            # Get the exception text (stack trace)
+            if record.exc_text:
+                exc_text = record.exc_text
+            else:
+                exc_text = self.formatException(record.exc_info)
+
+            # Replace newlines with ' | ' for readability
+            exc_text = ' | '.join(line.strip() for line in exc_text.split('\n') if line.strip())
+
+            # Clear the exc_info and exc_text so super().format() doesn't add them again
+            record.exc_info = None
+            record.exc_text = None
+
+            # Format the base message
+            formatted = super().format(record)
+
+            # Add the single-line exception text
+            return f"{formatted} | {exc_text}"
+        else:
+            # No exception, just format normally
+            return super().format(record)
 
 # Apply single-line formatter to SQLAlchemy's engine logger
 sqlalchemy_logger = logging.getLogger('sqlalchemy.engine')

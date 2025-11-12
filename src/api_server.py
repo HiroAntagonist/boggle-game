@@ -151,6 +151,19 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # ty
 @app.on_event("startup")
 async def startup_event() -> None:
     """Start background tasks when the application starts."""
+    # Configure single-line logging for all uvicorn loggers
+    # This makes stack traces and multi-line logs easier to read in production
+    import logging
+    from src.database import SingleLineFormatter
+
+    for logger_name in ["uvicorn", "uvicorn.access", "uvicorn.error", "fastapi"]:
+        logger = logging.getLogger(logger_name)
+        if logger.handlers:
+            for handler in logger.handlers:
+                handler.setFormatter(SingleLineFormatter(
+                    '%(levelname)s:%(name)s:%(message)s'
+                ))
+
     # Check if there are any in-progress games and start monitor if needed
     from src.database import SessionLocal
     from src.models import Game as GameModel
