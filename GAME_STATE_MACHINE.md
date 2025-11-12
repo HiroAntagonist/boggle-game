@@ -36,7 +36,7 @@ This document defines the state machines for:
 │ IN_PROGRESS │      │
 └─────────────┘      │
        │             │
-       │ (timer expires OR manual end OR all players leave)
+       │ (timer expires - ONLY EXIT)
        ▼             │
 ┌─────────────┐      │
 │  FINISHED   │      │
