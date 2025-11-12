@@ -59,6 +59,7 @@ from src.api_models import (
     CreateGameResponse,
     JoinGameRequest,
     JoinGameResponse,
+    LeaveGameResponse,
     GameStateResponse,
     StartGameResponse,
     GameResultsResponse,
@@ -182,50 +183,109 @@ async def startup_event() -> None:
             print(f"API server started - resuming timer monitor for {active_count} active games")
         else:
             print("API server started - no active games")
+
+        # Always start the cleanup task
+        global cleanup_task
+        cleanup_task = asyncio.create_task(cleanup_stale_games())
+        print("Game cleanup task started")
+
+    except Exception as e:
+        # Database may not exist yet (e.g., during tests or first run)
+        print(f"Skipping timer monitor and cleanup startup: {e}")
     finally:
         db.close()
 
 
 # Connection manager for WebSockets
 class ConnectionManager:
-    """Manages WebSocket connections for real-time gameplay."""
+    """Manages WebSocket connections for real-time gameplay.
+
+    Tracks connections by player_id to support reconnection.
+    When a player reconnects, their old connection is automatically replaced.
+    """
 
     def __init__(self) -> None:
-        # game_id -> set of WebSocket connections
-        self.active_connections: Dict[str, Set[WebSocket]] = {}
+        # game_id -> player_id -> WebSocket connection
+        self.active_connections: Dict[str, Dict[str, WebSocket]] = {}
 
-    async def connect(self, websocket: WebSocket, game_id: str) -> None:
-        """Accept and track a WebSocket connection."""
+    async def connect(self, websocket: WebSocket, game_id: str, player_id: str) -> None:
+        """Accept and track a WebSocket connection.
+
+        If player_id already has a connection, the old connection is closed
+        and replaced with the new one (reconnection).
+        """
         await websocket.accept()
+
         if game_id not in self.active_connections:
-            self.active_connections[game_id] = set()
-        self.active_connections[game_id].add(websocket)
+            self.active_connections[game_id] = {}
 
-    def disconnect(self, websocket: WebSocket, game_id: str) -> None:
-        """Remove a WebSocket connection."""
-        if game_id in self.active_connections:
-            self.active_connections[game_id].discard(websocket)
-            if not self.active_connections[game_id]:
-                del self.active_connections[game_id]
+        # Close old connection if player is reconnecting
+        if player_id in self.active_connections[game_id]:
+            old_ws = self.active_connections[game_id][player_id]
+            try:
+                await old_ws.close(code=1000, reason="Reconnected from another session")
+            except Exception:
+                pass  # Old connection might already be dead
 
-    async def broadcast(self, message: str, game_id: str, exclude: WebSocket | None = None) -> None:
-        """Broadcast a message to all connections in a game."""
+        # Store new connection
+        self.active_connections[game_id][player_id] = websocket
+
+    def disconnect(self, websocket: WebSocket, game_id: str, player_id: str) -> bool:
+        """Remove a WebSocket connection.
+
+        Returns True if this was the current connection for the player,
+        False if it was already replaced (e.g., player reconnected).
+        """
+        if game_id not in self.active_connections:
+            return False
+
+        # Only remove if this is the CURRENT connection for this player
+        current_ws = self.active_connections[game_id].get(player_id)
+        if current_ws is not websocket:
+            # This was an old connection that already got replaced
+            return False
+
+        # Remove the connection
+        del self.active_connections[game_id][player_id]
+
+        # Clean up empty game
+        if not self.active_connections[game_id]:
+            del self.active_connections[game_id]
+
+        return True
+
+    async def broadcast(self, message: str, game_id: str, exclude_player_id: str | None = None) -> None:
+        """Broadcast a message to all connections in a game.
+
+        Args:
+            message: JSON message to broadcast
+            game_id: Game to broadcast to
+            exclude_player_id: Optional player_id to exclude from broadcast
+        """
         if game_id not in self.active_connections:
             return
 
-        # Create a copy of the set to avoid RuntimeError when set changes during iteration
-        disconnected = set()
-        for connection in list(self.active_connections[game_id]):
-            if connection == exclude:
+        # Track players whose connections failed
+        disconnected_players = []
+
+        for player_id, connection in list(self.active_connections[game_id].items()):
+            if player_id == exclude_player_id:
                 continue
+
             try:
                 await connection.send_text(message)
             except Exception:
-                disconnected.add(connection)
+                # Mark for cleanup
+                disconnected_players.append(player_id)
 
-        # Clean up disconnected clients
-        for connection in disconnected:
-            self.disconnect(connection, game_id)
+        # Clean up failed connections
+        for player_id in disconnected_players:
+            if game_id in self.active_connections and player_id in self.active_connections[game_id]:
+                del self.active_connections[game_id][player_id]
+
+        # Clean up empty game
+        if game_id in self.active_connections and not self.active_connections[game_id]:
+            del self.active_connections[game_id]
 
     def get_connection_count(self, game_id: str) -> int:
         """Get the number of active connections for a game."""
@@ -247,6 +307,7 @@ manager = ConnectionManager()
 
 # Global reference to monitor task (None when not running)
 monitor_task: asyncio.Task | None = None
+cleanup_task: asyncio.Task | None = None
 
 
 def start_monitor_if_needed(db: Session) -> None:
@@ -424,6 +485,87 @@ async def end_game(game_id: str, db: Session) -> None:
     print(f"Game {game_id} ended. Winner: {winner}")
 
 
+async def cleanup_stale_games() -> None:
+    """Background task that cleans up stale games based on timeout rules.
+
+    Cleanup rules:
+    1. CREATED games older than 5 minutes → DELETED
+    2. WAITING games older than 10 minutes → ABANDONED
+    3. FINISHED games older than 7 days → DELETED
+    4. ABANDONED games → DELETED (immediate)
+
+    Runs every 60 seconds.
+    """
+    from src.database import SessionLocal
+    from src.models import Game as GameModel
+    from datetime import timedelta
+
+    print("Game cleanup task started")
+
+    while True:
+        db = None
+        try:
+            # Check every 60 seconds
+            await asyncio.sleep(60)
+
+            db = SessionLocal()
+            now = datetime.now(timezone.utc)
+
+            # 1. Delete CREATED games older than 5 minutes
+            created_timeout = now - timedelta(minutes=5)
+            stale_created = db.query(GameModel).filter(
+                GameModel.status == "created",
+                GameModel.created_at < created_timeout
+            ).all()
+
+            for game in stale_created:
+                print(f"🗑️  CLEANUP - Deleting stale CREATED game | UUID: {game.id} | Created: {game.created_at}")
+                db.delete(game)
+
+            # 2. Transition WAITING games older than 10 minutes to ABANDONED
+            waiting_timeout = now - timedelta(minutes=10)
+            stale_waiting = db.query(GameModel).filter(
+                GameModel.status == "waiting",
+                GameModel.created_at < waiting_timeout
+            ).all()
+
+            for game in stale_waiting:
+                print(f"🚫 CLEANUP - Abandoning stale WAITING game | UUID: {game.id} | Created: {game.created_at}")
+                game.status = "abandoned"
+                game.abandoned_at = now
+
+            # 3. Delete FINISHED games older than 7 days
+            finished_timeout = now - timedelta(days=7)
+            old_finished = db.query(GameModel).filter(
+                GameModel.status == "finished",
+                GameModel.ended_at < finished_timeout
+            ).all()
+
+            for game in old_finished:
+                print(f"🗑️  CLEANUP - Deleting old FINISHED game | UUID: {game.id} | Ended: {game.ended_at}")
+                db.delete(game)
+
+            # 4. Delete ABANDONED games (immediate cleanup)
+            abandoned_games = db.query(GameModel).filter(
+                GameModel.status == "abandoned"
+            ).all()
+
+            for game in abandoned_games:
+                print(f"🗑️  CLEANUP - Deleting ABANDONED game | UUID: {game.id} | Abandoned: {game.abandoned_at}")
+                db.delete(game)
+
+            # Commit all changes
+            db.commit()
+
+        except Exception as e:
+            print(f"Error in cleanup task: {e}")
+            if db:
+                db.rollback()
+        finally:
+            if db:
+                db.close()
+
+
 # Helper function for authorization
 def verify_game_participant(game_id: str, user_id: str, db: Session) -> None:
     """Verify that a user is a participant in a game.
@@ -583,7 +725,7 @@ def create_game(
 
             db_game = GameModel(
                 creator_id=current_user.id,
-                status="waiting",
+                status="created",
                 board_size=request.board_size,
                 time_limit=request.time_limit_seconds,
                 max_players=request.max_players,
@@ -672,23 +814,25 @@ async def join_game(
         GamePlayer.game_id == game_id,
         GamePlayer.user_id == current_user.id
     ).first()
+
+    is_rejoining = False
     if existing_player:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You have already joined this game"
+        # Player is rejoining - allow it and return existing record
+        print(f"🔄 PLAYER REJOINING - UUID: {game_id} | Player: {get_display_name(current_user)} | Player ID: {existing_player.id}")
+        game_player = existing_player
+        is_rejoining = True
+    else:
+        # Create new GamePlayer record
+        game_player = GamePlayer(
+            game_id=game_id,
+            user_id=current_user.id,
+            score=0,
+            words_found="[]"
         )
 
-    # Create GamePlayer record
-    game_player = GamePlayer(
-        game_id=game_id,
-        user_id=current_user.id,
-        score=0,
-        words_found="[]"
-    )
-
-    db.add(game_player)
-    db.commit()
-    db.refresh(game_player)
+        db.add(game_player)
+        db.commit()
+        db.refresh(game_player)
 
     # Get all players in the game
     all_players = db.query(GamePlayer).filter(GamePlayer.game_id == game_id).all()
@@ -698,50 +842,163 @@ async def join_game(
         if user:
             player_names.append(get_display_name(user))
 
-    print(f"✅ PLAYER JOINED - UUID: {game_id} | Friendly Code: {db_game.friendly_code} | Player: {get_display_name(current_user)} | Player ID: {game_player.id} | Total Players: {len(player_names)}/{db_game.max_players}")
+    # Only broadcast and auto-start if this is a NEW player (not rejoining)
+    if not is_rejoining:
+        # CREATED → WAITING transition: first player joins
+        if db_game.status == "created" and len(player_names) == 1:
+            print(f"🎮 STATE TRANSITION - CREATED → WAITING | First player joined")
+            db_game.status = "waiting"
+            db.commit()
+            db.refresh(db_game)
 
-    # Broadcast player_joined to all connected players
-    await manager.broadcast(
-        json.dumps({
-            "type": "player_joined",
-            "player_name": get_display_name(current_user),
-            "player_count": len(player_names),
-            "max_players": db_game.max_players,
-            "players": player_names
-        }),
-        game_id
-    )
+        print(f"✅ PLAYER JOINED - UUID: {game_id} | Friendly Code: {db_game.friendly_code} | Player: {get_display_name(current_user)} | Player ID: {game_player.id} | Total Players: {len(player_names)}/{db_game.max_players}")
 
-    # Auto-start game if room is now full
-    if len(player_names) >= db_game.max_players and db_game.status == "waiting":
-        print(f"🚀 AUTO-STARTING GAME - Room is full ({len(player_names)}/{db_game.max_players})")
-        db_game.status = "in_progress"
-        db_game.started_at = datetime.now(timezone.utc)
-        db.commit()
-        db.refresh(db_game)
-
-        # Start timer monitor if this is a timed game
-        if db_game.time_limit is not None:
-            start_monitor_if_needed(db)
-
-        # Broadcast game_started to all connected players
-        assert db_game.board_state is not None, "Board state must exist for started game"
-        board_data = json.loads(db_game.board_state)
+        # Broadcast player_joined to all connected players
         await manager.broadcast(
             json.dumps({
-                "type": "game_started",
-                "board": board_data,
-                "started_at": db_game.started_at.isoformat(),
-                "time_limit": db_game.time_limit
+                "type": "player_joined",
+                "player_name": get_display_name(current_user),
+                "player_count": len(player_names),
+                "max_players": db_game.max_players,
+                "players": player_names
             }),
             game_id
         )
+
+        # Auto-start game if room is now full
+        if len(player_names) >= db_game.max_players and db_game.status == "waiting":
+            print(f"🚀 AUTO-STARTING GAME - Room is full ({len(player_names)}/{db_game.max_players})")
+            db_game.status = "in_progress"
+            db_game.started_at = datetime.now(timezone.utc)
+            db.commit()
+            db.refresh(db_game)
+
+            # Start timer monitor if this is a timed game
+            if db_game.time_limit is not None:
+                start_monitor_if_needed(db)
+
+            # Broadcast game_started to all connected players
+            assert db_game.board_state is not None, "Board state must exist for started game"
+            board_data = json.loads(db_game.board_state)
+            await manager.broadcast(
+                json.dumps({
+                    "type": "game_started",
+                    "board": board_data,
+                    "started_at": db_game.started_at.isoformat(),
+                    "time_limit": db_game.time_limit
+                }),
+                game_id
+            )
+
+    # Build full game state response
+    board_data = json.loads(db_game.board_state) if db_game.board_state else []
+
+    # Calculate time remaining if game is in progress
+    time_remaining = None
+    if db_game.status == "in_progress" and db_game.started_at and db_game.time_limit:
+        started_at = db_game.started_at
+        if started_at.tzinfo is None:
+            started_at = started_at.replace(tzinfo=timezone.utc)
+        elapsed = (datetime.now(timezone.utc) - started_at).total_seconds()
+        remaining = db_game.time_limit - elapsed
+        time_remaining = int(remaining) if remaining > 0 else 0
+
+    # Get words by player from database
+    words_by_player = {}
+    for gp in all_players:
+        words_by_player[gp.id] = json.loads(gp.words_found) if gp.words_found else []
 
     return JoinGameResponse(
         game_id=game_id,
         player_id=game_player.id,
         player_name=request.player_name,
-        players=player_names
+        board=board_data,
+        status=db_game.status,
+        players=player_names,
+        player_count=len(player_names),
+        max_players=db_game.max_players,
+        time_limit=db_game.time_limit,
+        started_at=db_game.started_at.isoformat() if db_game.started_at else None,
+        time_remaining=time_remaining,
+        words_by_player=words_by_player
+    )
+
+
+@app.post("/games/{game_id}/leave", response_model=LeaveGameResponse)
+async def leave_game(
+    game_id: str,
+    current_user: User = Depends(get_current_user_from_db),
+    db: Session = Depends(get_db)
+) -> LeaveGameResponse:
+    """Leave a game.
+
+    Requires authentication. The authenticated user leaves the game.
+
+    Args:
+        game_id: Unique game identifier
+        current_user: Authenticated user (injected)
+        db: Database session (injected)
+
+    Returns:
+        Game state after player left
+
+    Raises:
+        HTTPException: 404 if game not found, 400 if player not in game
+    """
+    from src.models import Game as GameModel, GamePlayer
+
+    # Check if game exists
+    db_game = db.query(GameModel).filter(GameModel.id == game_id).first()
+    if not db_game:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Game {game_id} not found"
+        )
+
+    # Find player record
+    game_player = db.query(GamePlayer).filter(
+        GamePlayer.game_id == game_id,
+        GamePlayer.user_id == current_user.id
+    ).first()
+
+    if not game_player:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You are not in this game"
+        )
+
+    # Remove player from game
+    db.delete(game_player)
+    db.commit()
+
+    # Count remaining players
+    remaining_count = db.query(GamePlayer).filter(GamePlayer.game_id == game_id).count()
+
+    print(f"👋 PLAYER LEFT - UUID: {game_id} | Friendly Code: {db_game.friendly_code} | Player: {get_display_name(current_user)} | Remaining Players: {remaining_count}")
+
+    # WAITING → ABANDONED transition: all players left
+    if db_game.status == "waiting" and remaining_count == 0:
+        print(f"🚫 STATE TRANSITION - WAITING → ABANDONED | All players left")
+        db_game.status = "abandoned"
+        db_game.abandoned_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(db_game)
+
+    # Broadcast player_left to remaining players
+    await manager.broadcast(
+        json.dumps({
+            "type": "player_left",
+            "player_name": get_display_name(current_user),
+            "player_count": remaining_count,
+            "game_status": db_game.status
+        }),
+        game_id
+    )
+
+    return LeaveGameResponse(
+        game_id=game_id,
+        status=db_game.status,
+        player_count=remaining_count
     )
 
 
@@ -798,23 +1055,25 @@ async def join_game_by_code(
         GamePlayer.game_id == db_game.id,
         GamePlayer.user_id == current_user.id
     ).first()
+
+    is_rejoining = False
     if existing_player:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You have already joined this game"
+        # Player is rejoining - allow it and return existing record
+        print(f"🔄 PLAYER REJOINING BY CODE - UUID: {db_game.id} | Friendly Code: {friendly_code} | Player: {get_display_name(current_user)} | Player ID: {existing_player.id}")
+        game_player = existing_player
+        is_rejoining = True
+    else:
+        # Create new GamePlayer record
+        game_player = GamePlayer(
+            game_id=db_game.id,
+            user_id=current_user.id,
+            score=0,
+            words_found="[]"
         )
 
-    # Create GamePlayer record
-    game_player = GamePlayer(
-        game_id=db_game.id,
-        user_id=current_user.id,
-        score=0,
-        words_found="[]"
-    )
-
-    db.add(game_player)
-    db.commit()
-    db.refresh(game_player)
+        db.add(game_player)
+        db.commit()
+        db.refresh(game_player)
 
     # Get all players in the game
     all_players = db.query(GamePlayer).filter(GamePlayer.game_id == db_game.id).all()
@@ -824,50 +1083,78 @@ async def join_game_by_code(
         if user:
             player_names.append(get_display_name(user))
 
-    print(f"✅ PLAYER JOINED BY CODE - UUID: {db_game.id} | Friendly Code: {friendly_code} | Player: {get_display_name(current_user)} | Player ID: {game_player.id} | Total Players: {len(player_names)}/{db_game.max_players}")
+    # Only broadcast and auto-start if this is a NEW player (not rejoining)
+    if not is_rejoining:
+        print(f"✅ PLAYER JOINED BY CODE - UUID: {db_game.id} | Friendly Code: {friendly_code} | Player: {get_display_name(current_user)} | Player ID: {game_player.id} | Total Players: {len(player_names)}/{db_game.max_players}")
 
-    # Broadcast player_joined to all connected players
-    await manager.broadcast(
-        json.dumps({
-            "type": "player_joined",
-            "player_name": get_display_name(current_user),
-            "player_count": len(player_names),
-            "max_players": db_game.max_players,
-            "players": player_names
-        }),
-        db_game.id
-    )
-
-    # Auto-start game if room is now full
-    if len(player_names) >= db_game.max_players and db_game.status == "waiting":
-        print(f"🚀 AUTO-STARTING GAME - Room is full ({len(player_names)}/{db_game.max_players})")
-        db_game.status = "in_progress"
-        db_game.started_at = datetime.now(timezone.utc)
-        db.commit()
-        db.refresh(db_game)
-
-        # Start timer monitor if this is a timed game
-        if db_game.time_limit is not None:
-            start_monitor_if_needed(db)
-
-        # Broadcast game_started to all connected players
-        assert db_game.board_state is not None, "Board state must exist for started game"
-        board_data = json.loads(db_game.board_state)
+        # Broadcast player_joined to all connected players
         await manager.broadcast(
             json.dumps({
-                "type": "game_started",
-                "board": board_data,
-                "started_at": db_game.started_at.isoformat(),
-                "time_limit": db_game.time_limit
+                "type": "player_joined",
+                "player_name": get_display_name(current_user),
+                "player_count": len(player_names),
+                "max_players": db_game.max_players,
+                "players": player_names
             }),
             db_game.id
         )
+
+        # Auto-start game if room is now full
+        if len(player_names) >= db_game.max_players and db_game.status == "waiting":
+            print(f"🚀 AUTO-STARTING GAME - Room is full ({len(player_names)}/{db_game.max_players})")
+            db_game.status = "in_progress"
+            db_game.started_at = datetime.now(timezone.utc)
+            db.commit()
+            db.refresh(db_game)
+
+            # Start timer monitor if this is a timed game
+            if db_game.time_limit is not None:
+                start_monitor_if_needed(db)
+
+            # Broadcast game_started to all connected players
+            assert db_game.board_state is not None, "Board state must exist for started game"
+            board_data = json.loads(db_game.board_state)
+            await manager.broadcast(
+                json.dumps({
+                    "type": "game_started",
+                    "board": board_data,
+                    "started_at": db_game.started_at.isoformat(),
+                    "time_limit": db_game.time_limit
+                }),
+                db_game.id
+            )
+
+    # Build full game state response
+    board_data = json.loads(db_game.board_state) if db_game.board_state else []
+
+    # Calculate time remaining if game is in progress
+    time_remaining = None
+    if db_game.status == "in_progress" and db_game.started_at and db_game.time_limit:
+        started_at = db_game.started_at
+        if started_at.tzinfo is None:
+            started_at = started_at.replace(tzinfo=timezone.utc)
+        elapsed = (datetime.now(timezone.utc) - started_at).total_seconds()
+        remaining = db_game.time_limit - elapsed
+        time_remaining = int(remaining) if remaining > 0 else 0
+
+    # Get words by player from database
+    words_by_player = {}
+    for gp in all_players:
+        words_by_player[gp.id] = json.loads(gp.words_found) if gp.words_found else []
 
     return JoinGameResponse(
         game_id=db_game.id,
         player_id=game_player.id,
         player_name=request.player_name,
-        players=player_names
+        board=board_data,
+        status=db_game.status,
+        players=player_names,
+        player_count=len(player_names),
+        max_players=db_game.max_players,
+        time_limit=db_game.time_limit,
+        started_at=db_game.started_at.isoformat() if db_game.started_at else None,
+        time_remaining=time_remaining,
+        words_by_player=words_by_player
     )
 
 
@@ -902,8 +1189,14 @@ def get_game_state(
             detail=f"Game {game_id} not found"
         )
 
-    # Verify user is a participant in this game
-    verify_game_participant(game_id, current_user.id, db)
+    # Verify user is authorized to view this game
+    # Allow creators to view CREATED or ABANDONED games
+    if db_game.creator_id == current_user.id and db_game.status in ("created", "abandoned"):
+        # Creator can view their own CREATED or ABANDONED game
+        pass
+    else:
+        # Otherwise, verify user is a participant in this game
+        verify_game_participant(game_id, current_user.id, db)
 
     # Get board from database (stored as JSON)
     board_data = json.loads(db_game.board_state) if db_game.board_state else []
@@ -937,6 +1230,7 @@ def get_game_state(
         board=board_data,
         status=db_game.status,
         players=player_names,
+        player_count=len(player_names),
         max_players=db_game.max_players,
         time_limit=db_game.time_limit,
         started_at=db_game.started_at.isoformat() if db_game.started_at else None,
@@ -1141,8 +1435,8 @@ async def websocket_endpoint(
         for word in existing_words:
             player.add_word(word)
 
-        # Accept connection
-        await manager.connect(websocket, game_id)
+        # Accept connection (will replace old connection if player is reconnecting)
+        await manager.connect(websocket, game_id, player_id)
 
         # Notify others that player connected
         from src.ws_models import PlayerConnectedMessage
@@ -1153,7 +1447,7 @@ async def websocket_endpoint(
         await manager.broadcast(
             connect_msg.model_dump_json(),
             game_id,
-            exclude=websocket
+            exclude_player_id=player_id
         )
 
         while True:
@@ -1226,7 +1520,7 @@ async def websocket_endpoint(
                     await manager.broadcast(
                         broadcast.model_dump_json(),
                         game_id,
-                        exclude=websocket
+                        exclude_player_id=player_id
                     )
 
             elif message_type == "get_state":
@@ -1265,19 +1559,23 @@ async def websocket_endpoint(
                 await websocket.send_text(state_response.model_dump_json())
 
     except WebSocketDisconnect:
-        manager.disconnect(websocket, game_id)
-        # Notify others that player disconnected
-        from src.ws_models import PlayerDisconnectedMessage
-        # Get username for disconnect message
-        username = get_display_name(user) if 'user' in locals() and user else "Unknown"
-        disconnect_msg = PlayerDisconnectedMessage(
-            type="player_disconnected",
-            player_name=username
-        )
-        await manager.broadcast(
-            disconnect_msg.model_dump_json(),
-            game_id
-        )
+        # Only broadcast disconnect if this was the CURRENT connection
+        # (not an old connection that was already replaced by reconnection)
+        was_current = manager.disconnect(websocket, game_id, player_id)
+
+        if was_current:
+            # Notify others that player disconnected
+            from src.ws_models import PlayerDisconnectedMessage
+            # Get username for disconnect message
+            username = get_display_name(user) if 'user' in locals() and user else "Unknown"
+            disconnect_msg = PlayerDisconnectedMessage(
+                type="player_disconnected",
+                player_name=username
+            )
+            await manager.broadcast(
+                disconnect_msg.model_dump_json(),
+                game_id
+            )
 
         # Cleanup: Delete waiting games when all players disconnect
         remaining_connections = manager.get_connection_count(game_id)

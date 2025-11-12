@@ -88,13 +88,14 @@ class Game(Base):
     This becomes a database table called 'games' with columns:
     - id (UUID primary key)
     - creator_id (foreign key to users table)
-    - status (waiting, in_progress, completed)
+    - status (created, waiting, in_progress, finished, abandoned)
     - board_size (4 or 5)
     - time_limit (seconds, nullable)
     - board_state (JSON string of the board)
     - created_at (timestamp)
     - started_at (timestamp, nullable)
     - ended_at (timestamp, nullable)
+    - abandoned_at (timestamp, nullable)
     """
 
     __tablename__ = "games"
@@ -128,7 +129,7 @@ class Game(Base):
     status: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
-        default="waiting"  # waiting, in_progress, finished
+        default="created"  # created, waiting, in_progress, finished, abandoned
     )
 
     board_size: Mapped[int] = mapped_column(
@@ -177,6 +178,11 @@ class Game(Base):
     ended_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime,
         nullable=True  # Null until game ends
+    )
+
+    abandoned_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime,
+        nullable=True  # Null unless game is abandoned
     )
 
     # RELATIONSHIPS

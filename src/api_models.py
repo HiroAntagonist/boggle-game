@@ -8,7 +8,7 @@ from typing import List, Dict
 class CreateGameRequest(BaseModel):
     """Request model for creating a new game."""
     board_size: int = Field(default=4, ge=4, le=5, description="Board size (4 or 5)")
-    time_limit_seconds: int = Field(default=180, gt=0, description="Game time limit in seconds")
+    time_limit_seconds: int = Field(default=180, gt=0, le=600, description="Game time limit in seconds (max 10 minutes)")
     max_players: int = Field(default=4, ge=1, le=8, description="Maximum number of players")
 
 
@@ -27,11 +27,30 @@ class JoinGameRequest(BaseModel):
 
 
 class JoinGameResponse(BaseModel):
-    """Response model after joining a game."""
+    """Response model after joining a game.
+
+    Includes full game state to enable immediate gameplay without additional API calls.
+    """
     game_id: str = Field(description="Game identifier")
     player_id: str = Field(description="Unique player identifier")
     player_name: str = Field(description="Player's display name")
+    # Full game state
+    board: List[List[str]] = Field(description="Game board grid")
+    status: str = Field(description="Game status (created, waiting, in_progress, finished)")
     players: List[str] = Field(description="List of all player names in game")
+    player_count: int = Field(description="Current number of players in game")
+    max_players: int = Field(description="Maximum number of players allowed")
+    time_limit: int | None = Field(description="Total time limit in seconds, None if no time limit")
+    started_at: str | None = Field(description="ISO timestamp of when game started, None if not started")
+    time_remaining: int | None = Field(description="Seconds remaining, None if not started")
+    words_by_player: Dict[str, List[str]] = Field(description="Player ID to their submitted words")
+
+
+class LeaveGameResponse(BaseModel):
+    """Response model after leaving a game."""
+    game_id: str = Field(description="Game identifier")
+    status: str = Field(description="Game status after player left")
+    player_count: int = Field(description="Remaining player count")
 
 
 class GameStateResponse(BaseModel):
@@ -40,6 +59,7 @@ class GameStateResponse(BaseModel):
     board: List[List[str]]
     players: List[str]
     status: str
+    player_count: int = Field(description="Current number of players in game")
     max_players: int
     time_limit: int | None = Field(description="Total time limit in seconds, None if no time limit")
     started_at: str | None = Field(description="ISO timestamp of when game started, None if not started")
