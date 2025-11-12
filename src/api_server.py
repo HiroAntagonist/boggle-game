@@ -1582,9 +1582,10 @@ async def websocket_endpoint(
         # Cleanup: Delete waiting games when all players disconnect
         remaining_connections = manager.get_connection_count(game_id)
         if remaining_connections == 0:
-            # Check if game is in waiting status
+            # Check if game is in waiting status AND hasn't been started yet
+            # (must check started_at to avoid race condition where status update hasn't committed)
             db_game = db.query(GameModel).filter(GameModel.id == game_id).first()
-            if db_game and db_game.status == "waiting":
+            if db_game and db_game.status == "waiting" and db_game.started_at is None:
                 # Delete all players first (foreign key constraint)
                 db.query(GamePlayer).filter(GamePlayer.game_id == game_id).delete()
                 # Delete the game
