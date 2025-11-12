@@ -418,7 +418,7 @@ def test_create_game_with_auth_success(client: TestClient) -> None:
     data = response.json()
     assert "game_id" in data
     assert "board" in data
-    assert data["status"] == "waiting"
+    assert data["status"] == "created"
 
 
 def test_join_game_requires_auth(client: TestClient) -> None:

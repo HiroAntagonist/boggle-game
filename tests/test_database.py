@@ -68,7 +68,7 @@ def test_create_user(db_session):
     # Verify user was saved
     assert user.id is not None  # UUID was auto-generated
     assert len(user.id) == 36  # UUIDs are exactly 36 characters
-    
+
     assert user.email == "a@example.com"
 
     # Verify it's a valid UUID format
@@ -97,7 +97,7 @@ def test_retrieve_user(db_session):
     # Verify it's the same user
     assert retrieved_user is not None
     assert retrieved_user.id == user_id
-    
+
     assert retrieved_user.email == "alice@example.com"
 
 
@@ -198,7 +198,7 @@ def test_create_game(db_session):
     assert game.id is not None
     assert len(game.id) == 36  # UUID
     assert game.creator_id == user.id
-    assert game.status == "waiting"  # Default status
+    assert game.status == "created"  # Default status
     assert game.board_size == 4
     assert game.time_limit == 180
     assert game.board_state is None  # Null until game starts
@@ -222,7 +222,7 @@ def test_game_creator_relationship(db_session):
 
     # Test relationship: game.creator should give us the User object
     assert game.creator is not None
-    
+
     assert game.creator.id == user.id
 
     # Test reverse relationship: user.created_games should include this game
@@ -279,7 +279,7 @@ def test_update_game_status(db_session):
     db_session.commit()
 
     # Verify initial status
-    assert game.status == "waiting"
+    assert game.status == "created"
 
     # Update status
     game.status = "in_progress"
@@ -381,7 +381,7 @@ def test_gameplayer_relationships(db_session):
 
     # Test GamePlayer → User relationship
     assert game_player.user is not None
-    
+
     assert game_player.user.id == user.id
 
 

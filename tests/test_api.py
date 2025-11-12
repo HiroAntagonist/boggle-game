@@ -102,7 +102,7 @@ def test_create_game_default_settings(client: TestClient) -> None:
     assert "game_id" in data
     assert "board" in data
     assert "created_at" in data
-    assert data["status"] == "waiting"
+    assert data["status"] == "created"
 
     # Default board should be 4x4
     assert len(data["board"]) == 4
@@ -131,6 +131,16 @@ def test_create_game_invalid_board_size(client: TestClient) -> None:
     token = create_test_user_and_login(client)
     response = client.post("/games", headers=auth_headers(token), json={
         "board_size": 3  # Invalid: must be 4 or 5
+    })
+
+    assert response.status_code == 422  # Validation error
+
+
+def test_create_game_timer_exceeds_max(client: TestClient) -> None:
+    """Test that timer exceeding 10 minutes is rejected."""
+    token = create_test_user_and_login(client)
+    response = client.post("/games", headers=auth_headers(token), json={
+        "time_limit_seconds": 700  # Invalid: max is 600 (10 minutes)
     })
 
     assert response.status_code == 422  # Validation error
