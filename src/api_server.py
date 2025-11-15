@@ -359,10 +359,6 @@ class ConnectionManager:
         return len(self.active_connections[game_id])
 
 
-# In-memory storage for games
-# In a real application, this would be a database
-games: Dict[str, Dict] = {}
-
 # Shared game resources
 dictionary = Dictionary("data/sowpods.txt")
 scorer = Scorer(min_word_length=3)
