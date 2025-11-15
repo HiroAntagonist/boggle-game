@@ -20,7 +20,6 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
 
     print("✓ Database tables created successfully!")
-    print(f"✓ Database file: game.db")
 
 
 if __name__ == "__main__":
