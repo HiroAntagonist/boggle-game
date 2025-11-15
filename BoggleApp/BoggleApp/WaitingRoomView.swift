@@ -95,9 +95,9 @@ struct WaitingRoomView: View {
         }
         .navigationBarBackButtonHidden(true)
         .onDisappear {
-            // Disconnect WebSocket when leaving waiting room (GameView will create its own)
-            webSocketManager?.disconnect()
-            print("🔵 WaitingRoomView disconnected WebSocket")
+            // Don't disconnect - GameView will reuse the same connection
+            // The server handles reconnection automatically if needed
+            print("🔵 WaitingRoomView disappeared (keeping WebSocket connected)")
         }
     }
 
