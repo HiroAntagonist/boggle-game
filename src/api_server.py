@@ -216,7 +216,6 @@ class ConnectionManager:
         If player_id already has a connection, the old connection is closed
         and replaced with the new one (reconnection).
         """
-        print(f"🔌 Accepting WebSocket for game={game_id[:8]}..., player={player_id[:8]}...")
         await websocket.accept()
 
         # Ensure game_id dict exists (atomic operation - prevents race conditions)
@@ -224,7 +223,7 @@ class ConnectionManager:
 
         # Close old connection if player is reconnecting
         if player_id in player_connections:
-            print(f"🔄 Closing old connection for player={player_id[:8]}... (reconnection)")
+            print(f"INFO [WebSocket] Reconnection | game={game_id[:8]} player={player_id[:8]}")
             old_ws = player_connections[player_id]
             try:
                 await old_ws.close(code=1000, reason="Reconnected from another session")
@@ -233,7 +232,6 @@ class ConnectionManager:
 
         # Store new connection
         player_connections[player_id] = websocket
-        print(f"✅ WebSocket connected: game={game_id[:8]}..., player={player_id[:8]}..., total_connections={len(player_connections)}")
 
     def disconnect(self, websocket: WebSocket, game_id: str, player_id: str) -> bool:
         """Remove a WebSocket connection.
@@ -242,19 +240,16 @@ class ConnectionManager:
         False if it was already replaced (e.g., player reconnected).
         """
         if game_id not in self.active_connections:
-            print(f"❌ Disconnect called but game={game_id[:8]}... not in active_connections")
             return False
 
         # Only remove if this is the CURRENT connection for this player
         current_ws = self.active_connections[game_id].get(player_id)
         if current_ws is not websocket:
             # This was an old connection that already got replaced
-            print(f"⚠️  Disconnect called for OLD connection (already replaced): player={player_id[:8]}...")
             return False
 
         # Remove the connection
         del self.active_connections[game_id][player_id]
-        print(f"🔌 WebSocket disconnected: game={game_id[:8]}..., player={player_id[:8]}..., remaining={len(self.active_connections.get(game_id, {}))}")
 
         # Clean up empty game
         if not self.active_connections[game_id]:
@@ -488,11 +483,9 @@ async def end_game(game_id: str, db: Session) -> None:
         results=results
     )
 
-    print(f"📢 Broadcasting game_ended to game {game_id}: winner={winner}, {len(results)} players")
+    connections = len(manager.active_connections.get(game_id, []))
+    print(f"INFO [Game] Game ended | game={game_id[:8]} winner={winner} players={len(results)} connections={connections}")
     await manager.broadcast(end_message.model_dump_json(), game_id)
-    print(f"✅ Broadcasted game_ended to {len(manager.active_connections.get(game_id, []))} connections")
-
-    print(f"Game {game_id} ended. Winner: {winner}")
 
 
 async def cleanup_stale_games() -> None:
@@ -749,7 +742,7 @@ def create_game(
             db.refresh(db_game)
 
             # Log successful game creation
-            print(f"✅ GAME CREATED - UUID: {db_game.id} | Friendly Code: {db_game.friendly_code} | Creator: {get_display_name(current_user)}")
+            print(f"INFO [API] Game created - UUID: {db_game.id} | Friendly Code: {db_game.friendly_code} | Creator: {get_display_name(current_user)}")
 
             break  # Success - exit retry loop
 
@@ -812,7 +805,7 @@ async def join_game(
 
     # Check if game is full
     current_player_count = db.query(GamePlayer).filter(GamePlayer.game_id == game_id).count()
-    print(f"🔍 JOIN REQUEST - UUID: {db_game.id} | Friendly Code: {db_game.friendly_code} | User: {get_display_name(current_user)} | Current Players: {current_player_count}/{db_game.max_players}")
+    print(f"INFO [API] Join request - UUID: {db_game.id} | Friendly Code: {db_game.friendly_code} | User: {get_display_name(current_user)} | Current Players: {current_player_count}/{db_game.max_players}")
     if current_player_count >= db_game.max_players:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -828,7 +821,7 @@ async def join_game(
     is_rejoining = False
     if existing_player:
         # Player is rejoining - allow it and return existing record
-        print(f"🔄 PLAYER REJOINING - UUID: {game_id} | Player: {get_display_name(current_user)} | Player ID: {existing_player.id}")
+        print(f"INFO [API] Rejoining - UUID: {game_id} | Player: {get_display_name(current_user)} | Player ID: {existing_player.id}")
         game_player = existing_player
         is_rejoining = True
     else:
@@ -856,12 +849,12 @@ async def join_game(
     if not is_rejoining:
         # CREATED → WAITING transition: first player joins
         if db_game.status == "created" and len(player_names) == 1:
-            print(f"🎮 STATE TRANSITION - CREATED → WAITING | First player joined")
+            print(f"INFO [Game] State - CREATED → WAITING | First player joined")
             db_game.status = "waiting"
             db.commit()
             db.refresh(db_game)
 
-        print(f"✅ PLAYER JOINED - UUID: {game_id} | Friendly Code: {db_game.friendly_code} | Player: {get_display_name(current_user)} | Player ID: {game_player.id} | Total Players: {len(player_names)}/{db_game.max_players}")
+        print(f"INFO [API] Player joined - UUID: {game_id} | Friendly Code: {db_game.friendly_code} | Player: {get_display_name(current_user)} | Player ID: {game_player.id} | Total Players: {len(player_names)}/{db_game.max_players}")
 
         # Broadcast player_joined to all connected players
         await manager.broadcast(
@@ -1069,7 +1062,7 @@ async def join_game_by_code(
     is_rejoining = False
     if existing_player:
         # Player is rejoining - allow it and return existing record
-        print(f"🔄 PLAYER REJOINING BY CODE - UUID: {db_game.id} | Friendly Code: {friendly_code} | Player: {get_display_name(current_user)} | Player ID: {existing_player.id}")
+        print(f"INFO [API] Rejoining BY CODE - UUID: {db_game.id} | Friendly Code: {friendly_code} | Player: {get_display_name(current_user)} | Player ID: {existing_player.id}")
         game_player = existing_player
         is_rejoining = True
     else:
@@ -1095,7 +1088,7 @@ async def join_game_by_code(
 
     # Only broadcast and auto-start if this is a NEW player (not rejoining)
     if not is_rejoining:
-        print(f"✅ PLAYER JOINED BY CODE - UUID: {db_game.id} | Friendly Code: {friendly_code} | Player: {get_display_name(current_user)} | Player ID: {game_player.id} | Total Players: {len(player_names)}/{db_game.max_players}")
+        print(f"INFO [API] Player joined BY CODE - UUID: {db_game.id} | Friendly Code: {friendly_code} | Player: {get_display_name(current_user)} | Player ID: {game_player.id} | Total Players: {len(player_names)}/{db_game.max_players}")
 
         # Broadcast player_joined to all connected players
         await manager.broadcast(

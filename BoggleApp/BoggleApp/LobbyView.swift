@@ -144,7 +144,6 @@ struct LobbyView: View {
         if let user = BoggleAPI.shared.getCurrentUser() {
             userEmail = user.email
             userDisplayName = user.displayName
-            print("✅ Loaded user info: \(user.displayName ?? user.email)")
         }
     }
 
@@ -160,8 +159,7 @@ struct LobbyView: View {
 
             do {
                 if let gameState = try await BoggleAPI.shared.attemptReconnect() {
-                    // Successfully reconnected! Navigate to the game
-                    print("🎮 Reconnected to game (status: \(gameState.status)), navigating...")
+                    print("INFO [Reconnect] Rejoining game | status=\(gameState.status) game=\(gameState.gameId.prefix(8))")
 
                     // Save the active game state for future reconnections
                     BoggleAPI.shared.saveActiveGame(gameId: gameState.gameId, playerId: gameState.playerId)
@@ -169,38 +167,30 @@ struct LobbyView: View {
                     // Navigate based on game status
                     switch gameState.status {
                     case "waiting":
-                        // Game hasn't started yet - go to waiting room
-                        // Note: Using "RECONNECTED" as placeholder for friendlyCode since we don't have it
                         navigationPath.append("waitingRoom:\(gameState.gameId):\(gameState.playerId):\(gameState.maxPlayers)")
                         isReconnecting = false
 
                     case "in_progress":
-                        // Game is active - go directly to game view with full state
                         reconnectedGameState = gameState
                         navigateToReconnectedGame = true
                         isReconnecting = false
 
                     case "finished":
-                        // Game already ended - clear state and go to lobby
                         BoggleAPI.shared.clearActiveGame()
-                        print("ℹ️  Reconnected to finished game - clearing state")
                         isReconnecting = false
 
                     default:
-                        // Unknown status - clear state and go to lobby
+                        print("WARN [Reconnect] Unknown game status: \(gameState.status)")
                         BoggleAPI.shared.clearActiveGame()
-                        print("⚠️  Reconnected to game in unknown state: \(gameState.status)")
                         isReconnecting = false
                     }
 
                 } else {
-                    // No active game to reconnect to
                     isReconnecting = false
                 }
             } catch {
                 // Clear the saved game since it's invalid (game deleted, player removed, etc.)
                 BoggleAPI.shared.clearActiveGame()
-                print("ℹ️  Reconnection failed (expected - game no longer exists): \(error.localizedDescription)")
                 // Silently dismiss - don't show error for stale game state
                 isReconnecting = false
             }

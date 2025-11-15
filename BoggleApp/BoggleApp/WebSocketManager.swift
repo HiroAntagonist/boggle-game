@@ -133,37 +133,30 @@ class WebSocketManager: ObservableObject {
         // wss:// for production HTTPS, ws:// for local HTTP
         let urlString = "wss://boggle-game-ar.fly.dev/ws/\(gameId)/\(playerId)"
         guard let url = URL(string: urlString) else {
-            print("❌ Invalid WebSocket URL")
+            print("ERROR [WebSocket] Invalid URL | game=\(gameId.prefix(8)) player=\(playerId.prefix(8))")
             connectionStatus = .disconnected
             return
         }
-
-        print("🔵 Connecting to WebSocket: \(urlString)")
 
         webSocketTask = URLSession.shared.webSocketTask(with: url)
         webSocketTask?.resume()
         isConnected = true
         connectionStatus = .connected
-        // Note: reconnectAttempts is reset in handleMessage() after first successful message
 
         // Start listening for messages
         receiveMessage()
-
-        print("✅ WebSocket connected")
     }
 
     func disconnect() {
-        print("🔵 Disconnecting WebSocket")
         reconnectTask?.cancel()
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         isConnected = false
         connectionStatus = .disconnected
-        print("✅ WebSocket disconnected")
     }
 
     private func attemptReconnect() {
         guard reconnectAttempts < maxReconnectAttempts else {
-            print("❌ Max reconnection attempts reached")
+            print("ERROR [WebSocket] Max reconnect attempts | game=\(gameId.prefix(8)) player=\(playerId.prefix(8))")
             connectionStatus = .disconnected
             return
         }
@@ -173,7 +166,7 @@ class WebSocketManager: ObservableObject {
 
         // Exponential backoff: 1s, 2s, 4s, 8s, 16s
         let delay = min(pow(2.0, Double(reconnectAttempts - 1)), 16.0)
-        print("🔄 Reconnecting in \(delay)s (attempt \(reconnectAttempts)/\(maxReconnectAttempts))...")
+        print("INFO [WebSocket] Reconnecting attempt=\(reconnectAttempts)/\(maxReconnectAttempts) delay=\(delay)s | game=\(gameId.prefix(8)) player=\(playerId.prefix(8))")
 
         reconnectTask = Task {
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
@@ -191,18 +184,14 @@ class WebSocketManager: ObservableObject {
 
         guard let data = try? JSONEncoder().encode(message),
               let jsonString = String(data: data, encoding: .utf8) else {
-            print("❌ Failed to encode word submission")
+            print("ERROR [WebSocket] Failed to encode word | word=\(word)")
             return
         }
-
-        print("🔵 Submitting word: \(word)")
 
         let wsMessage = URLSessionWebSocketTask.Message.string(jsonString)
         webSocketTask?.send(wsMessage) { error in
             if let error = error {
-                print("❌ WebSocket send error: \(error)")
-            } else {
-                print("✅ Word submitted: \(word)")
+                print("ERROR [WebSocket] Send failed: \(error.localizedDescription) | word=\(word)")
             }
         }
     }
@@ -226,22 +215,20 @@ class WebSocketManager: ObservableObject {
                 self?.receiveMessage()
 
             case .failure(let error):
-                print("❌ WebSocket receive error: \(error)")
-                self?.isConnected = false
-                self?.connectionStatus = .disconnected
+                guard let self = self else { return }
+                print("ERROR [WebSocket] Receive failed: \(error.localizedDescription) | game=\(self.gameId.prefix(8)) player=\(self.playerId.prefix(8))")
+                self.isConnected = false
+                self.connectionStatus = .disconnected
 
                 // Attempt to reconnect
-                self?.attemptReconnect()
+                self.attemptReconnect()
             }
         }
     }
 
     private func handleMessage(_ text: String) {
-        print("📩 Received: \(text)")
-
         // Reset reconnection counter on first successful message (proves connection works)
         if reconnectAttempts > 0 {
-            print("✅ Connection verified - resetting reconnection counter")
             reconnectAttempts = 0
         }
 
@@ -257,7 +244,6 @@ class WebSocketManager: ObservableObject {
                     DispatchQueue.main.async {
                         self.lastWordResult = result
                         self.onWordResult?(result)
-                        print("✅ Word result: \(result.word) - \(result.valid ? "VALID" : "INVALID")")
                     }
                 }
 
@@ -266,28 +252,23 @@ class WebSocketManager: ObservableObject {
                     DispatchQueue.main.async {
                         self.timeRemaining = state.timeRemaining
                         self.onGameState?(state)
-                        print("✅ Game state: \(state.status), time: \(state.timeRemaining ?? 0)s")
                     }
                 }
 
             case "game_ended":
-                print("🎯 Received game_ended message, attempting to decode...")
                 if let endMessage = try? JSONDecoder().decode(GameEndedMessage.self, from: data) {
-                    print("✅ Decoded game_ended successfully: winner=\(endMessage.winner ?? "TIE"), players=\(endMessage.results.count)")
+                    print("INFO [Game] Game ended | winner=\(endMessage.winner ?? "TIE") players=\(endMessage.results.count)")
                     DispatchQueue.main.async {
-                        print("📞 Calling onGameEnded callback...")
                         self.onGameEnded?(endMessage)
-                        print("🏁 Game ended! Winner: \(endMessage.winner ?? "TIE")")
                     }
                 } else {
-                    print("❌ Failed to decode game_ended message")
+                    print("ERROR [WebSocket] Failed to decode game_ended")
                 }
 
             case "game_started":
                 if let startMessage = try? JSONDecoder().decode(GameStartedMessage.self, from: data) {
                     DispatchQueue.main.async {
                         self.onGameStarted?(startMessage)
-                        print("🎮 Game started!")
                     }
                 }
 
@@ -295,18 +276,17 @@ class WebSocketManager: ObservableObject {
                 if let joinedMessage = try? JSONDecoder().decode(PlayerJoinedMessage.self, from: data) {
                     DispatchQueue.main.async {
                         self.onPlayerJoined?(joinedMessage)
-                        print("👋 Player joined: \(joinedMessage.playerName) (\(joinedMessage.playerCount)/\(joinedMessage.maxPlayers))")
                     }
                 }
 
             case "player_connected":
-                print("👋 Player connected")
+                break // Normal operation, no logging needed
 
             case "player_disconnected":
-                print("👋 Player disconnected")
+                break // Normal operation, no logging needed
 
             default:
-                print("⚠️ Unknown message type: \(type)")
+                print("WARN [WebSocket] Unknown message type: \(type)")
             }
         }
     }

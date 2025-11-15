@@ -509,24 +509,20 @@ struct GameView: View {
             // Reuse existing WebSocket manager if provided, otherwise create new one
             let wsManager: WebSocketManager
             if let existingManager = initialWebSocketManager {
-                print("🔄 Reusing existing WebSocket connection from WaitingRoomView")
                 wsManager = existingManager
             } else {
-                print("🔌 Creating new WebSocket connection")
                 wsManager = WebSocketManager(gameId: gid, playerId: pid)
                 wsManager.connect()
             }
 
             // Set up callbacks (these may override existing ones from WaitingRoomView)
             wsManager.onGameStarted = { startMessage in
-                print("🎮 Game started via WebSocket!")
                 self.board = startMessage.board
                 self.timeLimit = startMessage.timeLimit
                 self.startedAt = startMessage.startedAt
 
                 // Start countdown timer now that we have the timing info
                 if let limit = startMessage.timeLimit {
-                    print("🕐 Starting countdown timer: timeLimit=\(limit), startedAt=\(startMessage.startedAt)")
                     self.startCountdownTimer(from: limit, startedAt: startMessage.startedAt)
                 }
             }
@@ -555,10 +551,7 @@ struct GameView: View {
 
             // Start countdown timer if time limit and started_at provided
             if let limit = timeLimit, let started = startedAt {
-                print("🕐 Starting countdown timer: timeLimit=\(limit), startedAt=\(started)")
                 startCountdownTimer(from: limit, startedAt: started)
-            } else {
-                print("⚠️ No timer started: timeLimit=\(String(describing: timeLimit)), startedAt=\(String(describing: startedAt))")
             }
 
             isLoading = false
@@ -689,14 +682,13 @@ struct GameView: View {
         dateFormatter.timeZone = TimeZone(identifier: "UTC")
 
         guard let startTime = iso8601Formatter.date(from: startedAt) ?? dateFormatter.date(from: startedAt) else {
-            print("❌ Failed to parse started_at: \(startedAt)")
+            print("ERROR [Timer] Failed to parse start time | startedAt=\(startedAt)")
             return
         }
 
         // Calculate initial remaining time
         let endTime = startTime.addingTimeInterval(TimeInterval(timeLimit))
         let remaining = max(0, Int(endTime.timeIntervalSinceNow))
-        print("🕐 Timer calculated: remaining=\(remaining)s, endTime=\(endTime), now=\(Date())")
         timeRemaining = remaining
 
         // Create a timer that fires every second and recalculates from server time
