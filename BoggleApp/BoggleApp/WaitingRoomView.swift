@@ -90,7 +90,7 @@ struct WaitingRoomView: View {
         }
         .navigationDestination(isPresented: $navigateToGame) {
             if !board.isEmpty {
-                GameView(navigationPath: $navigationPath, gameId: gameId, playerId: playerId, initialBoard: board, initialTimeLimit: timeLimit, initialStartedAt: startedAt)
+                GameView(navigationPath: $navigationPath, gameId: gameId, playerId: playerId, initialBoard: board, initialTimeLimit: timeLimit, initialStartedAt: startedAt, webSocketManager: webSocketManager)
             }
         }
         .navigationBarBackButtonHidden(true)
