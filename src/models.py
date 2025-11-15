@@ -1,7 +1,7 @@
 # ABOUTME: Database models (tables) for the application
 # ABOUTME: Defines User, Game, and related tables
 
-from sqlalchemy import String, Integer, DateTime, ForeignKey, Text
+from sqlalchemy import String, Integer, Boolean, DateTime, ForeignKey, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime, timezone
 from typing import Optional, List
@@ -175,7 +175,7 @@ class Game(Base):
     # Public games can be discovered and joined by anyone
     # Private games require a friendly code to join (default)
     is_public: Mapped[bool] = mapped_column(
-        Integer,  # SQLite doesn't have native Boolean, uses 0/1
+        Boolean,  # SQLAlchemy handles Boolean for both SQLite and PostgreSQL
         nullable=False,
         default=False,
         index=True  # For efficient public game discovery
