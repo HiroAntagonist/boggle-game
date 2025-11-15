@@ -216,6 +216,7 @@ class ConnectionManager:
         If player_id already has a connection, the old connection is closed
         and replaced with the new one (reconnection).
         """
+        print(f"🔌 Accepting WebSocket for game={game_id[:8]}..., player={player_id[:8]}...")
         await websocket.accept()
 
         # Ensure game_id dict exists (atomic operation - prevents race conditions)
@@ -223,6 +224,7 @@ class ConnectionManager:
 
         # Close old connection if player is reconnecting
         if player_id in player_connections:
+            print(f"🔄 Closing old connection for player={player_id[:8]}... (reconnection)")
             old_ws = player_connections[player_id]
             try:
                 await old_ws.close(code=1000, reason="Reconnected from another session")
@@ -231,6 +233,7 @@ class ConnectionManager:
 
         # Store new connection
         player_connections[player_id] = websocket
+        print(f"✅ WebSocket connected: game={game_id[:8]}..., player={player_id[:8]}..., total_connections={len(player_connections)}")
 
     def disconnect(self, websocket: WebSocket, game_id: str, player_id: str) -> bool:
         """Remove a WebSocket connection.
@@ -239,16 +242,19 @@ class ConnectionManager:
         False if it was already replaced (e.g., player reconnected).
         """
         if game_id not in self.active_connections:
+            print(f"❌ Disconnect called but game={game_id[:8]}... not in active_connections")
             return False
 
         # Only remove if this is the CURRENT connection for this player
         current_ws = self.active_connections[game_id].get(player_id)
         if current_ws is not websocket:
             # This was an old connection that already got replaced
+            print(f"⚠️  Disconnect called for OLD connection (already replaced): player={player_id[:8]}...")
             return False
 
         # Remove the connection
         del self.active_connections[game_id][player_id]
+        print(f"🔌 WebSocket disconnected: game={game_id[:8]}..., player={player_id[:8]}..., remaining={len(self.active_connections.get(game_id, {}))}")
 
         # Clean up empty game
         if not self.active_connections[game_id]:
@@ -482,7 +488,9 @@ async def end_game(game_id: str, db: Session) -> None:
         results=results
     )
 
+    print(f"📢 Broadcasting game_ended to game {game_id}: winner={winner}, {len(results)} players")
     await manager.broadcast(end_message.model_dump_json(), game_id)
+    print(f"✅ Broadcasted game_ended to {len(manager.active_connections.get(game_id, []))} connections")
 
     print(f"Game {game_id} ended. Winner: {winner}")
 

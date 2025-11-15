@@ -271,11 +271,16 @@ class WebSocketManager: ObservableObject {
                 }
 
             case "game_ended":
+                print("🎯 Received game_ended message, attempting to decode...")
                 if let endMessage = try? JSONDecoder().decode(GameEndedMessage.self, from: data) {
+                    print("✅ Decoded game_ended successfully: winner=\(endMessage.winner ?? "TIE"), players=\(endMessage.results.count)")
                     DispatchQueue.main.async {
+                        print("📞 Calling onGameEnded callback...")
                         self.onGameEnded?(endMessage)
                         print("🏁 Game ended! Winner: \(endMessage.winner ?? "TIE")")
                     }
+                } else {
+                    print("❌ Failed to decode game_ended message")
                 }
 
             case "game_started":
