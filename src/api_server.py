@@ -747,7 +747,7 @@ async def health_check(db: Session = Depends(get_db)) -> HealthCheckResponse:
 
 
 @app.get("/test/sentry")
-async def test_sentry_error(current_user: User = Depends(get_current_user)) -> dict:
+async def test_sentry_error(current_user: User = Depends(get_current_user_from_db)) -> dict:
     """Test endpoint to trigger a Sentry error for testing alerts.
 
     This endpoint deliberately raises an exception to verify:
