@@ -746,6 +746,21 @@ async def health_check(db: Session = Depends(get_db)) -> HealthCheckResponse:
     )
 
 
+@app.get("/test/sentry")
+async def test_sentry_error(current_user: User = Depends(get_current_user)) -> dict:
+    """Test endpoint to trigger a Sentry error for testing alerts.
+
+    This endpoint deliberately raises an exception to verify:
+    - Sentry error tracking is working
+    - User context is captured correctly
+    - Alerts are triggered in production
+
+    Requires authentication to test user context middleware.
+    """
+    print(f"🧪 TEST: Triggering Sentry test error for user {current_user.email}")
+    raise ValueError(f"Sentry test error triggered by {current_user.email}")
+
+
 @app.post("/games", response_model=CreateGameResponse, status_code=status.HTTP_201_CREATED)
 def create_game(
     request: CreateGameRequest = CreateGameRequest(),
