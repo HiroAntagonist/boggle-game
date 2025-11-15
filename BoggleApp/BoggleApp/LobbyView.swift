@@ -52,6 +52,30 @@ struct LobbyView: View {
                     }
                     .buttonStyle(.bordered)
                     .font(.title3)
+
+                    NavigationLink(value: "browseGames") {
+                        Text("Browse Public Games")
+                            .frame(width: 200)
+                    }
+                    .buttonStyle(.bordered)
+                    .font(.title3)
+
+                    HStack(spacing: 15) {
+                        NavigationLink(value: "profile") {
+                            Label("Profile", systemImage: "person.circle")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+
+                        NavigationLink(value: "leaderboard") {
+                            Label("Board", systemImage: "trophy")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                    .frame(width: 200)
                 }
             }
             .padding()
@@ -106,6 +130,12 @@ struct LobbyView: View {
                     NewGameView(navigationPath: $navigationPath)
                 } else if destination == "joinGame" {
                     JoinGameView(navigationPath: $navigationPath)
+                } else if destination == "profile" {
+                    ProfileView()
+                } else if destination == "leaderboard" {
+                    LeaderboardView()
+                } else if destination == "browseGames" {
+                    PublicGamesView(navigationPath: $navigationPath)
                 } else if destination.hasPrefix("waitingRoom:") {
                     // Parse reconnection to waiting room: "waitingRoom:gameId:playerId:maxPlayers"
                     let parts = destination.split(separator: ":").map(String.init)

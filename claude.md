@@ -197,3 +197,4 @@ This script:
 - **Type safety**: Compile-time errors if client uses wrong types
 - **Auto documentation**: Field descriptions from Pydantic carry over to Swift
 - **Consistent naming**: Generator handles snake_case → camelCase conversion
+- Todo list for public games an leader board

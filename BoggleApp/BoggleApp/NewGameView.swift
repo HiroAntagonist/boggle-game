@@ -11,9 +11,12 @@ struct NewGameView: View {
     @State private var boardSize = 4
     @State private var timeLimit = 180
     @State private var maxPlayers = 2
+    @State private var isPublic = false
     @State private var isCreating = false
     @State private var errorMessage: String?
     @State private var navigateToWaitingRoom = false
+    @State private var showGamerTagAlert = false
+    @State private var userGamerTag: String?
     @State private var createdGameId: String?
     @State private var createdFriendlyCode: String?
     @State private var playerId: String?
@@ -29,7 +32,7 @@ struct NewGameView: View {
                     .fontWeight(.bold)
 
                 Form {
-                    Section("Game Settings") {
+                    Section {
                         Picker("Board Size", selection: $boardSize) {
                             ForEach(boardSizes, id: \.self) { size in
                                 Text("\(size)×\(size)").tag(size)
@@ -47,9 +50,24 @@ struct NewGameView: View {
                                 Text("\(count) players").tag(count)
                             }
                         }
+
+                        Toggle("Make Public", isOn: $isPublic)
+                            .onChange(of: isPublic) { oldValue, newValue in
+                                if newValue && userGamerTag == nil {
+                                    isPublic = false
+                                    showGamerTagAlert = true
+                                }
+                            }
+                    } header: {
+                        Text("Game Settings")
+                    } footer: {
+                        if isPublic {
+                            Text("Public games are discoverable by all players and appear on the leaderboard")
+                                .font(.caption)
+                        }
                     }
                 }
-                .frame(height: 250)
+                .frame(height: 280)
 
                 if let error = errorMessage {
                     Text(error)
@@ -81,7 +99,26 @@ struct NewGameView: View {
                 boardSize = 4
                 timeLimit = 180
                 maxPlayers = 2
+                isPublic = false
                 errorMessage = nil
+
+                // Fetch user's gamer tag to validate public game creation
+                Task {
+                    do {
+                        let profile = try await BoggleAPI.shared.getCurrentUserProfile()
+                        userGamerTag = profile.gamerTag
+                    } catch {
+                        print("⚠️ Failed to fetch user profile: \(error.localizedDescription)")
+                    }
+                }
+            }
+            .alert("Gamer Tag Required", isPresented: $showGamerTagAlert) {
+                Button("Set Gamer Tag") {
+                    navigationPath.append("profile")
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("You must set a gamer tag in your profile before creating public games.")
             }
     }
 
@@ -89,11 +126,19 @@ struct NewGameView: View {
         isCreating = true
         errorMessage = nil
 
+        // Final validation: prevent public game without gamer tag
+        if isPublic && userGamerTag == nil {
+            errorMessage = "You must set a gamer tag before creating public games"
+            isCreating = false
+            return
+        }
+
         do {
             let game = try await BoggleAPI.shared.createGame(
                 boardSize: boardSize,
                 timeLimitSeconds: timeLimit,
-                maxPlayers: maxPlayers
+                maxPlayers: maxPlayers,
+                isPublic: isPublic
             )
             createdGameId = game.gameId
             createdFriendlyCode = game.friendlyCode

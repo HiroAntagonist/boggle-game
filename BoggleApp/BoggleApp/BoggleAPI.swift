@@ -200,7 +200,7 @@ class BoggleAPI {
 
     // MARK: - Game Management
 
-    func createGame(boardSize: Int = 4, timeLimitSeconds: Int = 180, maxPlayers: Int = 4) async throws -> CreateGameResponse {
+    func createGame(boardSize: Int = 4, timeLimitSeconds: Int = 180, maxPlayers: Int = 4, isPublic: Bool = false) async throws -> CreateGameResponse {
         guard let token = accessToken else {
             throw APIError.notAuthenticated
         }
@@ -208,7 +208,8 @@ class BoggleAPI {
         let request = CreateGameRequest(
             boardSize: boardSize,
             timeLimitSeconds: timeLimitSeconds,
-            maxPlayers: maxPlayers
+            maxPlayers: maxPlayers,
+            isPublic: isPublic
         )
         let url = URL(string: "\(baseURL)/games")!
 
@@ -218,7 +219,7 @@ class BoggleAPI {
         urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         urlRequest.httpBody = try JSONEncoder().encode(request)
 
-        print("🔵 Creating game: boardSize=\(boardSize), timeLimit=\(timeLimitSeconds)s, maxPlayers=\(maxPlayers)")
+        print("🔵 Creating game: boardSize=\(boardSize), timeLimit=\(timeLimitSeconds)s, maxPlayers=\(maxPlayers), isPublic=\(isPublic)")
 
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
 
@@ -371,6 +372,171 @@ class BoggleAPI {
         return gameState
     }
 
+    // MARK: - User Profile & Stats
+
+    func getCurrentUserProfile() async throws -> UserResponse {
+        guard let token = accessToken else {
+            throw APIError.notAuthenticated
+        }
+
+        let url = URL(string: "\(baseURL)/auth/me")!
+
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "GET"
+        urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        print("🔵 Fetching current user profile")
+
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.fetchGameFailed
+        }
+
+        if !isSuccessStatusCode(httpResponse.statusCode) {
+            handleUnauthorized(httpResponse.statusCode)
+            if let errorString = String(data: data, encoding: .utf8) {
+                print("❌ Fetch profile error (\(httpResponse.statusCode)): \(errorString)")
+            }
+            throw APIError.fetchGameFailed
+        }
+
+        let userResponse = try JSONDecoder().decode(UserResponse.self, from: data)
+        print("✅ Profile fetched: email=\(userResponse.email), gamerTag=\(userResponse.gamerTag ?? "nil")")
+        return userResponse
+    }
+
+    func updateProfile(gamerTag: String?) async throws -> UserResponse {
+        guard let token = accessToken else {
+            throw APIError.notAuthenticated
+        }
+
+        let request = UpdateProfileRequest(gamerTag: gamerTag)
+        let url = URL(string: "\(baseURL)/auth/profile")!
+
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "PATCH"
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        urlRequest.httpBody = try JSONEncoder().encode(request)
+
+        print("🔵 Updating profile: gamerTag=\(gamerTag ?? "nil")")
+
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.updateProfileFailed
+        }
+
+        if !isSuccessStatusCode(httpResponse.statusCode) {
+            handleUnauthorized(httpResponse.statusCode)
+            if let errorString = String(data: data, encoding: .utf8) {
+                print("❌ Update profile error (\(httpResponse.statusCode)): \(errorString)")
+            }
+            throw APIError.updateProfileFailed
+        }
+
+        let userResponse = try JSONDecoder().decode(UserResponse.self, from: data)
+        print("✅ Profile updated successfully: gamerTag=\(userResponse.gamerTag ?? "nil")")
+        return userResponse
+    }
+
+    func getUserStats() async throws -> UserStatsResponse {
+        guard let token = accessToken else {
+            throw APIError.notAuthenticated
+        }
+
+        let url = URL(string: "\(baseURL)/users/me/stats")!
+
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "GET"
+        urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        print("🔵 Fetching user stats")
+
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.fetchStatsFailed
+        }
+
+        if !isSuccessStatusCode(httpResponse.statusCode) {
+            handleUnauthorized(httpResponse.statusCode)
+            if let errorString = String(data: data, encoding: .utf8) {
+                print("❌ Fetch stats error (\(httpResponse.statusCode)): \(errorString)")
+            }
+            throw APIError.fetchStatsFailed
+        }
+
+        let stats = try JSONDecoder().decode(UserStatsResponse.self, from: data)
+        print("✅ Stats fetched: games=\(stats.totalGames), wins=\(stats.totalWins)")
+        return stats
+    }
+
+    func getLeaderboard(limit: Int = 10) async throws -> LeaderboardResponse {
+        guard let token = accessToken else {
+            throw APIError.notAuthenticated
+        }
+
+        let url = URL(string: "\(baseURL)/leaderboard?limit=\(limit)")!
+
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "GET"
+        urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        print("🔵 Fetching leaderboard (limit=\(limit))")
+
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.fetchLeaderboardFailed
+        }
+
+        if !isSuccessStatusCode(httpResponse.statusCode) {
+            handleUnauthorized(httpResponse.statusCode)
+            if let errorString = String(data: data, encoding: .utf8) {
+                print("❌ Fetch leaderboard error (\(httpResponse.statusCode)): \(errorString)")
+            }
+            throw APIError.fetchLeaderboardFailed
+        }
+
+        let leaderboard = try JSONDecoder().decode(LeaderboardResponse.self, from: data)
+        print("✅ Leaderboard fetched: \(leaderboard.leaderboard.count) entries")
+        return leaderboard
+    }
+
+    func getPublicGames(limit: Int = 20) async throws -> PublicGamesResponse {
+        guard let token = accessToken else {
+            throw APIError.notAuthenticated
+        }
+
+        let url = URL(string: "\(baseURL)/games/public?limit=\(limit)")!
+
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "GET"
+        urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        print("🔵 Fetching public games (limit=\(limit))")
+
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.fetchPublicGamesFailed
+        }
+
+        if !isSuccessStatusCode(httpResponse.statusCode) {
+            handleUnauthorized(httpResponse.statusCode)
+            if let errorString = String(data: data, encoding: .utf8) {
+                print("❌ Fetch public games error (\(httpResponse.statusCode)): \(errorString)")
+            }
+            throw APIError.fetchPublicGamesFailed
+        }
+
+        let publicGames = try JSONDecoder().decode(PublicGamesResponse.self, from: data)
+        print("✅ Public games fetched: \(publicGames.games.count) games")
+        return publicGames
+    }
+
     // MARK: - Reconnection Support
 
     /// Save active game state for reconnection after app restart/crash
@@ -438,6 +604,10 @@ enum APIError: Error, LocalizedError {
     case joinGameFailed
     case startGameFailed
     case fetchGameFailed
+    case updateProfileFailed
+    case fetchStatsFailed
+    case fetchLeaderboardFailed
+    case fetchPublicGamesFailed
 
     var errorDescription: String? {
         switch self {
@@ -457,6 +627,14 @@ enum APIError: Error, LocalizedError {
             return "Failed to start game"
         case .fetchGameFailed:
             return "Failed to fetch game state"
+        case .updateProfileFailed:
+            return "Failed to update profile"
+        case .fetchStatsFailed:
+            return "Failed to fetch user stats"
+        case .fetchLeaderboardFailed:
+            return "Failed to fetch leaderboard"
+        case .fetchPublicGamesFailed:
+            return "Failed to fetch public games"
         }
     }
 }
