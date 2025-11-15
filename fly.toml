@@ -16,6 +16,9 @@ primary_region = 'sjc'
 
 # Build configuration - use our Dockerfile
 [build]
+  # Pass git commit SHA to Docker build for Sentry release tracking
+  [build.args]
+    GIT_COMMIT = "sh -c 'git rev-parse HEAD 2>/dev/null || echo unknown'"
 
 # Environment variables (non-secret)
 # Secrets (like SECRET_KEY, DATABASE_URL) are set via flyctl secrets

@@ -38,9 +38,13 @@ if SENTRY_DSN:
     from sentry_sdk.integrations.fastapi import FastApiIntegration
     from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 
+    # Get git commit for release tracking
+    GIT_COMMIT = os.getenv("GIT_COMMIT", "unknown")
+
     sentry_sdk.init(
         dsn=SENTRY_DSN,
         environment=ENVIRONMENT,  # Tag errors by environment
+        release=f"boggle@{GIT_COMMIT[:7]}",  # Track which code version caused errors
         traces_sample_rate=1.0 if ENVIRONMENT == "development" else 0.1,  # 100% dev, 10% prod
         profiles_sample_rate=1.0 if ENVIRONMENT == "development" else 0.1,
         integrations=[
@@ -50,7 +54,7 @@ if SENTRY_DSN:
         # Filter out sensitive data
         before_send=lambda event, hint: event if event.get("level") != "info" else None,
     )
-    print(f"✅ Sentry error tracking initialized (environment: {ENVIRONMENT})")
+    print(f"✅ Sentry error tracking initialized (environment: {ENVIRONMENT}, release: {GIT_COMMIT[:7]})")
 else:
     print("⚠️ SENTRY_DSN not set - error tracking disabled")
 
@@ -149,6 +153,58 @@ app = FastAPI(
 limiter = Limiter(key_func=get_remote_address, auto_check=False, enabled=True)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
+
+
+# Sentry Context Middleware
+# Add user and game context to every Sentry error for easier debugging
+if SENTRY_DSN:
+    from fastapi import Request
+    from src.auth import decode_access_token
+
+    @app.middleware("http")
+    async def add_sentry_context(request: Request, call_next):  # type: ignore[no-untyped-def]
+        """Add user and game context to Sentry errors."""
+        import sentry_sdk
+
+        # Extract user from JWT token if present
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.replace("Bearer ", "")
+            payload = decode_access_token(token)
+            if payload and "user_id" in payload:
+                # Set user context for Sentry
+                sentry_sdk.set_user({
+                    "id": payload["user_id"],
+                    "email": payload.get("email"),
+                })
+
+        # Extract game context from URL path params
+        # /games/{game_id}/... → tag with game_id
+        path_parts = request.url.path.split("/")
+        if len(path_parts) >= 3 and path_parts[1] == "games":
+            game_id = path_parts[2]
+            if game_id and len(game_id) >= 8:
+                sentry_sdk.set_tag("game_id", game_id[:8])
+
+        # Extract player_id from query params (WebSocket uses ?player_id=...)
+        if "player_id" in request.query_params:
+            player_id = request.query_params["player_id"]
+            if player_id and len(player_id) >= 8:
+                sentry_sdk.set_tag("player_id", player_id[:8])
+
+        # Add endpoint type tag for filtering
+        if "/games" in request.url.path:
+            if request.method == "POST" and request.url.path == "/games":
+                sentry_sdk.set_tag("endpoint_type", "game_creation")
+            elif "/join" in request.url.path:
+                sentry_sdk.set_tag("endpoint_type", "join_game")
+            elif "/start" in request.url.path:
+                sentry_sdk.set_tag("endpoint_type", "start_game")
+            elif "/ws/" in request.url.path:
+                sentry_sdk.set_tag("endpoint_type", "websocket")
+
+        response = await call_next(request)
+        return response
 
 
 @app.on_event("startup")
@@ -743,6 +799,13 @@ def create_game(
 
             # Log successful game creation
             print(f"INFO [API] Game created - UUID: {db_game.id} | Friendly Code: {db_game.friendly_code} | Creator: {get_display_name(current_user)}")
+
+            # Add Sentry tags for game creation context
+            if SENTRY_DSN:
+                import sentry_sdk
+                sentry_sdk.set_tag("game_status", db_game.status)
+                sentry_sdk.set_tag("max_players", db_game.max_players)
+                sentry_sdk.set_tag("board_size", db_game.board_size)
 
             break  # Success - exit retry loop
 
@@ -1441,6 +1504,21 @@ async def websocket_endpoint(
         # Accept connection (will replace old connection if player is reconnecting)
         await manager.connect(websocket, game_id, player_id)
 
+        # Add Sentry breadcrumb for player connection
+        if SENTRY_DSN:
+            import sentry_sdk
+            sentry_sdk.add_breadcrumb(
+                category='websocket',
+                message=f'Player connected to game',
+                level='info',
+                data={
+                    'game_id': game_id[:8],
+                    'player_id': player_id[:8],
+                    'player_name': get_display_name(user),
+                    'game_status': db_game.status
+                }
+            )
+
         # Notify others that player connected
         from src.ws_models import PlayerConnectedMessage
         connect_msg = PlayerConnectedMessage(
@@ -1474,6 +1552,20 @@ async def websocket_endpoint(
 
                 # Handle word submission
                 word = submit_msg.word.upper()
+
+                # Add Sentry breadcrumb for word submission
+                if SENTRY_DSN:
+                    import sentry_sdk
+                    sentry_sdk.add_breadcrumb(
+                        category='game',
+                        message=f'Word submitted: {word}',
+                        level='info',
+                        data={
+                            'game_id': game_id[:8],
+                            'player_id': player_id[:8],
+                            'word': word
+                        }
+                    )
 
                 # Validate and submit word using Game object
                 is_valid = game.submit_word(word, player)

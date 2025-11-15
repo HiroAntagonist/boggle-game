@@ -55,7 +55,14 @@ RUN pip install --no-cache-dir uv && \
 # - We won't be installing more packages after build
 
 # ============================================================================
-# Stage 6: Copy Application Code
+# Stage 6: Capture Git Commit SHA for Release Tracking
+# ============================================================================
+# This build arg is passed during docker build and used for Sentry release tracking
+ARG GIT_COMMIT=unknown
+ENV GIT_COMMIT=${GIT_COMMIT}
+
+# ============================================================================
+# Stage 7: Copy Application Code
 # ============================================================================
 # NOW we copy our application code
 # This layer rebuilds every time you change code (which is frequent)
@@ -70,7 +77,7 @@ COPY data/ ./data/
 # - __pycache__/ (will be regenerated)
 
 # ============================================================================
-# Stage 7: Set Environment Variables
+# Stage 8: Set Environment Variables
 # ============================================================================
 # These are defaults that can be overridden when running the container
 ENV PYTHONUNBUFFERED=1
@@ -81,20 +88,20 @@ ENV PORT=8000
 # The port our app will listen on inside the container
 
 # ============================================================================
-# Stage 8: Expose Port
+# Stage 9: Expose Port
 # ============================================================================
 # This is documentation - tells users "this app listens on port 8000"
 # Doesn't actually open the port (that happens when we run the container)
 EXPOSE 8000
 
 # ============================================================================
-# Stage 9: Copy Entrypoint Script
+# Stage 10: Copy Entrypoint Script
 # ============================================================================
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 
 # ============================================================================
-# Stage 10: Define Startup Command
+# Stage 11: Define Startup Command
 # ============================================================================
 # This command runs when the container starts
 # We use the "exec form" (JSON array) for proper signal handling
