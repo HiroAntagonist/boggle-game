@@ -144,9 +144,9 @@ app = FastAPI(
 )
 
 # Rate limiting configuration
-# Note: auto_check=True enables automatic rate limiting for all routes
-# WebSocket endpoints must be explicitly exempted using @limiter.exempt
-limiter = Limiter(key_func=get_remote_address, auto_check=True)
+# Note: auto_check=False to manually control which routes are rate limited
+# WebSocket routes cannot be rate limited by slowapi (causes connection issues)
+limiter = Limiter(key_func=get_remote_address, auto_check=False, enabled=True)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
@@ -595,7 +595,6 @@ def verify_game_participant(game_id: str, user_id: str, db: Session) -> None:
 
 
 @app.get("/health", response_model=HealthCheckResponse)
-@limiter.exempt
 async def health_check(db: Session = Depends(get_db)) -> HealthCheckResponse:
     """Health check endpoint for monitoring server status.
 
@@ -1378,7 +1377,6 @@ def get_game_results(
 
 
 @app.websocket("/ws/{game_id}/{player_id}")
-@limiter.exempt
 async def websocket_endpoint(
     websocket: WebSocket,
     game_id: str,
@@ -1603,7 +1601,6 @@ async def websocket_endpoint(
 
 
 @app.post("/auth/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
-@limiter.limit("10/minute")
 def register(
     request: Request,
     body: RegisterRequest,
@@ -1612,7 +1609,6 @@ def register(
     """Register a new user account.
 
     Creates a new user with hashed password. Email must be unique.
-    Rate limited to 10 requests per minute per IP address.
     """
     # Check if email already exists
     existing_email = db.query(User).filter(User.email == body.email).first()
@@ -1653,7 +1649,6 @@ def register(
 
 
 @app.post("/auth/login", response_model=LoginResponse)
-@limiter.limit("10/minute")
 def login(
     request: Request,
     body: LoginRequest,
@@ -1687,7 +1682,6 @@ def login(
 
 
 @app.post("/auth/google", response_model=LoginResponse)
-@limiter.limit("5/minute")
 def google_auth(
     request: Request,
     body: GoogleAuthRequest,
@@ -1697,7 +1691,6 @@ def google_auth(
 
     Verifies Google ID token and creates user if doesn't exist, or links OAuth to existing email.
     Returns JWT token for subsequent API calls.
-    Rate limited to 5 requests per minute per IP address.
     """
     try:
         # Verify the Google ID token
