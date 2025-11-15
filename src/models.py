@@ -18,6 +18,7 @@ class User(Base):
     - email (unique, required) - primary login identifier
     - password_hash (nullable) - null for OAuth users
     - display_name (nullable) - shown in games, not unique
+    - gamer_tag (nullable, unique) - unique username for public games
     - oauth_provider (nullable) - "google", "github", etc.
     - oauth_id (nullable) - provider's user ID
     - created_at (timestamp)
@@ -53,6 +54,16 @@ class User(Base):
     # If null, fallback to email prefix (john@gmail.com -> "john")
     display_name: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
 
+    # Gamer tag - unique username for public games and leaderboards
+    # Required only for public games, optional for private games
+    # 3-20 characters, alphanumeric + underscores only
+    gamer_tag: Mapped[Optional[str]] = mapped_column(
+        String(20),
+        unique=True,
+        nullable=True,
+        index=True
+    )
+
     # OAuth fields - for Google, GitHub, etc. authentication
     # Provider: "google", "github", null for traditional email/password
     oauth_provider: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
@@ -87,10 +98,15 @@ class Game(Base):
 
     This becomes a database table called 'games' with columns:
     - id (UUID primary key)
+    - friendly_code (unique 9-char code for joining)
     - creator_id (foreign key to users table)
     - status (created, waiting, in_progress, finished, abandoned)
     - board_size (4 or 5)
     - time_limit (seconds, nullable)
+    - max_players (1-8, default 4)
+    - min_word_length (default 3)
+    - is_public (boolean, default false) - discoverable by anyone
+    - winner_id (foreign key to users table, nullable)
     - board_state (JSON string of the board)
     - created_at (timestamp)
     - started_at (timestamp, nullable)
@@ -155,6 +171,26 @@ class Game(Base):
         default=3  # Minimum word length (standard Boggle rule)
     )
 
+    # VISIBILITY
+    # Public games can be discovered and joined by anyone
+    # Private games require a friendly code to join (default)
+    is_public: Mapped[bool] = mapped_column(
+        Integer,  # SQLite doesn't have native Boolean, uses 0/1
+        nullable=False,
+        default=False,
+        index=True  # For efficient public game discovery
+    )
+
+    # WINNER
+    # Set when game finishes, references the winning user
+    # Null if game is abandoned or not finished
+    winner_id: Mapped[Optional[str]] = mapped_column(
+        String(36),
+        ForeignKey("users.id"),
+        nullable=True,
+        index=True  # For leaderboard queries
+    )
+
     # GAME STATE
     # Text type for longer strings (vs String which has a length limit)
     # We'll store the board as JSON: '[["A","B","C","D"],["E","F","G","H"],...]'
@@ -194,6 +230,13 @@ class Game(Base):
         "User",
         back_populates="created_games",
         foreign_keys=[creator_id]
+    )
+
+    # MANY-TO-ONE: winner relationship
+    # When you access game.winner, SQLAlchemy does: SELECT * FROM users WHERE id = game.winner_id
+    winner: Mapped[Optional["User"]] = relationship(
+        "User",
+        foreign_keys=[winner_id]
     )
 
     # MANY-TO-MANY: players relationship (via GamePlayer join table)

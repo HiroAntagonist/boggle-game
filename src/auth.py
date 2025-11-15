@@ -254,3 +254,53 @@ def make_get_current_user_from_db() -> Any:
 
 # Create the actual dependency
 get_current_user_from_db = make_get_current_user_from_db()
+
+
+def make_get_current_user_from_db_optional() -> Any:
+    """Factory function for optional authentication dependency.
+
+    Returns None if no token provided or token is invalid.
+    Use this for endpoints that work for both authenticated and anonymous users.
+    """
+    from src.database import get_db
+    from src.models import User
+
+    def get_current_user_from_db_optional(
+        credentials: HTTPAuthorizationCredentials | None = Depends(HTTPBearer(auto_error=False)),
+        db: Session = Depends(get_db),
+    ) -> Any:
+        """Get User object if authenticated, None otherwise.
+
+        Args:
+            credentials: Optional HTTP Authorization credentials
+            db: Database session
+
+        Returns:
+            User object if authenticated, None otherwise
+        """
+        # No credentials provided - return None
+        if credentials is None:
+            return None
+
+        # Extract token
+        token = credentials.credentials
+
+        # Decode and validate token
+        payload = decode_access_token(token)
+        if payload is None:
+            return None
+
+        # Extract user_id
+        user_id: str | None = payload.get("user_id")
+        if user_id is None:
+            return None
+
+        # Get user from database
+        user = db.query(User).filter(User.id == user_id).first()
+        return user  # Could be None if user not found
+
+    return get_current_user_from_db_optional
+
+
+# Create the optional dependency
+get_current_user_from_db_optional = make_get_current_user_from_db_optional()

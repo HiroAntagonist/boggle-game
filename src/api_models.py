@@ -10,6 +10,7 @@ class CreateGameRequest(BaseModel):
     board_size: int = Field(default=4, ge=4, le=5, description="Board size (4 or 5)")
     time_limit_seconds: int = Field(default=180, gt=0, le=600, description="Game time limit in seconds (max 10 minutes)")
     max_players: int = Field(default=4, ge=1, le=8, description="Maximum number of players")
+    is_public: bool = Field(default=False, description="Whether game is publicly discoverable (requires gamer_tag)")
 
 
 class CreateGameResponse(BaseModel):
@@ -105,6 +106,8 @@ class RegisterResponse(BaseModel):
     user_id: str
     email: str
     display_name: str | None
+    gamer_tag: str | None = Field(default=None, description="Unique username for public games")
+    access_token: str
     message: str
 
 
@@ -130,6 +133,54 @@ class UserResponse(BaseModel):
     user_id: str
     email: str
     display_name: str | None
+    gamer_tag: str | None = Field(default=None, description="Unique username for public games")
+
+
+class UpdateProfileRequest(BaseModel):
+    """Request model for updating user profile."""
+    display_name: str | None = Field(default=None, min_length=1, max_length=50, description="Update display name")
+    gamer_tag: str | None = Field(default=None, min_length=3, max_length=20, pattern=r"^[a-zA-Z0-9_]{3,20}$", description="Unique gamer tag (3-20 alphanumeric + underscores)")
+
+
+class UserStatsResponse(BaseModel):
+    """Response model for user statistics."""
+    total_games: int = Field(description="Total games played")
+    total_wins: int = Field(description="Total games won")
+    win_rate: float = Field(description="Win rate (0.0 to 1.0)")
+    total_points: int = Field(description="Total points scored across all games")
+    average_score: float = Field(description="Average score per game")
+    best_score: int = Field(description="Highest score in a single game")
+
+
+class LeaderboardEntry(BaseModel):
+    """Single entry in the leaderboard."""
+    rank: int = Field(description="Player's rank (1-indexed)")
+    gamer_tag: str | None = Field(description="Player's gamer tag or display name")
+    total_wins: int = Field(description="Total wins")
+    total_games: int = Field(description="Total games played")
+
+
+class LeaderboardResponse(BaseModel):
+    """Response model for leaderboard."""
+    leaderboard: List[LeaderboardEntry] = Field(description="Top players ranked by wins")
+    user_rank: LeaderboardEntry | None = Field(default=None, description="Current user's rank if they have wins")
+
+
+class PublicGameEntry(BaseModel):
+    """Single entry for a public game."""
+    game_id: str = Field(description="Game identifier")
+    friendly_code: str = Field(description="Joinable game code")
+    creator_gamer_tag: str | None = Field(description="Creator's gamer tag or display name")
+    current_players: int = Field(description="Current number of players")
+    max_players: int = Field(description="Maximum players")
+    board_size: int = Field(description="Board size (4 or 5)")
+    time_limit: int | None = Field(description="Time limit in seconds")
+    created_at: str = Field(description="ISO timestamp of creation")
+
+
+class PublicGamesResponse(BaseModel):
+    """Response model for public games list."""
+    games: List[PublicGameEntry] = Field(description="List of waiting public games")
 
 
 class DatabaseHealth(BaseModel):
