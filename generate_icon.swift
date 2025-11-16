@@ -3,7 +3,7 @@
 import AppKit
 import Foundation
 
-// Create a 1024x1024 app icon for Clauddle
+// Create a 1024x1024 app icon for Jumble
 func generateIcon() {
     let size = CGSize(width: 1024, height: 1024)
     let image = NSImage(size: size)
@@ -29,7 +29,7 @@ func generateIcon() {
     let startX = (size.width - totalWidth) / 2
     let startY = (size.height - totalWidth) / 2
 
-    let letters = ["C", "L", "A", "U"]
+    let letters = ["J", "M", "B", "L"]
     let positions = [
         (0, 0), (1, 0),  // Top row
         (0, 1), (1, 1)   // Bottom row

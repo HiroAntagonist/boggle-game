@@ -36,6 +36,7 @@ struct LeaderboardView: View {
                         loadLeaderboard()
                     }
                     .buttonStyle(.borderedProminent)
+                    .tint(.purple)
                 }
                 .padding()
             } else if leaderboard.isEmpty {
@@ -99,7 +100,7 @@ struct LeaderboardView: View {
             errorMessage = nil
 
             do {
-                let response = try await BoggleAPI.shared.getLeaderboard(limit: 50)
+                let response = try await JumbleAPI.shared.getLeaderboard(limit: 50)
                 leaderboard = response.leaderboard
                 userRank = response.userRank
                 isLoading = false

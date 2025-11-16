@@ -71,7 +71,7 @@ struct GameView: View {
                 // Overlay: Centered title (both orientations)
                 if !isLoading && errorMessage == nil {
                     VStack {
-                        Text("Clauddle")
+                        Text("Jumble")
                             .font(.largeTitle)
                             .fontWeight(.bold)
                             .frame(maxWidth: .infinity)
@@ -115,7 +115,7 @@ struct GameView: View {
                 Button("Cancel", role: .cancel) { }
                 Button("Exit", role: .destructive) {
                     // Clear active game state when manually exiting
-                    BoggleAPI.shared.clearActiveGame()
+                    JumbleAPI.shared.clearActiveGame()
                     navigationPath = NavigationPath()
                 }
             } message: {
@@ -242,7 +242,7 @@ struct GameView: View {
                                 .font(.system(size: finalTileSize * 0.3))
                                 .fontWeight(.semibold)
                                 .foregroundStyle(.purple)
-                                .padding(finalTileSize * 0.05)
+                                .padding(finalTileSize * 0.10)
                                 .background(
                                     Circle()
                                         .fill(.white.opacity(0.95))
@@ -410,7 +410,7 @@ struct GameView: View {
                                     .font(.system(size: tileSize * 0.3))
                                     .fontWeight(.semibold)
                                     .foregroundStyle(.purple)
-                                    .padding(tileSize * 0.05)
+                                    .padding(tileSize * 0.10)
                                     .background(
                                         Circle()
                                             .fill(.white.opacity(0.95))
@@ -570,14 +570,14 @@ struct GameView: View {
 
         do {
             // Create a new game
-            let game = try await BoggleAPI.shared.createGame()
+            let game = try await JumbleAPI.shared.createGame()
             board = game.board
 
             // Join the game
-            let joinResponse = try await BoggleAPI.shared.joinGame(gameId: game.gameId)
+            let joinResponse = try await JumbleAPI.shared.joinGame(gameId: game.gameId)
 
             // Start the game
-            try await BoggleAPI.shared.startGame(gameId: game.gameId)
+            try await JumbleAPI.shared.startGame(gameId: game.gameId)
 
             // Connect WebSocket
             let wsManager = WebSocketManager(gameId: game.gameId, playerId: joinResponse.playerId)

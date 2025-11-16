@@ -1,0 +1,8 @@
+Postgres cluster boggle-db created
+  Username:    postgres
+  Password:    jQ57FeDS9as3ON2
+  Hostname:    boggle-db.internal
+  Flycast:     fdaa:32:5bbe:0:1::4
+  Proxy port:  5432
+  Postgres port:  5433
+  Connection string: postgres://postgres:jQ57FeDS9as3ON2@boggle-db.flycast:5432

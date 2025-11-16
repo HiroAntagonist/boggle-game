@@ -512,6 +512,13 @@ def test_get_public_games_shows_player_count(client):
         headers={"Authorization": f"Bearer {user1['token']}"},
     )
 
+    # Set gamer tag for user2 (required to join public games)
+    client.patch(
+        "/auth/profile",
+        json={"gamer_tag": "Player2Tag"},
+        headers={"Authorization": f"Bearer {user2['token']}"},
+    )
+
     # Create public game
     response = client.post(
         "/games",

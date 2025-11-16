@@ -51,11 +51,12 @@ struct GameResultsView: View {
             // Button at bottom
             Button("Back to Lobby") {
                 // Clear active game state since game has ended
-                BoggleAPI.shared.clearActiveGame()
+                JumbleAPI.shared.clearActiveGame()
                 // Clear navigation path to return to lobby
                 navigationPath = NavigationPath()
             }
             .buttonStyle(.borderedProminent)
+            .tint(.purple)
             .font(.title3)
             .padding(.vertical, 15)
             .padding(.horizontal)

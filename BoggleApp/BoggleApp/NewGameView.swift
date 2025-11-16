@@ -52,6 +52,7 @@ struct NewGameView: View {
                         }
 
                         Toggle("Make Public", isOn: $isPublic)
+                            .tint(.purple)
                             .onChange(of: isPublic) { oldValue, newValue in
                                 if newValue && userGamerTag == nil {
                                     isPublic = false
@@ -64,6 +65,7 @@ struct NewGameView: View {
                         if isPublic {
                             Text("Public games are discoverable by all players and appear on the leaderboard")
                                 .font(.caption)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                 }
@@ -81,6 +83,7 @@ struct NewGameView: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(.purple)
                 .disabled(isCreating)
                 .font(.title3)
 
@@ -105,7 +108,7 @@ struct NewGameView: View {
                 // Fetch user's gamer tag to validate public game creation
                 Task {
                     do {
-                        let profile = try await BoggleAPI.shared.getCurrentUserProfile()
+                        let profile = try await JumbleAPI.shared.getCurrentUserProfile()
                         userGamerTag = profile.gamerTag
                     } catch {
                         print("⚠️ Failed to fetch user profile: \(error.localizedDescription)")
@@ -134,7 +137,7 @@ struct NewGameView: View {
         }
 
         do {
-            let game = try await BoggleAPI.shared.createGame(
+            let game = try await JumbleAPI.shared.createGame(
                 boardSize: boardSize,
                 timeLimitSeconds: timeLimit,
                 maxPlayers: maxPlayers,
@@ -144,11 +147,11 @@ struct NewGameView: View {
             createdFriendlyCode = game.friendlyCode
 
             // Join the game
-            let joinResponse = try await BoggleAPI.shared.joinGame(gameId: game.gameId)
+            let joinResponse = try await JumbleAPI.shared.joinGame(gameId: game.gameId)
             playerId = joinResponse.playerId
 
             // Save active game for reconnection
-            BoggleAPI.shared.saveActiveGame(gameId: game.gameId, playerId: joinResponse.playerId)
+            JumbleAPI.shared.saveActiveGame(gameId: game.gameId, playerId: joinResponse.playerId)
 
             // Navigate to waiting room
             navigateToWaitingRoom = true

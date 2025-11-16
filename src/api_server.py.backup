@@ -1,7 +1,7 @@
 # ABOUTME: FastAPI REST API server for Boggle game
 # ABOUTME: Manages game state and provides HTTP endpoints for game operations
 
-from fastapi import FastAPI, HTTPException, status, WebSocket, WebSocketDisconnect, Depends, Request, Query
+from fastapi import FastAPI, HTTPException, status, WebSocket, WebSocketDisconnect, Depends, Request
 from typing import Dict, Set
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -38,13 +38,9 @@ if SENTRY_DSN:
     from sentry_sdk.integrations.fastapi import FastApiIntegration
     from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 
-    # Get git commit for release tracking
-    GIT_COMMIT = os.getenv("GIT_COMMIT", "unknown")
-
     sentry_sdk.init(
         dsn=SENTRY_DSN,
         environment=ENVIRONMENT,  # Tag errors by environment
-        release=f"boggle@{GIT_COMMIT[:7]}",  # Track which code version caused errors
         traces_sample_rate=1.0 if ENVIRONMENT == "development" else 0.1,  # 100% dev, 10% prod
         profiles_sample_rate=1.0 if ENVIRONMENT == "development" else 0.1,
         integrations=[
@@ -54,7 +50,7 @@ if SENTRY_DSN:
         # Filter out sensitive data
         before_send=lambda event, hint: event if event.get("level") != "info" else None,
     )
-    print(f"✅ Sentry error tracking initialized (environment: {ENVIRONMENT}, release: {GIT_COMMIT[:7]})")
+    print(f"✅ Sentry error tracking initialized (environment: {ENVIRONMENT})")
 else:
     print("⚠️ SENTRY_DSN not set - error tracking disabled")
 
@@ -74,12 +70,6 @@ from src.api_models import (
     LoginResponse,
     GoogleAuthRequest,
     UserResponse,
-    UpdateProfileRequest,
-    UserStatsResponse,
-    LeaderboardEntry,
-    LeaderboardResponse,
-    PublicGameEntry,
-    PublicGamesResponse,
     HealthCheckResponse,
     DatabaseHealth,
     WebSocketHealth,
@@ -94,8 +84,8 @@ from src.game import Game
 from src.player import Player
 from src.config import GameConfig
 from src.database import get_db
-from src.models import User, Game as GameModel, GamePlayer
-from src.auth import hash_password, verify_password, create_access_token, get_current_user_from_db, get_current_user_from_db_optional
+from src.models import User
+from src.auth import hash_password, verify_password, create_access_token, get_current_user_from_db
 import random
 
 
@@ -115,25 +105,6 @@ def get_display_name(user: User) -> str:
         return user.display_name
     # Fallback to email prefix (before @)
     return user.email.split('@')[0]
-
-
-def get_public_display_name(user: User, is_public: bool) -> str:
-    """Get the display name for a user in a game context.
-
-    For public games, ONLY returns the user's gamer_tag (never display_name or email).
-    For private games, returns display_name or email prefix.
-
-    Args:
-        user: User object from database
-        is_public: Whether the game is public
-
-    Returns:
-        Display name string (gamer_tag for public games, display_name for private)
-    """
-    if is_public:
-        # For public games, NEVER return display_name or email - only gamer_tag
-        return user.gamer_tag or "Anonymous"
-    return get_display_name(user)
 
 
 def generate_friendly_code(db: Session) -> str:
@@ -178,58 +149,6 @@ app = FastAPI(
 limiter = Limiter(key_func=get_remote_address, auto_check=False, enabled=True)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
-
-
-# Sentry Context Middleware
-# Add user and game context to every Sentry error for easier debugging
-if SENTRY_DSN:
-    from fastapi import Request
-    from src.auth import decode_access_token
-
-    @app.middleware("http")
-    async def add_sentry_context(request: Request, call_next):  # type: ignore[no-untyped-def]
-        """Add user and game context to Sentry errors."""
-        import sentry_sdk
-
-        # Extract user from JWT token if present
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header.replace("Bearer ", "")
-            payload = decode_access_token(token)
-            if payload and "user_id" in payload:
-                # Set user context for Sentry
-                sentry_sdk.set_user({
-                    "id": payload["user_id"],
-                    "email": payload.get("email"),
-                })
-
-        # Extract game context from URL path params
-        # /games/{game_id}/... → tag with game_id
-        path_parts = request.url.path.split("/")
-        if len(path_parts) >= 3 and path_parts[1] == "games":
-            game_id = path_parts[2]
-            if game_id and len(game_id) >= 8:
-                sentry_sdk.set_tag("game_id", game_id[:8])
-
-        # Extract player_id from query params (WebSocket uses ?player_id=...)
-        if "player_id" in request.query_params:
-            player_id = request.query_params["player_id"]
-            if player_id and len(player_id) >= 8:
-                sentry_sdk.set_tag("player_id", player_id[:8])
-
-        # Add endpoint type tag for filtering
-        if "/games" in request.url.path:
-            if request.method == "POST" and request.url.path == "/games":
-                sentry_sdk.set_tag("endpoint_type", "game_creation")
-            elif "/join" in request.url.path:
-                sentry_sdk.set_tag("endpoint_type", "join_game")
-            elif "/start" in request.url.path:
-                sentry_sdk.set_tag("endpoint_type", "start_game")
-            elif "/ws/" in request.url.path:
-                sentry_sdk.set_tag("endpoint_type", "websocket")
-
-        response = await call_next(request)
-        return response
 
 
 @app.on_event("startup")
@@ -378,6 +297,10 @@ class ConnectionManager:
         return len(self.active_connections[game_id])
 
 
+# In-memory storage for games
+# In a real application, this would be a database
+games: Dict[str, Dict] = {}
+
 # Shared game resources
 dictionary = Dictionary("data/sowpods.txt")
 scorer = Scorer(min_word_length=3)
@@ -504,7 +427,7 @@ async def end_game(game_id: str, db: Session) -> None:
     player_words: Dict[str, list[str]] = {}
     for gp in game_players:
         words = json.loads(gp.words_found) if gp.words_found else [] if gp.words_found else []
-        player_words[get_public_display_name(gp.user, db_game.is_public)] = words
+        player_words[get_display_name(gp.user)] = words
 
     # Find duplicate words (words submitted by multiple players)
     word_counts: Dict[str, int] = {}
@@ -533,7 +456,7 @@ async def end_game(game_id: str, db: Session) -> None:
             ))
 
         results.append(PlayerFinalResult(
-            player_name=get_public_display_name(gp.user, db_game.is_public),
+            player_name=get_display_name(gp.user),
             words=word_results,
             total_score=total_score
         ))
@@ -543,22 +466,14 @@ async def end_game(game_id: str, db: Session) -> None:
 
     # Find winner (highest score)
     winner = None
-    winner_user_id = None
     if results:
         max_score = max(r.total_score for r in results)
         winners = [r for r in results if r.total_score == max_score]
-        if len(winners) == 1:
-            winner = winners[0].player_name
-            # Find the user_id of the winner
-            for gp in game_players:
-                if get_public_display_name(gp.user, db_game.is_public) == winner:
-                    winner_user_id = gp.user_id
-                    break
+        winner = winners[0].player_name if len(winners) == 1 else None  # None if tie
 
     # Update game status in database
     db_game.status = "finished"
     db_game.ended_at = datetime.now(timezone.utc)
-    db_game.winner_id = winner_user_id  # Set winner (None if tie or no players)
     db.commit()
 
     # Broadcast results to all connected players
@@ -792,17 +707,7 @@ def create_game(
 
     Returns:
         Created game details including game_id and board
-
-    Raises:
-        HTTPException: 400 if trying to create public game without gamer_tag
     """
-    # Validate: public games require a gamer_tag
-    if request.is_public and not current_user.gamer_tag:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You must set a gamer tag before creating public games. Update your profile at /auth/profile."
-        )
-
     # Create board
     board = Board(size=request.board_size)
 
@@ -828,7 +733,6 @@ def create_game(
                 time_limit=request.time_limit_seconds,
                 max_players=request.max_players,
                 min_word_length=3,
-                is_public=request.is_public,
                 board_state=board_json,
                 friendly_code=friendly_code
             )
@@ -838,14 +742,7 @@ def create_game(
             db.refresh(db_game)
 
             # Log successful game creation
-            print(f"INFO [API] Game created - UUID: {db_game.id} | Friendly Code: {db_game.friendly_code} | Creator: {get_display_name(current_user)}")
-
-            # Add Sentry tags for game creation context
-            if SENTRY_DSN:
-                import sentry_sdk
-                sentry_sdk.set_tag("game_status", db_game.status)
-                sentry_sdk.set_tag("max_players", db_game.max_players)
-                sentry_sdk.set_tag("board_size", db_game.board_size)
+            print(f"✅ GAME CREATED - UUID: {db_game.id} | Friendly Code: {db_game.friendly_code} | Creator: {get_display_name(current_user)}")
 
             break  # Success - exit retry loop
 
@@ -870,58 +767,6 @@ def create_game(
         created_at=db_game.created_at.isoformat(),
         status=db_game.status
     )
-
-
-@app.get("/games/public", response_model=PublicGamesResponse)
-def get_public_games(
-    limit: int = Query(default=50, ge=1, le=100, description="Number of games to return"),
-    db: Session = Depends(get_db)
-) -> PublicGamesResponse:
-    """Get list of public games waiting for players.
-
-    Returns public games in 'waiting' or 'created' status, ordered by creation time (newest first).
-    Shows game details including creator's gamer tag, current player count, and game settings.
-
-    Args:
-        limit: Maximum number of games to return (1-100, default 50)
-        db: Database session (injected)
-
-    Returns:
-        List of public games available to join
-    """
-    from src.models import Game as GameModel, GamePlayer
-
-    # Query public games that are waiting or created
-    public_games = db.query(GameModel).filter(
-        GameModel.is_public == True,
-        GameModel.status.in_(["created", "waiting"])
-    ).order_by(
-        GameModel.created_at.desc()
-    ).limit(limit).all()
-
-    # Build response
-    games = []
-    for game in public_games:
-        # Count current players
-        current_players = db.query(GamePlayer).filter(
-            GamePlayer.game_id == game.id
-        ).count()
-
-        # Get creator's gamer tag or display name
-        creator_gamer_tag = game.creator.gamer_tag or game.creator.display_name or game.creator.email.split("@")[0]
-
-        games.append(PublicGameEntry(
-            game_id=game.id,
-            friendly_code=game.friendly_code or "",
-            creator_gamer_tag=creator_gamer_tag,
-            current_players=current_players,
-            max_players=game.max_players,
-            board_size=game.board_size,
-            time_limit=game.time_limit,
-            created_at=game.created_at.isoformat()
-        ))
-
-    return PublicGamesResponse(games=games)
 
 
 @app.post("/games/{game_id}/players", response_model=JoinGameResponse, status_code=status.HTTP_201_CREATED)
@@ -960,18 +805,11 @@ async def join_game(
 
     # Check if game is full
     current_player_count = db.query(GamePlayer).filter(GamePlayer.game_id == game_id).count()
-    print(f"INFO [API] Join request - UUID: {db_game.id} | Friendly Code: {db_game.friendly_code} | User: {get_display_name(current_user)} | Current Players: {current_player_count}/{db_game.max_players}")
+    print(f"🔍 JOIN REQUEST - UUID: {db_game.id} | Friendly Code: {db_game.friendly_code} | User: {get_display_name(current_user)} | Current Players: {current_player_count}/{db_game.max_players}")
     if current_player_count >= db_game.max_players:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Game is full"
-        )
-
-    # Validate that users joining public games have gamer tags
-    if db_game.is_public and not current_user.gamer_tag:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You must set a gamer tag before joining public games"
         )
 
     # Check if user already joined this game
@@ -983,7 +821,7 @@ async def join_game(
     is_rejoining = False
     if existing_player:
         # Player is rejoining - allow it and return existing record
-        print(f"INFO [API] Rejoining - UUID: {game_id} | Player: {get_display_name(current_user)} | Player ID: {existing_player.id}")
+        print(f"🔄 PLAYER REJOINING - UUID: {game_id} | Player: {get_display_name(current_user)} | Player ID: {existing_player.id}")
         game_player = existing_player
         is_rejoining = True
     else:
@@ -1005,24 +843,24 @@ async def join_game(
     for gp in all_players:
         user = db.query(User).filter(User.id == gp.user_id).first()
         if user:
-            player_names.append(get_public_display_name(user, db_game.is_public))
+            player_names.append(get_display_name(user))
 
     # Only broadcast and auto-start if this is a NEW player (not rejoining)
     if not is_rejoining:
         # CREATED → WAITING transition: first player joins
         if db_game.status == "created" and len(player_names) == 1:
-            print(f"INFO [Game] State - CREATED → WAITING | First player joined")
+            print(f"🎮 STATE TRANSITION - CREATED → WAITING | First player joined")
             db_game.status = "waiting"
             db.commit()
             db.refresh(db_game)
 
-        print(f"INFO [API] Player joined - UUID: {game_id} | Friendly Code: {db_game.friendly_code} | Player: {get_display_name(current_user)} | Player ID: {game_player.id} | Total Players: {len(player_names)}/{db_game.max_players}")
+        print(f"✅ PLAYER JOINED - UUID: {game_id} | Friendly Code: {db_game.friendly_code} | Player: {get_display_name(current_user)} | Player ID: {game_player.id} | Total Players: {len(player_names)}/{db_game.max_players}")
 
         # Broadcast player_joined to all connected players
         await manager.broadcast(
             json.dumps({
                 "type": "player_joined",
-                "player_name": get_public_display_name(current_user, db_game.is_public),
+                "player_name": get_display_name(current_user),
                 "player_count": len(player_names),
                 "max_players": db_game.max_players,
                 "players": player_names
@@ -1215,13 +1053,6 @@ async def join_game_by_code(
             detail="Game is full"
         )
 
-    # Validate that users joining public games have gamer tags
-    if db_game.is_public and not current_user.gamer_tag:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You must set a gamer tag before joining public games"
-        )
-
     # Check if user already joined this game
     existing_player = db.query(GamePlayer).filter(
         GamePlayer.game_id == db_game.id,
@@ -1231,7 +1062,7 @@ async def join_game_by_code(
     is_rejoining = False
     if existing_player:
         # Player is rejoining - allow it and return existing record
-        print(f"INFO [API] Rejoining BY CODE - UUID: {db_game.id} | Friendly Code: {friendly_code} | Player: {get_display_name(current_user)} | Player ID: {existing_player.id}")
+        print(f"🔄 PLAYER REJOINING BY CODE - UUID: {db_game.id} | Friendly Code: {friendly_code} | Player: {get_display_name(current_user)} | Player ID: {existing_player.id}")
         game_player = existing_player
         is_rejoining = True
     else:
@@ -1257,7 +1088,7 @@ async def join_game_by_code(
 
     # Only broadcast and auto-start if this is a NEW player (not rejoining)
     if not is_rejoining:
-        print(f"INFO [API] Player joined BY CODE - UUID: {db_game.id} | Friendly Code: {friendly_code} | Player: {get_display_name(current_user)} | Player ID: {game_player.id} | Total Players: {len(player_names)}/{db_game.max_players}")
+        print(f"✅ PLAYER JOINED BY CODE - UUID: {db_game.id} | Friendly Code: {friendly_code} | Player: {get_display_name(current_user)} | Player ID: {game_player.id} | Total Players: {len(player_names)}/{db_game.max_players}")
 
         # Broadcast player_joined to all connected players
         await manager.broadcast(
@@ -1379,7 +1210,7 @@ def get_game_state(
     for gp in all_players:
         user = db.query(User).filter(User.id == gp.user_id).first()
         if user:
-            player_names.append(get_public_display_name(user, db_game.is_public))
+            player_names.append(get_display_name(user))
 
     # Calculate time remaining if game is in progress
     time_remaining = None
@@ -1610,21 +1441,6 @@ async def websocket_endpoint(
         # Accept connection (will replace old connection if player is reconnecting)
         await manager.connect(websocket, game_id, player_id)
 
-        # Add Sentry breadcrumb for player connection
-        if SENTRY_DSN:
-            import sentry_sdk
-            sentry_sdk.add_breadcrumb(
-                category='websocket',
-                message=f'Player connected to game',
-                level='info',
-                data={
-                    'game_id': game_id[:8],
-                    'player_id': player_id[:8],
-                    'player_name': get_display_name(user),
-                    'game_status': db_game.status
-                }
-            )
-
         # Notify others that player connected
         from src.ws_models import PlayerConnectedMessage
         connect_msg = PlayerConnectedMessage(
@@ -1658,20 +1474,6 @@ async def websocket_endpoint(
 
                 # Handle word submission
                 word = submit_msg.word.upper()
-
-                # Add Sentry breadcrumb for word submission
-                if SENTRY_DSN:
-                    import sentry_sdk
-                    sentry_sdk.add_breadcrumb(
-                        category='game',
-                        message=f'Word submitted: {word}',
-                        level='info',
-                        data={
-                            'game_id': game_id[:8],
-                            'player_id': player_id[:8],
-                            'word': word
-                        }
-                    )
 
                 # Validate and submit word using Game object
                 is_valid = game.submit_word(word, player)
@@ -1839,19 +1641,10 @@ def register(
             detail="Email already registered"
         )
 
-    # Generate access token
-    from datetime import timedelta
-    access_token = create_access_token(
-        data={"user_id": new_user.id},
-        expires_delta=timedelta(days=30)
-    )
-
     return RegisterResponse(
         user_id=new_user.id,
         email=new_user.email,
         display_name=new_user.display_name,
-        gamer_tag=new_user.gamer_tag,
-        access_token=access_token,
         message="User registered successfully"
     )
 
@@ -1992,219 +1785,5 @@ def get_current_user_info(current_user: User = Depends(get_current_user_from_db)
     return UserResponse(
         user_id=current_user.id,
         email=current_user.email,
-        display_name=current_user.display_name,
-        gamer_tag=current_user.gamer_tag
-    )
-
-
-@app.patch("/auth/profile", response_model=UserResponse)
-def update_profile(
-    updates: UpdateProfileRequest,
-    current_user: User = Depends(get_current_user_from_db),
-    db: Session = Depends(get_db)
-) -> UserResponse:
-    """Update user profile (display_name and/or gamer_tag).
-
-    Gamer tags must be unique (3-20 alphanumeric + underscores).
-    If gamer_tag is already taken, returns 409 Conflict.
-    """
-    from sqlalchemy.exc import IntegrityError
-
-    # Update display_name if provided
-    if updates.display_name is not None:
-        current_user.display_name = updates.display_name
-
-    # Update gamer_tag if provided
-    if updates.gamer_tag is not None:
-        # Validate format (Pydantic already validates this, but double-check)
-        import re
-        if not re.match(r'^[a-zA-Z0-9_]{3,20}$', updates.gamer_tag):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Gamer tag must be 3-20 characters (alphanumeric + underscores only)"
-            )
-
-        current_user.gamer_tag = updates.gamer_tag
-
-    try:
-        db.commit()
-        db.refresh(current_user)
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Gamer tag already taken. Please choose another one."
-        )
-
-    return UserResponse(
-        user_id=current_user.id,
-        email=current_user.email,
-        display_name=current_user.display_name,
-        gamer_tag=current_user.gamer_tag
-    )
-
-
-@app.get("/users/me/stats", response_model=UserStatsResponse)
-def get_user_stats(
-    current_user: User = Depends(get_current_user_from_db),
-    db: Session = Depends(get_db)
-) -> UserStatsResponse:
-    """Get statistics for the current user.
-
-    Returns:
-    - total_games: Total games played
-    - total_wins: Total games won (where user was winner)
-    - win_rate: Percentage of games won (0.0 to 1.0)
-    - total_points: Sum of all points scored
-    - average_score: Average points per game
-    - best_score: Highest score in a single game
-    """
-    from sqlalchemy import func
-
-    # Count total games where user participated and game finished
-    total_games = db.query(func.count(GamePlayer.id)).join(
-        GameModel, GamePlayer.game_id == GameModel.id
-    ).filter(
-        GamePlayer.user_id == current_user.id,
-        GameModel.status == "finished"
-    ).scalar() or 0
-
-    # Count total wins (games where this user was the winner)
-    total_wins = db.query(func.count(GameModel.id)).filter(
-        GameModel.winner_id == current_user.id
-    ).scalar() or 0
-
-    # Calculate win rate
-    win_rate = total_wins / total_games if total_games > 0 else 0.0
-
-    # Calculate total points across all games
-    total_points = db.query(func.sum(GamePlayer.score)).join(
-        GameModel, GamePlayer.game_id == GameModel.id
-    ).filter(
-        GamePlayer.user_id == current_user.id,
-        GameModel.status == "finished"
-    ).scalar() or 0
-
-    # Calculate average score
-    average_score = total_points / total_games if total_games > 0 else 0.0
-
-    # Find best score
-    best_score = db.query(func.max(GamePlayer.score)).join(
-        GameModel, GamePlayer.game_id == GameModel.id
-    ).filter(
-        GamePlayer.user_id == current_user.id,
-        GameModel.status == "finished"
-    ).scalar() or 0
-
-    return UserStatsResponse(
-        total_games=total_games,
-        total_wins=total_wins,
-        win_rate=win_rate,
-        total_points=total_points,
-        average_score=average_score,
-        best_score=best_score
-    )
-
-
-@app.get("/leaderboard", response_model=LeaderboardResponse)
-def get_leaderboard(
-    limit: int = Query(default=100, ge=1, le=500, description="Number of top players to return"),
-    current_user: User | None = Depends(get_current_user_from_db_optional),
-    db: Session = Depends(get_db)
-) -> LeaderboardResponse:
-    """Get the leaderboard ranked by total wins.
-
-    Returns:
-    - Top N players (default 100, max 500) ranked by total wins
-    - Current user's rank (if authenticated and has at least 1 win)
-
-    For each player shows:
-    - rank: 1-indexed ranking position
-    - gamer_tag: Player's gamer tag (or display name or email prefix if no gamer tag)
-    - total_wins: Number of games won
-    - total_games: Number of games played
-    """
-    from sqlalchemy import func, desc
-
-    # Query to get all users with their win counts
-    # Join User -> GameModel (where winner_id matches) to count wins
-    # Use DISTINCT to avoid cross-product inflation from GamePlayer join
-    leaderboard_query = db.query(
-        User.id,
-        User.gamer_tag,
-        User.display_name,
-        User.email,
-        func.count(func.distinct(GameModel.id)).label("total_wins"),
-        func.count(func.distinct(GamePlayer.game_id)).label("total_games")
-    ).join(
-        GameModel, GameModel.winner_id == User.id
-    ).join(
-        GamePlayer, GamePlayer.user_id == User.id
-    ).filter(
-        GameModel.status == "finished"
-    ).group_by(
-        User.id
-    ).having(
-        func.count(func.distinct(GameModel.id)) > 0  # Only users with at least 1 win
-    ).order_by(
-        desc("total_wins")
-    ).limit(limit).all()
-
-    # Build leaderboard entries
-    leaderboard = []
-    for rank, row in enumerate(leaderboard_query, start=1):
-        # Determine display name: prefer gamer_tag, fallback to display_name, then email prefix
-        display_name = row.gamer_tag or row.display_name or row.email.split("@")[0]
-
-        leaderboard.append(LeaderboardEntry(
-            rank=rank,
-            gamer_tag=display_name,
-            total_wins=row.total_wins,
-            total_games=row.total_games
-        ))
-
-    # Find current user's rank if authenticated
-    user_rank = None
-    if current_user:
-        # Get current user's win count
-        user_wins = db.query(func.count(GameModel.id)).filter(
-            GameModel.winner_id == current_user.id,
-            GameModel.status == "finished"
-        ).scalar() or 0
-
-        if user_wins > 0:
-            # Count how many users have more wins than current user
-            users_above = db.query(func.count(func.distinct(User.id))).join(
-                GameModel, GameModel.winner_id == User.id
-            ).filter(
-                GameModel.status == "finished"
-            ).group_by(
-                User.id
-            ).having(
-                func.count(func.distinct(GameModel.id)) > user_wins
-            ).count()
-
-            # Current user's rank is users_above + 1
-            current_rank = users_above + 1
-
-            # Get current user's total games
-            user_total_games = db.query(func.count(GamePlayer.id)).join(
-                GameModel, GamePlayer.game_id == GameModel.id
-            ).filter(
-                GamePlayer.user_id == current_user.id,
-                GameModel.status == "finished"
-            ).scalar() or 0
-
-            display_name = current_user.gamer_tag or current_user.display_name or current_user.email.split("@")[0]
-
-            user_rank = LeaderboardEntry(
-                rank=current_rank,
-                gamer_tag=display_name,
-                total_wins=user_wins,
-                total_games=user_total_games
-            )
-
-    return LeaderboardResponse(
-        leaderboard=leaderboard,
-        user_rank=user_rank
+        display_name=current_user.display_name
     )

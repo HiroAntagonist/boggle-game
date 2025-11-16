@@ -32,7 +32,7 @@ struct LoginView: View {
 
     private var loginForm: some View {
         VStack(spacing: 20) {
-            Text("Clauddle")
+            Text("Jumble")
                 .font(.largeTitle)
                 .fontWeight(.bold)
 
@@ -113,7 +113,7 @@ struct LoginView: View {
         .padding()
         .onAppear {
             // Auto-authenticate if token exists in Keychain
-            if BoggleAPI.shared.isAuthenticated {
+            if JumbleAPI.shared.isAuthenticated {
                 print("✅ Auto-authenticating with saved token")
                 isLoggedIn = true
             }
@@ -140,18 +140,18 @@ struct LoginView: View {
 
         do {
             if isRegistering {
-                try await BoggleAPI.shared.register(
+                try await JumbleAPI.shared.register(
                     email: email,
                     password: password,
                     displayName: displayName.isEmpty ? nil : displayName
                 )
                 // After registration, automatically login
-                try await BoggleAPI.shared.login(
+                try await JumbleAPI.shared.login(
                     email: email,
                     password: password
                 )
             } else {
-                try await BoggleAPI.shared.login(
+                try await JumbleAPI.shared.login(
                     email: email,
                     password: password
                 )
@@ -189,7 +189,7 @@ struct LoginView: View {
             let idToken = try await GoogleAuthService.shared.signIn()
 
             // Send ID token to backend
-            try await BoggleAPI.shared.loginWithGoogle(idToken: idToken)
+            try await JumbleAPI.shared.loginWithGoogle(idToken: idToken)
 
             isLoggedIn = true
         } catch let error as GoogleAuthError {

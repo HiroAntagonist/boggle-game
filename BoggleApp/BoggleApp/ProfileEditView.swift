@@ -86,7 +86,7 @@ struct ProfileEditView: View {
             errorMessage = nil
 
             do {
-                let updatedUser = try await BoggleAPI.shared.updateProfile(
+                let updatedUser = try await JumbleAPI.shared.updateProfile(
                     gamerTag: gamerTag.isEmpty ? nil : gamerTag
                 )
 

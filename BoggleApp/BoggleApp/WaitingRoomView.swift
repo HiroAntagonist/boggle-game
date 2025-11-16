@@ -73,6 +73,7 @@ struct WaitingRoomView: View {
                 }
             }
             .buttonStyle(.borderedProminent)
+            .tint(.purple)
             .disabled(isStarting || players.count < 1)
             .font(.title3)
 
@@ -103,7 +104,7 @@ struct WaitingRoomView: View {
     private func loadGameState() async {
         do {
             // Get current game state
-            let gameState = try await BoggleAPI.shared.getGameState(gameId: gameId)
+            let gameState = try await JumbleAPI.shared.getGameState(gameId: gameId)
             board = gameState.board
             players = gameState.players
             timeLimit = gameState.timeLimit
@@ -148,10 +149,10 @@ struct WaitingRoomView: View {
         errorMessage = nil
 
         do {
-            try await BoggleAPI.shared.startGame(gameId: gameId)
+            try await JumbleAPI.shared.startGame(gameId: gameId)
 
             // Get updated game state with started_at timestamp
-            let gameState = try await BoggleAPI.shared.getGameState(gameId: gameId)
+            let gameState = try await JumbleAPI.shared.getGameState(gameId: gameId)
             board = gameState.board
             timeLimit = gameState.timeLimit
             startedAt = gameState.startedAt

@@ -34,6 +34,7 @@ struct ProfileView: View {
                             loadProfile()
                         }
                         .buttonStyle(.borderedProminent)
+                        .tint(.purple)
                     }
                     .padding()
                 } else {
@@ -125,8 +126,8 @@ struct ProfileView: View {
 
             do {
                 // Fetch profile and stats in parallel
-                async let profileTask = BoggleAPI.shared.getCurrentUserProfile()
-                async let statsTask = BoggleAPI.shared.getUserStats()
+                async let profileTask = JumbleAPI.shared.getCurrentUserProfile()
+                async let statsTask = JumbleAPI.shared.getUserStats()
 
                 userInfo = try await profileTask
                 stats = try await statsTask

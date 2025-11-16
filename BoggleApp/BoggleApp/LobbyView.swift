@@ -19,7 +19,7 @@ struct LobbyView: View {
     var body: some View {
         NavigationStack(path: $navigationPath) {
             VStack(spacing: 30) {
-                Text("Clauddle")
+                Text("Jumble")
                     .font(.largeTitle)
                     .fontWeight(.bold)
 
@@ -49,14 +49,6 @@ struct LobbyView: View {
 
                     NavigationLink(value: "joinGame") {
                         Text("Join Game")
-                            .frame(width: 200)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.purple)
-                    .font(.title3)
-
-                    NavigationLink(value: "browseGames") {
-                        Text("Browse Public Games")
                             .frame(width: 200)
                     }
                     .buttonStyle(.bordered)
@@ -124,6 +116,7 @@ struct LobbyView: View {
                                     reconnectError = nil
                                 }
                                 .buttonStyle(.borderedProminent)
+                                .tint(.purple)
                             }
                         }
                         .padding()
@@ -139,8 +132,6 @@ struct LobbyView: View {
                     ProfileView()
                 } else if destination == "leaderboard" {
                     LeaderboardView()
-                } else if destination == "browseGames" {
-                    PublicGamesView(navigationPath: $navigationPath)
                 } else if destination.hasPrefix("waitingRoom:") {
                     // Parse reconnection to waiting room: "waitingRoom:gameId:playerId:maxPlayers"
                     let parts = destination.split(separator: ":").map(String.init)
@@ -176,14 +167,14 @@ struct LobbyView: View {
     }
 
     private func loadUserInfo() {
-        if let user = BoggleAPI.shared.getCurrentUser() {
+        if let user = JumbleAPI.shared.getCurrentUser() {
             userEmail = user.email
             userDisplayName = user.displayName
         }
     }
 
     private func handleSignOut() {
-        BoggleAPI.shared.logout()
+        JumbleAPI.shared.logout()
         isLoggedIn = false
     }
 
@@ -193,11 +184,11 @@ struct LobbyView: View {
             reconnectError = nil
 
             do {
-                if let gameState = try await BoggleAPI.shared.attemptReconnect() {
+                if let gameState = try await JumbleAPI.shared.attemptReconnect() {
                     print("INFO [Reconnect] Rejoining game | status=\(gameState.status) game=\(gameState.gameId.prefix(8))")
 
                     // Save the active game state for future reconnections
-                    BoggleAPI.shared.saveActiveGame(gameId: gameState.gameId, playerId: gameState.playerId)
+                    JumbleAPI.shared.saveActiveGame(gameId: gameState.gameId, playerId: gameState.playerId)
 
                     // Navigate based on game status
                     switch gameState.status {
@@ -211,12 +202,12 @@ struct LobbyView: View {
                         isReconnecting = false
 
                     case "finished":
-                        BoggleAPI.shared.clearActiveGame()
+                        JumbleAPI.shared.clearActiveGame()
                         isReconnecting = false
 
                     default:
                         print("WARN [Reconnect] Unknown game status: \(gameState.status)")
-                        BoggleAPI.shared.clearActiveGame()
+                        JumbleAPI.shared.clearActiveGame()
                         isReconnecting = false
                     }
 
@@ -225,7 +216,7 @@ struct LobbyView: View {
                 }
             } catch {
                 // Clear the saved game since it's invalid (game deleted, player removed, etc.)
-                BoggleAPI.shared.clearActiveGame()
+                JumbleAPI.shared.clearActiveGame()
                 // Silently dismiss - don't show error for stale game state
                 isReconnecting = false
             }

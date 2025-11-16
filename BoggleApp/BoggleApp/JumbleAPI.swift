@@ -14,8 +14,8 @@ extension Notification.Name {
 
 // MARK: - API Client
 
-class BoggleAPI {
-    static let shared = BoggleAPI()
+class JumbleAPI {
+    static let shared = JumbleAPI()
 
     private let baseURL = "https://boggle-game-ar.fly.dev"
     private let keychain = KeychainService.shared

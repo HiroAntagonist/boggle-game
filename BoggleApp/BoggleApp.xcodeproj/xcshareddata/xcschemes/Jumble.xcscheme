@@ -16,7 +16,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "226F509A2EB6B27A00F16E9F"
-               BuildableName = "BoggleApp.app"
+               BuildableName = "Jumble.app"
                BlueprintName = "BoggleApp"
                ReferencedContainer = "container:BoggleApp.xcodeproj">
             </BuildableReference>
@@ -36,7 +36,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "226F50A72EB6B27D00F16E9F"
-               BuildableName = "BoggleAppTests.xctest"
+               BuildableName = "Jumble.xctest"
                BlueprintName = "BoggleAppTests"
                ReferencedContainer = "container:BoggleApp.xcodeproj">
             </BuildableReference>
@@ -47,7 +47,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "226F50B12EB6B27D00F16E9F"
-               BuildableName = "BoggleAppUITests.xctest"
+               BuildableName = "Jumble.xctest"
                BlueprintName = "BoggleAppUITests"
                ReferencedContainer = "container:BoggleApp.xcodeproj">
             </BuildableReference>
@@ -69,7 +69,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "226F509A2EB6B27A00F16E9F"
-            BuildableName = "BoggleApp.app"
+            BuildableName = "Jumble.app"
             BlueprintName = "BoggleApp"
             ReferencedContainer = "container:BoggleApp.xcodeproj">
          </BuildableReference>
@@ -86,7 +86,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "226F509A2EB6B27A00F16E9F"
-            BuildableName = "BoggleApp.app"
+            BuildableName = "Jumble.app"
             BlueprintName = "BoggleApp"
             ReferencedContainer = "container:BoggleApp.xcodeproj">
          </BuildableReference>
