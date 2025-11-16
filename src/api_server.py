@@ -1141,13 +1141,18 @@ async def leave_game(
 
     print(f"👋 PLAYER LEFT - UUID: {game_id} | Friendly Code: {db_game.friendly_code} | Player: {get_display_name(current_user)} | Remaining Players: {remaining_count}")
 
-    # WAITING → ABANDONED transition: all players left
+    # Immediately delete waiting games when all players leave
     if db_game.status == "waiting" and remaining_count == 0:
-        print(f"🚫 STATE TRANSITION - WAITING → ABANDONED | All players left")
-        db_game.status = "abandoned"
-        db_game.abandoned_at = datetime.now(timezone.utc)
+        print(f"🗑️  CLEANUP - Deleting empty waiting game | UUID: {game_id} | All players left")
+        # Delete the game (players already deleted above)
+        db.delete(db_game)
         db.commit()
-        db.refresh(db_game)
+        # Return early since game is deleted
+        return LeaveGameResponse(
+            game_id=game_id,
+            status="deleted",
+            player_count=0
+        )
 
     # Broadcast player_left to remaining players
     await manager.broadcast(

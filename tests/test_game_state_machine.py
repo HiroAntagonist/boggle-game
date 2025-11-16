@@ -167,7 +167,7 @@ def test_all_players_leave_waiting_transitions_to_abandoned(
     client: TestClient,
     auth_token: str
 ):
-    """Test that all players leaving WAITING room transitions to ABANDONED."""
+    """Test that all players leaving WAITING room deletes the game."""
     # Create game and join (CREATED → WAITING)
     response = client.post(
         "/games",
@@ -196,23 +196,23 @@ def test_all_players_leave_waiting_transitions_to_abandoned(
         headers={"Authorization": f"Bearer {auth_token}"}
     )
     assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "deleted"
+    assert data["player_count"] == 0
 
-    # Verify game is ABANDONED
+    # Verify game is deleted (should return 404)
     response = client.get(
         f"/games/{game_id}",
         headers={"Authorization": f"Bearer {auth_token}"}
     )
-    assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "abandoned"
-    assert data["player_count"] == 0
+    assert response.status_code == 404
 
 
 def test_abandoned_game_has_abandoned_at_timestamp(
     client: TestClient,
     auth_token: str
 ):
-    """Test that ABANDONED game has abandoned_at timestamp set."""
+    """Test that empty WAITING game is deleted when last player leaves."""
     # Create game, join, then leave
     response = client.post(
         "/games",
@@ -234,12 +234,11 @@ def test_abandoned_game_has_abandoned_at_timestamp(
         headers={"Authorization": f"Bearer {auth_token}"}
     )
     assert leave_response.status_code == 200
-    assert leave_response.json()["status"] == "abandoned"
+    assert leave_response.json()["status"] == "deleted"
 
-    # Verify game state is abandoned
+    # Verify game is deleted (404)
     response = client.get(
         f"/games/{game_id}",
         headers={"Authorization": f"Bearer {auth_token}"}
     )
-    assert response.status_code == 200
-    assert response.json()["status"] == "abandoned"
+    assert response.status_code == 404
