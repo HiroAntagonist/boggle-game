@@ -130,8 +130,8 @@ struct PublicGamesView: View {
 
                 case "in_progress":
                     // Game already started, navigate directly to game
-                    if let timeLimit = response.timeLimit,
-                       let startedAt = response.startedAt {
+                    if let _ = response.timeLimit,
+                       let _ = response.startedAt {
                         // TODO: Navigate to GameView with initial state
                         print("WARN [PublicGames] Game already in progress - need GameView navigation")
                     }

@@ -44,6 +44,7 @@ struct LobbyView: View {
                             .frame(width: 200)
                     }
                     .buttonStyle(.borderedProminent)
+                    .tint(.purple)
                     .font(.title3)
 
                     NavigationLink(value: "joinGame") {
@@ -51,6 +52,7 @@ struct LobbyView: View {
                             .frame(width: 200)
                     }
                     .buttonStyle(.bordered)
+                    .tint(.purple)
                     .font(.title3)
 
                     NavigationLink(value: "browseGames") {
@@ -58,6 +60,7 @@ struct LobbyView: View {
                             .frame(width: 200)
                     }
                     .buttonStyle(.bordered)
+                    .tint(.purple)
                     .font(.title3)
 
                     HStack(spacing: 15) {
@@ -66,6 +69,7 @@ struct LobbyView: View {
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
+                        .tint(.purple)
                         .controlSize(.small)
 
                         NavigationLink(value: "leaderboard") {
@@ -73,6 +77,7 @@ struct LobbyView: View {
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
+                        .tint(.purple)
                         .controlSize(.small)
                     }
                     .frame(width: 200)

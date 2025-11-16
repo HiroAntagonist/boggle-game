@@ -66,6 +66,7 @@ struct LoginView: View {
                 }
             }
             .buttonStyle(.borderedProminent)
+            .tint(.purple)
             .disabled(isLoading || email.isEmpty || password.isEmpty)
 
             Button(isRegistering ? "Already have an account? Login" : "Need an account? Register") {
@@ -73,6 +74,7 @@ struct LoginView: View {
                 errorMessage = nil
             }
             .font(.caption)
+            .foregroundStyle(.purple)
 
             // OR divider
             HStack {
@@ -101,6 +103,7 @@ struct LoginView: View {
                 .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
+            .tint(.purple)
             .disabled(isLoading)
 
             if isLoading {

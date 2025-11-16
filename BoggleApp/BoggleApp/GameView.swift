@@ -204,7 +204,7 @@ struct GameView: View {
                 HStack {
                     Spacer()
 
-                    ZStack(alignment: .topTrailing) {
+                    ZStack(alignment: .bottomTrailing) {
                         // Background with board
                         GeometryReader { geometry in
                             VStack(spacing: spacing) {
@@ -239,17 +239,17 @@ struct GameView: View {
                             rotateBoard()
                         }) {
                             Image(systemName: "rotate.right")
-                                .font(.caption)
+                                .font(.system(size: finalTileSize * 0.3))
                                 .fontWeight(.semibold)
                                 .foregroundStyle(.purple)
-                                .padding(6)
+                                .padding(finalTileSize * 0.05)
                                 .background(
                                     Circle()
                                         .fill(.white.opacity(0.95))
                                         .shadow(color: .black.opacity(0.15), radius: 3, x: 0, y: 1)
                                 )
                         }
-                        .offset(x: -6, y: 6)
+                        .offset(x: -6, y: -6)
                     }
                     .frame(width: CGFloat(board.count) * finalTileSize + CGFloat(board.count - 1) * spacing + padding * 2)
 
@@ -278,6 +278,7 @@ struct GameView: View {
                             feedbackMessage = nil
                         }
                         .buttonStyle(.bordered)
+                        .tint(.purple)
                         .disabled(selectedWord.isEmpty)
 
                         Button(action: {
@@ -289,12 +290,14 @@ struct GameView: View {
                             Image(systemName: "delete.left")
                         }
                         .buttonStyle(.bordered)
+                        .tint(.purple)
                         .disabled(selectedWord.isEmpty)
 
                         Button("Submit") {
                             submitWord()
                         }
                         .buttonStyle(.borderedProminent)
+                        .tint(.purple)
                         .disabled(selectedWord.isEmpty || selectedWord.count < 3)
                     }
 
@@ -371,7 +374,7 @@ struct GameView: View {
                 } else {
                     // Board grid with rotation button
                     GeometryReader { geometry in
-                        ZStack(alignment: .topTrailing) {
+                        ZStack(alignment: .bottomTrailing) {
                             // Background with board
                             VStack(spacing: spacing) {
                                 ForEach(0..<board.count, id: \.self) { row in
@@ -404,17 +407,17 @@ struct GameView: View {
                                 rotateBoard()
                             }) {
                                 Image(systemName: "rotate.right")
-                                    .font(.caption)
+                                    .font(.system(size: tileSize * 0.3))
                                     .fontWeight(.semibold)
-                                    .foregroundStyle(.blue)
-                                    .padding(6)
+                                    .foregroundStyle(.purple)
+                                    .padding(tileSize * 0.05)
                                     .background(
                                         Circle()
                                             .fill(.white.opacity(0.95))
                                             .shadow(color: .black.opacity(0.15), radius: 3, x: 0, y: 1)
                                     )
                             }
-                            .offset(x: -6, y: 6)
+                            .offset(x: -6, y: -6)
                         }
                     }
                     .frame(height: boardHeight)
@@ -435,7 +438,7 @@ struct GameView: View {
                         Text("Word: \(isSubmitting ? submittingWord + "..." : selectedWord)")
                             .font(.title2)
                             .fontWeight(.semibold)
-                            .foregroundStyle((isSubmitting || !selectedWord.isEmpty) ? .blue : .gray)
+                            .foregroundStyle((isSubmitting || !selectedWord.isEmpty) ? .purple : .gray)
 
                         // Feedback message (fixed height to prevent jumping)
                         Text(feedbackMessage ?? " ")
@@ -449,6 +452,7 @@ struct GameView: View {
                                 feedbackMessage = nil
                             }
                             .buttonStyle(.bordered)
+                            .tint(.purple)
                             .disabled(selectedWord.isEmpty)
 
                             Button(action: {
@@ -460,12 +464,14 @@ struct GameView: View {
                                 Image(systemName: "delete.left")
                             }
                             .buttonStyle(.bordered)
+                            .tint(.purple)
                             .disabled(selectedWord.isEmpty)
 
                             Button("Submit") {
                                 submitWord()
                             }
                             .buttonStyle(.borderedProminent)
+                            .tint(.purple)
                             .disabled(selectedWord.isEmpty || selectedWord.count < 3)
                         }
 
