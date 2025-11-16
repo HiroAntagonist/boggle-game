@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import Combine
 import OpenAPIClient
 
 struct JoinGameView: View {
@@ -25,6 +26,9 @@ struct JoinGameView: View {
     @State private var showJoinError = false
     @State private var navigateToGame = false
     @State private var gameViewData: (gameId: String, playerId: String, board: [[String]], timeLimit: Int?, startedAt: String?, webSocketManager: WebSocketManager)?
+
+    // Polling timer
+    let pollTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -179,6 +183,10 @@ struct JoinGameView: View {
             }
         }
         .onAppear {
+            loadPublicGames()
+        }
+        .onReceive(pollTimer) { _ in
+            // Silently refresh public games every 5 seconds
             loadPublicGames()
         }
     }
