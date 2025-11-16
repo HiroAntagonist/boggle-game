@@ -81,6 +81,13 @@ struct WaitingRoomView: View {
                 ProgressView("Starting game...")
             }
 
+            Button("Leave Game") {
+                leaveGame()
+            }
+            .buttonStyle(.bordered)
+            .tint(.gray)
+            .font(.title3)
+
             Text("Game will auto-start when \(maxPlayers) players join")
                 .font(.caption)
                 .foregroundStyle(.gray)
@@ -167,6 +174,17 @@ struct WaitingRoomView: View {
         }
 
         isStarting = false
+    }
+
+    private func leaveGame() {
+        // Disconnect WebSocket
+        webSocketManager?.disconnect()
+
+        // Clear active game state
+        JumbleAPI.shared.clearActiveGame()
+
+        // Navigate back to lobby by removing all items from navigation path
+        navigationPath.removeLast(navigationPath.count)
     }
 }
 
