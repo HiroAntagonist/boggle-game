@@ -177,14 +177,24 @@ struct WaitingRoomView: View {
     }
 
     private func leaveGame() {
-        // Disconnect WebSocket
-        webSocketManager?.disconnect()
+        Task {
+            do {
+                // Call backend API to remove player from game
+                try await JumbleAPI.shared.leaveGame(gameId: gameId)
+            } catch {
+                print("⚠️ Failed to leave game on backend: \(error.localizedDescription)")
+                // Continue with local cleanup even if API call fails
+            }
 
-        // Clear active game state
-        JumbleAPI.shared.clearActiveGame()
+            // Disconnect WebSocket
+            webSocketManager?.disconnect()
 
-        // Navigate back to lobby by removing all items from navigation path
-        navigationPath.removeLast(navigationPath.count)
+            // Clear active game state
+            JumbleAPI.shared.clearActiveGame()
+
+            // Navigate back to lobby by removing all items from navigation path
+            navigationPath.removeLast(navigationPath.count)
+        }
     }
 }
 

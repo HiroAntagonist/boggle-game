@@ -340,6 +340,36 @@ class JumbleAPI {
         print("✅ Game started successfully!")
     }
 
+    func leaveGame(gameId: String) async throws {
+        guard let token = accessToken else {
+            throw APIError.notAuthenticated
+        }
+
+        let url = URL(string: "\(baseURL)/games/\(gameId)/leave")!
+
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        print("👋 Leaving game: \(gameId)")
+
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.requestFailed("Failed to leave game")
+        }
+
+        if !isSuccessStatusCode(httpResponse.statusCode) {
+            handleUnauthorized(httpResponse.statusCode)
+            if let errorString = String(data: data, encoding: .utf8) {
+                print("❌ Leave game error (\(httpResponse.statusCode)): \(errorString)")
+            }
+            throw APIError.requestFailed("Failed to leave game")
+        }
+
+        print("✅ Left game successfully!")
+    }
+
     func getGameState(gameId: String) async throws -> GameStateResponse {
         guard let token = accessToken else {
             throw APIError.notAuthenticated
