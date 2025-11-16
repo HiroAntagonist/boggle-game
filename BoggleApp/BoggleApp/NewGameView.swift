@@ -69,7 +69,6 @@ struct NewGameView: View {
                         }
                     }
                 }
-                .frame(height: 280)
 
                 if let error = errorMessage {
                     Text(error)
