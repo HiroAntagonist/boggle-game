@@ -356,7 +356,7 @@ class JumbleAPI {
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw APIError.requestFailed("Failed to leave game")
+            throw APIError.leaveGameFailed
         }
 
         if !isSuccessStatusCode(httpResponse.statusCode) {
@@ -364,7 +364,7 @@ class JumbleAPI {
             if let errorString = String(data: data, encoding: .utf8) {
                 print("❌ Leave game error (\(httpResponse.statusCode)): \(errorString)")
             }
-            throw APIError.requestFailed("Failed to leave game")
+            throw APIError.leaveGameFailed
         }
 
         print("✅ Left game successfully!")
@@ -638,6 +638,7 @@ enum APIError: Error, LocalizedError {
     case fetchStatsFailed
     case fetchLeaderboardFailed
     case fetchPublicGamesFailed
+    case leaveGameFailed
 
     var errorDescription: String? {
         switch self {
@@ -665,6 +666,8 @@ enum APIError: Error, LocalizedError {
             return "Failed to fetch leaderboard"
         case .fetchPublicGamesFailed:
             return "Failed to fetch public games"
+        case .leaveGameFailed:
+            return "Failed to leave game"
         }
     }
 }

@@ -24,6 +24,7 @@ struct JoinGameView: View {
     @State private var joiningGameId: String?
     @State private var joinErrorMessage: String?
     @State private var showJoinError = false
+    @State private var showGamerTagRequired = false
     @State private var navigateToGame = false
     @State private var gameViewData: (gameId: String, playerId: String, board: [[String]], timeLimit: Int?, startedAt: String?, webSocketManager: WebSocketManager)?
 
@@ -172,6 +173,14 @@ struct JoinGameView: View {
                 Text(message)
             }
         }
+        .alert("Gamer Tag Required", isPresented: $showGamerTagRequired) {
+            Button("Set Gamer Tag") {
+                navigationPath.append("profile")
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("You need to set a gamer tag in your profile before joining public games.")
+        }
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
@@ -301,8 +310,14 @@ struct JoinGameView: View {
                 }
 
             } catch let error as APIError {
-                joinErrorMessage = error.errorDescription
-                showJoinError = true
+                // Check if this is a gamer tag requirement error
+                if let errorDesc = error.errorDescription,
+                   errorDesc.contains("gamer tag") {
+                    showGamerTagRequired = true
+                } else {
+                    joinErrorMessage = error.errorDescription
+                    showJoinError = true
+                }
             } catch {
                 joinErrorMessage = "An unexpected error occurred"
                 showJoinError = true

@@ -7,6 +7,7 @@ import SwiftUI
 import OpenAPIClient
 
 struct ProfileView: View {
+    @Binding var isLoggedIn: Bool
     @State private var userInfo: UserResponse?
     @State private var stats: UserStatsResponse?
     @State private var isLoading = true
@@ -68,9 +69,25 @@ struct ProfileView: View {
                                     .background(Color.green.opacity(0.1))
                                     .cornerRadius(8)
                                 } else {
-                                    Text("No gamer tag set")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                    VStack(spacing: 8) {
+                                        HStack {
+                                            Image(systemName: "info.circle")
+                                                .foregroundStyle(.orange)
+                                            Text("No gamer tag set")
+                                                .font(.caption)
+                                                .fontWeight(.semibold)
+                                        }
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 6)
+                                        .background(Color.orange.opacity(0.1))
+                                        .cornerRadius(8)
+
+                                        Text("Set a gamer tag to join public games and appear on the leaderboard")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                            .multilineTextAlignment(.center)
+                                            .padding(.horizontal)
+                                    }
                                 }
                             }
                         }
@@ -81,6 +98,15 @@ struct ProfileView: View {
                             Label("Edit Profile", systemImage: "pencil")
                         }
                         .buttonStyle(.bordered)
+                        .tint(.purple)
+
+                        Button {
+                            handleSignOut()
+                        } label: {
+                            Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.red)
                     }
                     .padding()
 
@@ -139,6 +165,11 @@ struct ProfileView: View {
             }
         }
     }
+
+    private func handleSignOut() {
+        JumbleAPI.shared.logout()
+        isLoggedIn = false
+    }
 }
 
 struct StatRow: View {
@@ -158,6 +189,6 @@ struct StatRow: View {
 
 #Preview {
     NavigationStack {
-        ProfileView()
+        ProfileView(isLoggedIn: .constant(true))
     }
 }
