@@ -55,33 +55,20 @@ struct LobbyView: View {
                     .tint(.purple)
                     .font(.title3)
 
-                    HStack(spacing: 15) {
-                        NavigationLink(value: "profile") {
-                            Label("Profile", systemImage: "person.circle")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(.purple)
-                        .controlSize(.small)
-
-                        NavigationLink(value: "leaderboard") {
-                            Label("Board", systemImage: "trophy")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(.purple)
-                        .controlSize(.small)
+                    NavigationLink(value: "leaderboard") {
+                        Label("Leaderboard", systemImage: "trophy")
+                            .frame(width: 200)
                     }
-                    .frame(width: 200)
+                    .buttonStyle(.bordered)
+                    .tint(.purple)
                 }
             }
             .padding()
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        handleSignOut()
-                    } label: {
-                        Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                    NavigationLink(value: "profile") {
+                        Image(systemName: "person.circle")
+                            .font(.title2)
                     }
                 }
             }
@@ -129,7 +116,7 @@ struct LobbyView: View {
                 } else if destination == "joinGame" {
                     JoinGameView(navigationPath: $navigationPath)
                 } else if destination == "profile" {
-                    ProfileView()
+                    ProfileView(isLoggedIn: $isLoggedIn)
                 } else if destination == "leaderboard" {
                     LeaderboardView()
                 } else if destination.hasPrefix("waitingRoom:") {
@@ -171,11 +158,6 @@ struct LobbyView: View {
             userEmail = user.email
             userDisplayName = user.displayName
         }
-    }
-
-    private func handleSignOut() {
-        JumbleAPI.shared.logout()
-        isLoggedIn = false
     }
 
     private func attemptReconnection() {

@@ -22,17 +22,20 @@ func generateIcon() {
     let gradient = NSGradient(colors: [purple1, purple2])
     gradient?.draw(in: NSRect(origin: .zero, size: size), angle: 135)
 
-    // Draw 4 letter tiles in a 2x2 grid pattern
-    let tileSize: CGFloat = 200
-    let spacing: CGFloat = 40
-    let totalWidth = (tileSize * 2) + spacing
-    let startX = (size.width - totalWidth) / 2
-    let startY = (size.height - totalWidth) / 2
+    // Draw 4 letter tiles in a 2x2 grid pattern with 10px margins
+    let margin: CGFloat = 140
+    let spacing: CGFloat = 20
+    let tileSize: CGFloat = (size.width - margin * 2 - spacing) / 2  // 497
+    let startX = margin
+    let startY = margin
 
-    let letters = ["J", "M", "B", "L"]
+    // Note: In AppKit, y=0 is at the bottom, so positions are:
+    // (0, 0) = bottom-left, (1, 0) = bottom-right
+    // (0, 1) = top-left, (1, 1) = top-right
+    let letters = ["B", "L", "J", "M"]  // Ordered to match positions for J-M (top), B-L (bottom)
     let positions = [
-        (0, 0), (1, 0),  // Top row
-        (0, 1), (1, 1)   // Bottom row
+        (0, 0), (1, 0),  // Bottom row: B, L
+        (0, 1), (1, 1)   // Top row: J, M
     ]
 
     for (index, pos) in positions.enumerated() {
@@ -56,13 +59,14 @@ func generateIcon() {
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.alignment = .center
 
+        let fontSize: CGFloat = 280
         let attrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 120, weight: .bold),
+            .font: NSFont.systemFont(ofSize: fontSize, weight: .bold),
             .foregroundColor: NSColor(red: 0.545, green: 0.361, blue: 0.965, alpha: 1.0),
             .paragraphStyle: paragraphStyle
         ]
 
-        let textRect = NSRect(x: x, y: y + (tileSize - 120) / 2 - 10, width: tileSize, height: 120)
+        let textRect = NSRect(x: x, y: y + (tileSize - fontSize) / 2, width: tileSize, height: fontSize)
         letter.draw(in: textRect, withAttributes: attrs)
     }
 

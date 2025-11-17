@@ -36,6 +36,36 @@ struct LoginView: View {
                 .font(.largeTitle)
                 .fontWeight(.bold)
 
+            // Google Sign-In button
+            Button {
+                Task {
+                    await handleGoogleSignIn()
+                }
+            } label: {
+                HStack {
+                    Image(systemName: "g.circle.fill")
+                    Text("Sign in with Google")
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .tint(.purple)
+            .disabled(isLoading)
+
+            // OR divider
+            HStack {
+                Rectangle()
+                    .frame(height: 1)
+                    .foregroundStyle(.gray.opacity(0.3))
+                Text("OR")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                Rectangle()
+                    .frame(height: 1)
+                    .foregroundStyle(.gray.opacity(0.3))
+            }
+            .padding(.vertical, 10)
+
             VStack(spacing: 15) {
                 TextField("Email", text: $email)
                     .textFieldStyle(.roundedBorder)
@@ -76,35 +106,8 @@ struct LoginView: View {
             .font(.caption)
             .foregroundStyle(.purple)
 
-            // OR divider
-            HStack {
-                Rectangle()
-                    .frame(height: 1)
-                    .foregroundStyle(.gray.opacity(0.3))
-                Text("OR")
-                    .font(.caption)
-                    .foregroundStyle(.gray)
-                Rectangle()
-                    .frame(height: 1)
-                    .foregroundStyle(.gray.opacity(0.3))
-            }
-            .padding(.vertical, 10)
 
-            // Google Sign-In button
-            Button {
-                Task {
-                    await handleGoogleSignIn()
-                }
-            } label: {
-                HStack {
-                    Image(systemName: "g.circle.fill")
-                    Text("Sign in with Google")
-                }
-                .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-            .tint(.purple)
-            .disabled(isLoading)
+
 
             if isLoading {
                 ProgressView()
