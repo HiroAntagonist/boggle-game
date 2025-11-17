@@ -2,6 +2,7 @@
 # ABOUTME: Manages game state and provides HTTP endpoints for game operations
 
 from fastapi import FastAPI, HTTPException, status, WebSocket, WebSocketDisconnect, Depends, Request, Query
+from fastapi.responses import HTMLResponse
 from typing import Dict, Set
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -2226,3 +2227,25 @@ def get_leaderboard(
         leaderboard=leaderboard,
         user_rank=user_rank
     )
+
+
+# ============================================================================
+# LEGAL PAGES
+# ============================================================================
+
+@app.get("/privacy", response_class=HTMLResponse)
+async def privacy_policy():
+    """Serve Privacy Policy HTML page (required by App Store)."""
+    import os
+    template_path = os.path.join(os.path.dirname(__file__), "templates", "privacy.html")
+    with open(template_path, "r") as f:
+        return f.read()
+
+
+@app.get("/terms", response_class=HTMLResponse)
+async def terms_of_service():
+    """Serve Terms of Service HTML page (required by App Store)."""
+    import os
+    template_path = os.path.join(os.path.dirname(__file__), "templates", "terms.html")
+    with open(template_path, "r") as f:
+        return f.read()
