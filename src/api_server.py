@@ -623,18 +623,7 @@ async def cleanup_stale_games() -> None:
                 game.status = "abandoned"
                 game.abandoned_at = now
 
-            # 3. Delete FINISHED games older than 7 days
-            finished_timeout = now - timedelta(days=7)
-            old_finished = db.query(GameModel).filter(
-                GameModel.status == "finished",
-                GameModel.ended_at < finished_timeout
-            ).all()
-
-            for game in old_finished:
-                print(f"🗑️  CLEANUP - Deleting old FINISHED game | UUID: {game.id} | Ended: {game.ended_at}")
-                db.delete(game)
-
-            # 4. Delete ABANDONED games (immediate cleanup)
+            # 3. Delete ABANDONED games (immediate cleanup)
             abandoned_games = db.query(GameModel).filter(
                 GameModel.status == "abandoned"
             ).all()
