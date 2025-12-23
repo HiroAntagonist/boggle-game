@@ -36,19 +36,34 @@ struct JoinGameView: View {
             // Code input section
             VStack(spacing: 20) {
                 Text("Join Game")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
+                    .font(.system(size: 36, weight: .black, design: .rounded))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.nebulaAccent, .nebulaPrimary],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .shadow(color: .nebulaPrimary.opacity(0.5), radius: 10, x: 0, y: 5)
 
                 Text("Enter a game code")
                     .font(.subheadline)
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(Color.nebulaTextSecondary)
 
                 TextField("XXXX-XXXX", text: $friendlyCode)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 24, weight: .semibold, design: .monospaced))
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 28, weight: .bold, design: .monospaced))
                     .multilineTextAlignment(.center)
                     .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
+                    .padding()
+                    .background(Color.nebulaSurface.opacity(0.6))
+                    .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.nebulaAccent.opacity(0.5), lineWidth: 1)
+                    )
+                    .foregroundStyle(.white)
                     .padding(.horizontal)
                     .onChange(of: friendlyCode) { oldValue, newValue in
                         // Auto-format as XXXX-XXXX
@@ -62,40 +77,58 @@ struct JoinGameView: View {
 
                 if let error = errorMessage {
                     Text(error)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Color.nebulaError)
                         .font(.caption)
+                        .padding(8)
+                        .background(Color.nebulaError.opacity(0.1))
+                        .cornerRadius(8)
                 }
 
-                Button("Join by Code") {
+                Button {
                     Task {
                         await joinGame()
                     }
+                } label: {
+                    HStack {
+                        Image(systemName: "arrow.right.circle.fill")
+                        Text("Join by Code")
+                    }
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.purple)
+                .nebulaButtonStyle(color: .nebulaPrimary)
                 .disabled(isJoining || friendlyCode.count < 8)
-                .font(.title3)
 
                 if isJoining {
-                    ProgressView("Joining game...")
+                    ProgressView()
+                        .tint(.nebulaAccent)
                 }
             }
             .padding()
 
             // Divider
-            VStack(spacing: 8) {
-                Divider()
-                    .padding(.horizontal)
-
-                Text("Or browse public games")
+            HStack {
+                Rectangle()
+                    .frame(height: 1)
+                    .foregroundStyle(Color.white.opacity(0.2))
+                Text("OR")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.nebulaTextSecondary)
+                Rectangle()
+                    .frame(height: 1)
+                    .foregroundStyle(Color.white.opacity(0.2))
             }
+            .padding(.horizontal)
+            .padding(.vertical, 10)
+
+            Text("Browse public games")
+                .font(.caption)
+                .foregroundStyle(Color.nebulaTextSecondary)
+                .padding(.bottom, 10)
 
             // Public games list
             if isLoadingGames {
                 Spacer()
                 ProgressView()
+                    .tint(.nebulaAccent)
                     .scaleEffect(1.2)
                 Spacer()
             } else if let error = gamesErrorMessage {
@@ -103,17 +136,16 @@ struct JoinGameView: View {
                 VStack(spacing: 15) {
                     Image(systemName: "exclamationmark.triangle")
                         .font(.system(size: 40))
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Color.nebulaError)
 
                     Text(error)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.nebulaTextSecondary)
                         .multilineTextAlignment(.center)
 
                     Button("Try Again") {
                         loadPublicGames()
                     }
-                    .buttonStyle(.bordered)
-                    .tint(.purple)
+                    .nebulaButtonStyle(color: .nebulaSurface)
                 }
                 .padding()
                 Spacer()
@@ -122,32 +154,36 @@ struct JoinGameView: View {
                 VStack(spacing: 10) {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 40))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.nebulaTextSecondary)
 
                     Text("No public games available")
                         .font(.headline)
+                        .foregroundStyle(.white)
 
                     Text("Create a public game to get started")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.nebulaTextSecondary)
                 }
                 .padding()
                 Spacer()
             } else {
-                List {
-                    ForEach(publicGames, id: \.gameId) { game in
-                        PublicGameRow(
-                            game: game,
-                            isJoining: joiningGameId == game.gameId,
-                            onJoin: {
-                                joinPublicGame(game)
-                            }
-                        )
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(publicGames, id: \.gameId) { game in
+                            NebulaPublicGameRow(
+                                game: game,
+                                isJoining: joiningGameId == game.gameId,
+                                onJoin: {
+                                    joinPublicGame(game)
+                                }
+                            )
+                        }
                     }
+                    .padding(.horizontal)
                 }
-                .listStyle(.plain)
             }
         }
+        .withNebulaBackground()
         .navigationDestination(isPresented: $navigateToWaitingRoom) {
             if let players = maxPlayers, let pid = playerId, let gid = gameId {
                 WaitingRoomView(navigationPath: $navigationPath, gameId: gid, playerId: pid, maxPlayers: players, friendlyCode: friendlyCode)
@@ -187,6 +223,7 @@ struct JoinGameView: View {
                     loadPublicGames()
                 } label: {
                     Image(systemName: "arrow.clockwise")
+                        .foregroundStyle(Color.nebulaAccent)
                 }
                 .disabled(isLoadingGames)
             }
@@ -326,8 +363,8 @@ struct JoinGameView: View {
     }
 }
 
-// PublicGameRow component (copied from PublicGamesView)
-struct PublicGameRow: View {
+// Nebula-themed public game row
+struct NebulaPublicGameRow: View {
     let game: PublicGameEntry
     let isJoining: Bool
     let onJoin: () -> Void
@@ -340,10 +377,11 @@ struct PublicGameRow: View {
                     if let creator = game.creatorGamerTag {
                         Text(creator)
                             .font(.headline)
+                            .foregroundStyle(.white)
                     } else {
                         Text("Anonymous")
                             .font(.headline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.nebulaTextSecondary)
                     }
 
                     Spacer()
@@ -351,9 +389,10 @@ struct PublicGameRow: View {
                     Text(game.friendlyCode)
                         .font(.caption)
                         .fontWeight(.semibold)
+                        .foregroundStyle(Color.nebulaAccent)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(Color.blue.opacity(0.1))
+                        .background(Color.nebulaAccent.opacity(0.2))
                         .cornerRadius(6)
                 }
 
@@ -361,23 +400,23 @@ struct PublicGameRow: View {
                 HStack(spacing: 12) {
                     Label("\(game.currentPlayers)/\(game.maxPlayers)", systemImage: "person.2.fill")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.nebulaTextSecondary)
 
                     Label("\(game.boardSize)×\(game.boardSize)", systemImage: "square.grid.3x3")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.nebulaTextSecondary)
 
                     if let timeLimit = game.timeLimit {
-                        Label("\(timeLimit)s", systemImage: "timer")
+                        Label("\(timeLimit / 60)m", systemImage: "timer")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.nebulaTextSecondary)
                     }
                 }
 
                 // Time ago
                 Text(timeAgo(from: game.createdAt))
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(Color.nebulaTextSecondary.opacity(0.7))
             }
 
             Spacer()
@@ -385,23 +424,42 @@ struct PublicGameRow: View {
             // Join button
             if isJoining {
                 ProgressView()
+                    .tint(.nebulaAccent)
             } else if game.currentPlayers >= game.maxPlayers {
                 Text("Full")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.nebulaTextSecondary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.nebulaSurface.opacity(0.5))
+                    .cornerRadius(8)
             } else {
                 Button {
                     onJoin()
                 } label: {
                     Text("Join")
+                        .font(.subheadline)
                         .fontWeight(.semibold)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.nebulaPrimary)
+                        )
+                        .nebulaGlow(color: .nebulaPrimary, radius: 3)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.purple)
-                .controlSize(.small)
             }
         }
-        .padding(.vertical, 4)
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.nebulaSurface.opacity(0.5))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                )
+        )
     }
 
     private func timeAgo(from isoString: String) -> String {

@@ -20,6 +20,7 @@ struct LoginView: View {
                 LobbyView(isLoggedIn: $isLoggedIn)
             } else {
                 loginForm
+                    .withNebulaBackground()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .forceLogout)) { _ in
@@ -31,10 +32,18 @@ struct LoginView: View {
     }
 
     private var loginForm: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 25) {
             Text("Jumble")
-                .font(.largeTitle)
-                .fontWeight(.bold)
+                .font(.system(size: 48, weight: .black, design: .rounded))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [.nebulaAccent, .nebulaPrimary],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .shadow(color: .nebulaPrimary.opacity(0.5), radius: 10, x: 0, y: 5)
+                .padding(.bottom, 20)
 
             // Google Sign-In button
             Button {
@@ -48,37 +57,60 @@ struct LoginView: View {
                 }
                 .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.bordered)
-            .tint(.purple)
+            .nebulaButtonStyle(color: .white.opacity(0.1))
             .disabled(isLoading)
 
             // OR divider
             HStack {
                 Rectangle()
                     .frame(height: 1)
-                    .foregroundStyle(.gray.opacity(0.3))
+                    .foregroundStyle(Color.white.opacity(0.2))
                 Text("OR")
                     .font(.caption)
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(Color.white.opacity(0.6))
                 Rectangle()
                     .frame(height: 1)
-                    .foregroundStyle(.gray.opacity(0.3))
+                    .foregroundStyle(Color.white.opacity(0.2))
             }
             .padding(.vertical, 10)
 
             VStack(spacing: 15) {
                 TextField("Email", text: $email)
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(.plain)
+                    .padding()
+                    .background(Color.nebulaSurface.opacity(0.6))
+                    .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                    )
+                    .foregroundStyle(.white)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .keyboardType(.emailAddress)
 
                 SecureField("Password", text: $password)
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(.plain)
+                    .padding()
+                    .background(Color.nebulaSurface.opacity(0.6))
+                    .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                    )
+                    .foregroundStyle(.white)
 
                 if isRegistering {
                     TextField("Display Name (optional)", text: $displayName)
-                        .textFieldStyle(.roundedBorder)
+                        .textFieldStyle(.plain)
+                        .padding()
+                        .background(Color.nebulaSurface.opacity(0.6))
+                        .cornerRadius(12)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                        )
+                        .foregroundStyle(.white)
                         .autocorrectionDisabled()
                 }
             }
@@ -86,8 +118,11 @@ struct LoginView: View {
 
             if let error = errorMessage {
                 Text(error)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Color.nebulaError)
                     .font(.caption)
+                    .padding(8)
+                    .background(Color.nebulaError.opacity(0.1))
+                    .cornerRadius(8)
             }
 
             Button(isRegistering ? "Register" : "Login") {
@@ -95,24 +130,29 @@ struct LoginView: View {
                     await handleAuth()
                 }
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.purple)
+            .nebulaButtonStyle(color: .nebulaPrimary)
             .disabled(isLoading || email.isEmpty || password.isEmpty)
 
             Button(isRegistering ? "Already have an account? Login" : "Need an account? Register") {
-                isRegistering.toggle()
-                errorMessage = nil
+                withAnimation {
+                    isRegistering.toggle()
+                    errorMessage = nil
+                }
             }
             .font(.caption)
-            .foregroundStyle(.purple)
-
-
-
+            .foregroundStyle(Color.nebulaAccent)
 
             if isLoading {
                 ProgressView()
+                    .tint(.nebulaAccent)
             }
         }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 24)
+                .fill(Color.nebulaSurface.opacity(0.5))
+                .shadow(color: .black.opacity(0.3), radius: 20, x: 0, y: 10)
+        )
         .padding()
         .onAppear {
             // Auto-authenticate if token exists in Keychain

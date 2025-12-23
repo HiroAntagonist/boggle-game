@@ -16,29 +16,43 @@ struct GameResultsView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Winner announcement
-            VStack(spacing: 10) {
+            VStack(spacing: 15) {
                 Text("Game Over!")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
+                    .font(.system(size: 40, weight: .black, design: .rounded))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.nebulaAccent, .nebulaPrimary],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .shadow(color: .nebulaPrimary.opacity(0.5), radius: 10, x: 0, y: 5)
 
                 if let winner = results.winner {
-                    Text("\(winner) Wins! 🎉")
-                        .font(.title)
-                        .foregroundStyle(.green)
+                    HStack(spacing: 8) {
+                        Text(winner)
+                            .font(.title)
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.nebulaSuccess)
+                        Text("Wins!")
+                            .font(.title)
+                            .foregroundStyle(.white)
+                    }
+                    .nebulaGlow(color: .nebulaSuccess, radius: 8)
                 } else {
                     Text("It's a Tie!")
                         .font(.title)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Color.nebulaAccent)
                 }
             }
-            .padding(.top, 20)
-            .padding(.bottom, 15)
+            .padding(.top, 30)
+            .padding(.bottom, 20)
 
             // Player results - scrollable
             ScrollView {
-                VStack(spacing: 20) {
+                VStack(spacing: 16) {
                     ForEach(sortedResults, id: \.playerName) { playerResult in
-                        PlayerResultCard(
+                        NebulaPlayerResultCard(
                             result: playerResult,
                             isWinner: playerResult.playerName == results.winner
                         )
@@ -49,66 +63,82 @@ struct GameResultsView: View {
             }
 
             // Button at bottom
-            Button("Back to Lobby") {
+            Button {
                 // Clear active game state since game has ended
                 JumbleAPI.shared.clearActiveGame()
                 // Clear navigation path to return to lobby
                 navigationPath = NavigationPath()
+            } label: {
+                HStack {
+                    Image(systemName: "house.fill")
+                    Text("Back to Lobby")
+                }
+                .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.purple)
-            .font(.title3)
+            .nebulaButtonStyle(color: .nebulaPrimary)
             .padding(.vertical, 15)
             .padding(.horizontal)
         }
+        .withNebulaBackground()
         .navigationBarBackButtonHidden(true)
     }
 }
 
-struct PlayerResultCard: View {
+struct NebulaPlayerResultCard: View {
     let result: PlayerFinalResult
     let isWinner: Bool
-
-    private var backgroundColor: Color {
-        isWinner ? Color.green.opacity(0.1) : Color.gray.opacity(0.1)
-    }
-
-    private var borderColor: Color {
-        isWinner ? .green : .clear
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Player name and score header
             HStack {
-                Text(result.playerName)
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundStyle(isWinner ? .green : .primary)
+                HStack(spacing: 8) {
+                    if isWinner {
+                        Image(systemName: "crown.fill")
+                            .foregroundStyle(Color.yellow)
+                    }
+                    Text(result.playerName)
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundStyle(isWinner ? Color.nebulaSuccess : .white)
+                }
 
                 Spacer()
 
                 Text("\(result.totalScore) pts")
                     .font(.title3)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(isWinner ? .green : .purple)
+                    .fontWeight(.bold)
+                    .foregroundStyle(isWinner ? Color.nebulaSuccess : Color.nebulaAccent)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(isWinner ? Color.nebulaSuccess.opacity(0.2) : Color.nebulaAccent.opacity(0.2))
+                    )
             }
 
             // Words list
             if !result.words.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 6) {
                     ForEach(result.words, id: \.word) { wordResult in
                         HStack {
                             Text(wordResult.word)
                                 .font(.body)
-                                .strikethrough(!wordResult.valid, color: .red)
-                                .foregroundStyle(wordResult.valid ? Color.primary : Color.gray)
+                                .strikethrough(!wordResult.valid, color: Color.nebulaError)
+                                .foregroundStyle(wordResult.valid ? .white : Color.nebulaTextSecondary)
 
                             Spacer()
 
-                            Text("\(wordResult.score) pts")
-                                .font(.caption)
-                                .foregroundStyle(wordResult.valid ? Color.purple : Color.gray)
+                            if wordResult.valid {
+                                Text("+\(wordResult.score)")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(Color.nebulaAccent)
+                            } else {
+                                Text("0")
+                                    .font(.caption)
+                                    .foregroundStyle(Color.nebulaTextSecondary)
+                            }
                         }
                     }
                 }
@@ -116,12 +146,19 @@ struct PlayerResultCard: View {
             } else {
                 Text("No words found")
                     .font(.caption)
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(Color.nebulaTextSecondary)
             }
         }
         .padding()
-        .background(RoundedRectangle(cornerRadius: 12).fill(backgroundColor))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(borderColor, lineWidth: 2))
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.nebulaSurface.opacity(isWinner ? 0.7 : 0.5))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(isWinner ? Color.nebulaSuccess.opacity(0.5) : Color.white.opacity(0.1), lineWidth: isWinner ? 2 : 1)
+                )
+        )
+        .nebulaGlow(color: isWinner ? .nebulaSuccess : .clear, radius: isWinner ? 5 : 0)
     }
 }
 

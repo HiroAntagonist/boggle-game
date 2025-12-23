@@ -20,48 +20,60 @@ struct LobbyView: View {
         NavigationStack(path: $navigationPath) {
             VStack(spacing: 30) {
                 Text("Jumble")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
+                    .font(.system(size: 48, weight: .black, design: .rounded))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.nebulaAccent, .nebulaPrimary],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .shadow(color: .nebulaPrimary.opacity(0.5), radius: 10, x: 0, y: 5)
 
                 // Display logged-in user info
                 if let displayName = userDisplayName {
                     Text("Welcome, \(displayName)!")
                         .font(.title3)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.nebulaTextSecondary)
                 } else if let email = userEmail {
                     Text("Logged in as \(email)")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.nebulaTextSecondary)
                 }
 
                 Text("Ready to play?")
                     .font(.title2)
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(Color.nebulaTextSecondary)
 
-                VStack(spacing: 15) {
-                    NavigationLink(value: "newGame") {
-                        Text("New Game")
-                            .frame(width: 200)
+                VStack(spacing: 20) {
+                    NavigationLink(value: "hostGame") {
+                        HStack {
+                            Image(systemName: "play.fill")
+                            Text("Host Game")
+                        }
+                        .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.purple)
-                    .font(.title3)
+                    .nebulaButtonStyle(color: .nebulaPrimary)
 
                     NavigationLink(value: "joinGame") {
-                        Text("Join Game")
-                            .frame(width: 200)
+                        HStack {
+                            Image(systemName: "person.3.fill")
+                            Text("Join Game")
+                        }
+                        .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.bordered)
-                    .tint(.purple)
-                    .font(.title3)
+                    .nebulaButtonStyle(color: .nebulaSurface)
 
                     NavigationLink(value: "leaderboard") {
-                        Label("Leaderboard", systemImage: "trophy")
-                            .frame(width: 200)
+                        HStack {
+                            Image(systemName: "trophy.fill")
+                            Text("Leaderboard")
+                        }
+                        .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.bordered)
-                    .tint(.purple)
+                    .nebulaButtonStyle(color: .nebulaSurface)
                 }
+                .padding(.horizontal, 40)
             }
             .padding()
             .toolbar {
@@ -111,7 +123,7 @@ struct LobbyView: View {
                 }
             }
             .navigationDestination(for: String.self) { destination in
-                if destination == "newGame" {
+                if destination == "hostGame" {
                     NewGameView(navigationPath: $navigationPath)
                 } else if destination == "joinGame" {
                     JoinGameView(navigationPath: $navigationPath)
@@ -151,6 +163,7 @@ struct LobbyView: View {
                 }
             }
         }
+        .withNebulaBackground()
     }
 
     private func loadUserInfo() {

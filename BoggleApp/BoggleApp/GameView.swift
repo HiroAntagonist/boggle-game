@@ -72,8 +72,15 @@ struct GameView: View {
                 if !isLoading && errorMessage == nil {
                     VStack {
                         Text("Jumble")
-                            .font(.largeTitle)
-                            .fontWeight(.bold)
+                            .font(.system(size: 40, weight: .black, design: .rounded))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [.nebulaAccent, .nebulaPrimary],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .shadow(color: .nebulaPrimary.opacity(0.5), radius: 10, x: 0, y: 5)
                             .frame(maxWidth: .infinity)
                             .padding(.top)
 
@@ -135,6 +142,7 @@ struct GameView: View {
                 AppDelegate.orientationLock = .all
             }
         }
+        .withNebulaBackground()
     }
 
     // Portrait layout - vertical stack with percentage-based sizing
@@ -172,7 +180,7 @@ struct GameView: View {
                         if playerCount > 0 {
                             Label("\(playerCount) players", systemImage: "person.2")
                                 .font(.headline)
-                                .foregroundStyle(.gray)
+                                .foregroundStyle(Color.nebulaTextSecondary)
                         }
                     }
                 }
@@ -220,8 +228,13 @@ struct GameView: View {
                             }
                             .padding()
                             .background(
-                                RoundedRectangle(cornerRadius: 15)
-                                    .fill(.gray.opacity(0.1))
+                                RoundedRectangle(cornerRadius: 24)
+                                    .fill(.ultraThinMaterial)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 24)
+                                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                    )
+                                    .shadow(color: .black.opacity(0.2), radius: 10)
                             )
                             .gesture(
                                 DragGesture(minimumDistance: 0)
@@ -239,14 +252,18 @@ struct GameView: View {
                             rotateBoard()
                         }) {
                             Image(systemName: "rotate.right")
-                                .font(.system(size: finalTileSize * 0.3))
-                                .fontWeight(.semibold)
-                                .foregroundStyle(.purple)
-                                .padding(finalTileSize * 0.10)
+                                .font(.system(size: finalTileSize * 0.35))
+                                .fontWeight(.bold)
+                                .foregroundStyle(.white)
+                                .padding(finalTileSize * 0.15)
                                 .background(
                                     Circle()
-                                        .fill(.white.opacity(0.95))
-                                        .shadow(color: .black.opacity(0.15), radius: 3, x: 0, y: 1)
+                                        .fill(Color.nebulaPrimary)
+                                        .overlay(
+                                            Circle()
+                                                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                                        )
+                                        .shadow(color: .nebulaPrimary.opacity(0.5), radius: 5, x: 0, y: 2)
                                 )
                         }
                         .offset(x: -6, y: -6)
@@ -264,7 +281,7 @@ struct GameView: View {
                     Text("Word: \(isSubmitting ? submittingWord + "..." : selectedWord)")
                         .font(.title2)
                         .fontWeight(.semibold)
-                        .foregroundStyle((isSubmitting || !selectedWord.isEmpty) ? .purple : .gray)
+                        .foregroundStyle((isSubmitting || !selectedWord.isEmpty) ? Color.nebulaAccent : Color.nebulaTextSecondary)
 
                     // Feedback message (fixed height to prevent jumping)
                     Text(feedbackMessage ?? " ")
@@ -277,8 +294,8 @@ struct GameView: View {
                             selectedWord = ""
                             feedbackMessage = nil
                         }
-                        .buttonStyle(.bordered)
-                        .tint(.purple)
+                        .nebulaButtonStyle(color: .nebulaSurface)
+                        .scaleEffect(0.9) // Slightly smaller to fit
                         .disabled(selectedWord.isEmpty)
 
                         Button(action: {
@@ -289,15 +306,15 @@ struct GameView: View {
                         }) {
                             Image(systemName: "delete.left")
                         }
-                        .buttonStyle(.bordered)
-                        .tint(.purple)
+                        .nebulaButtonStyle(color: .nebulaSurface)
+                        .scaleEffect(0.9)
                         .disabled(selectedWord.isEmpty)
 
                         Button("Submit") {
                             submitWord()
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.purple)
+                        .nebulaButtonStyle(color: .nebulaPrimary)
+                        .scaleEffect(0.9)
                         .disabled(selectedWord.isEmpty || selectedWord.count < 3)
                     }
 
@@ -310,13 +327,12 @@ struct GameView: View {
                         VStack(alignment: .leading, spacing: 5) {
                             Text("Your words:")
                                 .font(.caption)
-                                .foregroundStyle(.gray)
+                                .foregroundStyle(Color.nebulaTextSecondary)
                             ScrollView {
                                 LazyVGrid(columns: columns, alignment: .leading, spacing: 3) {
                                     ForEach(recentWords, id: \.self) { word in
                                         Text(word)
-                                            .font(.caption)
-                                            .lineLimit(1)
+                                            .foregroundStyle(.white)
                                     }
                                 }
                             }
@@ -356,7 +372,7 @@ struct GameView: View {
                         if playerCount > 0 {
                             Label("\(playerCount) players", systemImage: "person.2")
                                 .font(.headline)
-                                .foregroundStyle(.gray)
+                                .foregroundStyle(Color.nebulaTextSecondary)
                         }
                     }
                 }
@@ -389,8 +405,13 @@ struct GameView: View {
                             }
                             .padding()
                             .background(
-                                RoundedRectangle(cornerRadius: 15)
-                                    .fill(.gray.opacity(0.1))
+                                RoundedRectangle(cornerRadius: 24)
+                                    .fill(.ultraThinMaterial)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 24)
+                                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                    )
+                                    .shadow(color: .black.opacity(0.2), radius: 10)
                             )
                             .gesture(
                                 DragGesture(minimumDistance: 0)
@@ -407,14 +428,18 @@ struct GameView: View {
                                 rotateBoard()
                             }) {
                                 Image(systemName: "rotate.right")
-                                    .font(.system(size: tileSize * 0.3))
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(.purple)
-                                    .padding(tileSize * 0.10)
+                                    .font(.system(size: tileSize * 0.35))
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.white)
+                                    .padding(tileSize * 0.15)
                                     .background(
                                         Circle()
-                                            .fill(.white.opacity(0.95))
-                                            .shadow(color: .black.opacity(0.15), radius: 3, x: 0, y: 1)
+                                            .fill(Color.nebulaPrimary)
+                                            .overlay(
+                                                Circle()
+                                                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                                            )
+                                            .shadow(color: .nebulaPrimary.opacity(0.5), radius: 5, x: 0, y: 2)
                                     )
                             }
                             .offset(x: -6, y: -6)
@@ -438,7 +463,7 @@ struct GameView: View {
                         Text("Word: \(isSubmitting ? submittingWord + "..." : selectedWord)")
                             .font(.title2)
                             .fontWeight(.semibold)
-                            .foregroundStyle((isSubmitting || !selectedWord.isEmpty) ? .purple : .gray)
+                            .foregroundStyle((isSubmitting || !selectedWord.isEmpty) ? Color.nebulaAccent : Color.nebulaTextSecondary)
 
                         // Feedback message (fixed height to prevent jumping)
                         Text(feedbackMessage ?? " ")
@@ -451,8 +476,8 @@ struct GameView: View {
                                 selectedWord = ""
                                 feedbackMessage = nil
                             }
-                            .buttonStyle(.bordered)
-                            .tint(.purple)
+                            .nebulaButtonStyle(color: .nebulaSurface)
+                            .scaleEffect(0.9)
                             .disabled(selectedWord.isEmpty)
 
                             Button(action: {
@@ -463,15 +488,15 @@ struct GameView: View {
                             }) {
                                 Image(systemName: "delete.left")
                             }
-                            .buttonStyle(.bordered)
-                            .tint(.purple)
+                            .nebulaButtonStyle(color: .nebulaSurface)
+                            .scaleEffect(0.9)
                             .disabled(selectedWord.isEmpty)
 
                             Button("Submit") {
                                 submitWord()
                             }
-                            .buttonStyle(.borderedProminent)
-                            .tint(.purple)
+                            .nebulaButtonStyle(color: .nebulaPrimary)
+                            .scaleEffect(0.9)
                             .disabled(selectedWord.isEmpty || selectedWord.count < 3)
                         }
 
@@ -483,7 +508,7 @@ struct GameView: View {
                             VStack(alignment: .leading, spacing: 5) {
                                 Text("Your words:")
                                     .font(.caption)
-                                    .foregroundStyle(.gray)
+                                    .foregroundStyle(Color.nebulaTextSecondary)
                                 ScrollView {
                                     LazyVGrid(columns: columns, alignment: .leading, spacing: 3) {
                                         ForEach(recentWords, id: \.self) { word in
@@ -816,18 +841,53 @@ struct LetterTile: View {
     let size: CGFloat
     let onTap: () -> Void
 
+    @State private var isPressed = false
+
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 10)
-                .fill(.purple)
-                .frame(width: size, height: size)
+            // Glassmorphic Tile
+            RoundedRectangle(cornerRadius: size * 0.2)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            .nebulaPrimary.opacity(0.8),
+                            .nebulaSurface.opacity(0.9)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: size * 0.2)
+                        .stroke(
+                            LinearGradient(
+                                colors: [.white.opacity(0.6), .clear],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                )
+                .shadow(color: .nebulaPrimary.opacity(0.5), radius: 6, x: 0, y: 3)
 
             Text(letter)
-                .font(.system(size: size * 0.4))
-                .fontWeight(.bold)
+                .font(.system(size: size * 0.5, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.3), radius: 1, x: 1, y: 1)
         }
+        .frame(width: size, height: size)
+        .contentShape(Rectangle())
+        .scaleEffect(isPressed ? 0.9 : 1.0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isPressed)
         .onTapGesture {
+            let impactMed = UIImpactFeedbackGenerator(style: .medium)
+            impactMed.impactOccurred()
+            
+            isPressed = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                isPressed = false
+            }
+            
             onTap()
         }
     }

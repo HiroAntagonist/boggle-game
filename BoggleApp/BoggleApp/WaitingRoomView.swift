@@ -25,74 +25,142 @@ struct WaitingRoomView: View {
     var body: some View {
         VStack(spacing: 25) {
             Text("Waiting Room")
-                .font(.largeTitle)
-                .fontWeight(.bold)
+                .font(.system(size: 36, weight: .black, design: .rounded))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [.nebulaAccent, .nebulaPrimary],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .shadow(color: .nebulaPrimary.opacity(0.5), radius: 10, x: 0, y: 5)
 
-            VStack(spacing: 8) {
-                Text("Share this code:")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
+            // Share code card
+            VStack(spacing: 12) {
+                Text("Share this code")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.nebulaTextSecondary)
 
                 Text(friendlyCode)
-                    .font(.system(size: 36, weight: .bold, design: .monospaced))
-                    .foregroundStyle(.purple)
-                    .tracking(3)
+                    .font(.system(size: 40, weight: .bold, design: .monospaced))
+                    .foregroundStyle(Color.nebulaAccent)
+                    .tracking(4)
                     .textSelection(.enabled)
-                    .padding(.horizontal)
-                    .padding(.vertical, 12)
-                    .background(Color.purple.opacity(0.1))
-                    .cornerRadius(10)
+                    .nebulaGlow(color: .nebulaAccent, radius: 8)
             }
-            .padding(.bottom, 10)
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.nebulaSurface.opacity(0.5))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(Color.nebulaAccent.opacity(0.3), lineWidth: 1)
+                    )
+            )
 
-            VStack(spacing: 10) {
+            // Players section
+            VStack(spacing: 15) {
                 Text("\(players.count)/\(maxPlayers) Players")
                     .font(.title2)
                     .fontWeight(.semibold)
+                    .foregroundStyle(.white)
 
-                List(players, id: \.self) { player in
-                    HStack {
-                        Image(systemName: "person.fill")
-                            .foregroundStyle(.purple)
-                        Text(player)
+                VStack(spacing: 8) {
+                    ForEach(players, id: \.self) { player in
+                        HStack {
+                            Image(systemName: "person.fill")
+                                .foregroundStyle(Color.nebulaAccent)
+                            Text(player)
+                                .foregroundStyle(.white)
+                            Spacer()
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(Color.nebulaSuccess)
+                        }
+                        .padding()
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.nebulaSurface.opacity(0.6))
+                        )
+                    }
+
+                    // Empty slots
+                    ForEach(0..<(maxPlayers - players.count), id: \.self) { _ in
+                        HStack {
+                            Image(systemName: "person.fill")
+                                .foregroundStyle(Color.nebulaTextSecondary.opacity(0.5))
+                            Text("Waiting...")
+                                .foregroundStyle(Color.nebulaTextSecondary)
+                            Spacer()
+                            ProgressView()
+                                .tint(Color.nebulaTextSecondary)
+                                .scaleEffect(0.8)
+                        }
+                        .padding()
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.nebulaSurface.opacity(0.3))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                                )
+                        )
                     }
                 }
-                .frame(height: 200)
-                .listStyle(.plain)
             }
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color.nebulaSurface.opacity(0.3))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20)
+                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                    )
+            )
 
             if let error = errorMessage {
                 Text(error)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Color.nebulaError)
                     .font(.caption)
+                    .padding(8)
+                    .background(Color.nebulaError.opacity(0.1))
+                    .cornerRadius(8)
             }
 
-            Button("Start Game") {
+            Button {
                 Task {
                     await startGame()
                 }
+            } label: {
+                HStack {
+                    Image(systemName: "play.fill")
+                    Text("Start Game")
+                }
+                .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.purple)
+            .nebulaButtonStyle(color: .nebulaPrimary)
             .disabled(isStarting || players.count < 1)
-            .font(.title3)
 
             if isStarting {
-                ProgressView("Starting game...")
+                ProgressView()
+                    .tint(.nebulaAccent)
             }
 
-            Button("Leave Game") {
+            Button {
                 leaveGame()
+            } label: {
+                HStack {
+                    Image(systemName: "xmark.circle")
+                    Text("Leave Game")
+                }
             }
-            .buttonStyle(.bordered)
-            .tint(.gray)
-            .font(.title3)
+            .nebulaButtonStyle(color: .nebulaSurface)
 
             Text("Game will auto-start when \(maxPlayers) players join")
                 .font(.caption)
-                .foregroundStyle(.gray)
+                .foregroundStyle(Color.nebulaTextSecondary)
         }
         .padding()
+        .withNebulaBackground()
         .task {
             await loadGameState()
         }

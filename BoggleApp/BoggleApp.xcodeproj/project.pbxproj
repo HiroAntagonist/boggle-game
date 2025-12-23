@@ -31,8 +31,8 @@
 
 /* Begin PBXFileReference section */
 		226F509B2EB6B27A00F16E9F /* Jumble.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Jumble.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		226F50A82EB6B27D00F16E9F /* BoggleAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; name = BoggleAppTests.xctest; path = Jumble.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		226F50B22EB6B27D00F16E9F /* BoggleAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; name = BoggleAppUITests.xctest; path = Jumble.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		226F50A82EB6B27D00F16E9F /* Jumble.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Jumble.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		226F50B22EB6B27D00F16E9F /* Jumble.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Jumble.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		22D72AF72EC3118700509855 /* Generated */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Generated; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -110,8 +110,8 @@
 			isa = PBXGroup;
 			children = (
 				226F509B2EB6B27A00F16E9F /* Jumble.app */,
-				226F50A82EB6B27D00F16E9F /* BoggleAppTests.xctest */,
-				226F50B22EB6B27D00F16E9F /* BoggleAppUITests.xctest */,
+				226F50A82EB6B27D00F16E9F /* Jumble.xctest */,
+				226F50B22EB6B27D00F16E9F /* Jumble.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -172,7 +172,7 @@
 			packageProductDependencies = (
 			);
 			productName = BoggleAppTests;
-			productReference = 226F50A82EB6B27D00F16E9F /* BoggleAppTests.xctest */;
+			productReference = 226F50A82EB6B27D00F16E9F /* Jumble.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 		226F50B12EB6B27D00F16E9F /* BoggleAppUITests */ = {
@@ -195,7 +195,7 @@
 			packageProductDependencies = (
 			);
 			productName = BoggleAppUITests;
-			productReference = 226F50B22EB6B27D00F16E9F /* BoggleAppUITests.xctest */;
+			productReference = 226F50B22EB6B27D00F16E9F /* Jumble.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -206,7 +206,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2600;
-				LastUpgradeCheck = 2600;
+				LastUpgradeCheck = 2610;
 				TargetAttributes = {
 					226F509A2EB6B27A00F16E9F = {
 						CreatedOnToolsVersion = 26.0.1;
@@ -366,6 +366,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -422,6 +423,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
 			};
