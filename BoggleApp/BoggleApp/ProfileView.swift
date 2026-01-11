@@ -13,6 +13,7 @@ struct ProfileView: View {
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var showingEditProfile = false
+    @State private var showingDeleteConfirmation = false
 
     var body: some View {
         ScrollView {
@@ -136,6 +137,16 @@ struct ProfileView: View {
                                 }
                             }
                             .nebulaButtonStyle(color: .nebulaError.opacity(0.8))
+
+                            Button {
+                                showingDeleteConfirmation = true
+                            } label: {
+                                HStack {
+                                    Image(systemName: "trash")
+                                    Text("Delete Account")
+                                }
+                            }
+                            .nebulaButtonStyle(color: .red)
                         }
                     }
                     .padding()
@@ -188,6 +199,27 @@ struct ProfileView: View {
         .sheet(isPresented: $showingEditProfile) {
             ProfileEditView(currentGamerTag: userInfo?.gamerTag) { updatedUser in
                 userInfo = updatedUser
+            }
+        }
+        .alert("Delete Account", isPresented: $showingDeleteConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                handleDeleteAccount()
+            }
+        } message: {
+            Text("Are you sure you want to delete your account? This action cannot be undone and all your game history will be lost.")
+        }
+    }
+
+    private func handleDeleteAccount() {
+        Task {
+            isLoading = true
+            do {
+                try await JumbleAPI.shared.deleteAccount()
+                isLoggedIn = false
+            } catch {
+                errorMessage = error.localizedDescription
+                isLoading = false
             }
         }
     }

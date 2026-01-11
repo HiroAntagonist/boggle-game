@@ -44,6 +44,36 @@ class JumbleAPI {
         print("✅ User logged out")
     }
 
+    /// Delete Account
+    func deleteAccount() async throws {
+        guard let token = accessToken else {
+            throw APIError.notAuthenticated
+        }
+
+        let url = URL(string: "\(baseURL)/auth/me")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "DELETE"
+        urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        print("🔴 Deleting account")
+
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+             throw APIError.loginFailed
+        }
+
+        if !isSuccessStatusCode(httpResponse.statusCode) {
+             if let errorString = String(data: data, encoding: .utf8) {
+                 print("❌ Delete account error (\(httpResponse.statusCode)): \(errorString)")
+             }
+             throw APIError.loginFailed
+         }
+
+         print("✅ Account deleted successfully")
+         logout()
+    }
+
     /// Handle 401 Unauthorized - token is invalid (user deleted from database)
     private func handleUnauthorized(_ statusCode: Int) {
         if statusCode == 401 {
@@ -195,6 +225,40 @@ class JumbleAPI {
             print("✅ Google login successful!")
         } else {
             print("⚠️ Google login successful but failed to save token to Keychain")
+        }
+    }
+
+    /// Login with Apple
+    func loginWithApple(idToken: String, nonce: String? = nil) async throws {
+        // Create request object
+        // Note: passing nonce/user if we had them and model supported it, but our minimal model just takes idToken
+        let request = AppleAuthRequest(idToken: idToken)
+
+        let url = URL(string: "\(baseURL)/auth/apple")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.httpBody = try JSONEncoder().encode(request)
+
+        print("🔵 Logging in with Apple")
+
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.loginFailed
+        }
+
+        if !isSuccessStatusCode(httpResponse.statusCode) {
+             if let errorString = String(data: data, encoding: .utf8) {
+                 print("❌ Apple auth error (\(httpResponse.statusCode)): \(errorString)")
+             }
+             throw APIError.loginFailed
+         }
+
+        let loginResponse = try JSONDecoder().decode(LoginResponse.self, from: data)
+
+        if keychain.saveToken(loginResponse.accessToken) {
+             print("✅ Apple login successful!")
         }
     }
 

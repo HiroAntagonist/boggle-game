@@ -128,6 +128,21 @@ class GoogleAuthRequest(BaseModel):
     id_token: str = Field(description="Google ID token from native SDK")
 
 
+class AppleAuthRequest(BaseModel):
+    """Request model for Sign in with Apple authentication."""
+    id_token: str = Field(description="Apple ID token (JWT) from native SDK")
+    # Optional fields that might be needed depending on implementation details
+    # but id_token is the primary one for verification
+    code: str | None = Field(default=None, description="Authorization code")
+    user: str | None = Field(default=None, description="User object JSON string")
+
+
+class DeleteAccountResponse(BaseModel):
+    """Response model after account deletion."""
+    message: str = Field(description="Confirmation message")
+    status: str = Field(description="Deletion status")
+
+
 class UserResponse(BaseModel):
     """Response model for user information."""
     user_id: str

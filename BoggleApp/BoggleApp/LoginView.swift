@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import AuthenticationServices
 
 struct LoginView: View {
     @State private var displayName = ""
@@ -21,6 +22,7 @@ struct LoginView: View {
             } else {
                 loginForm
                     .withNebulaBackground()
+                    .preferredColorScheme(.dark)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .forceLogout)) { _ in
@@ -45,20 +47,46 @@ struct LoginView: View {
                 .shadow(color: .nebulaPrimary.opacity(0.5), radius: 10, x: 0, y: 5)
                 .padding(.bottom, 20)
 
-            // Google Sign-In button
-            Button {
+            // Google Sign In Button
+            Button(action: {
                 Task {
                     await handleGoogleSignIn()
                 }
-            } label: {
+            }) {
                 HStack {
-                    Image(systemName: "g.circle.fill")
+                    Image(systemName: "g.circle.fill") // Simplified Google Icon
+                        .resizable()
+                        .frame(width: 20, height: 20)
                     Text("Sign in with Google")
+                        .font(.headline)
                 }
                 .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.white)
+                .foregroundColor(.black)
+                .cornerRadius(10)
             }
-            .nebulaButtonStyle(color: .white.opacity(0.1))
-            .disabled(isLoading)
+            .padding(.horizontal)
+            .disabled(isLoading) // Disable if loading
+
+            // Apple Sign In Button
+            SignInWithAppleButton(
+                onRequest: { request in
+                    // Handled by AppleAuthService in ViewModel usually, but here we can just configure scope
+                    request.requestedScopes = [.fullName, .email]
+                },
+                onCompletion: { result in
+                    Task {
+                        await handleAppleLogin(result: result)
+                    }
+                }
+            )
+            .signInWithAppleButtonStyle(.black) // Match system style
+            .frame(maxWidth: .infinity) // Match other buttons approx
+            .frame(height: 50)
+            .cornerRadius(10)
+            .padding(.horizontal)
+            .disabled(isLoading) // Disable if loading
 
             // OR divider
             HStack {
@@ -256,6 +284,38 @@ struct LoginView: View {
         } catch {
             // Catch-all for unexpected errors
             errorMessage = "Google Sign-In failed: \(error.localizedDescription)"
+        }
+
+        isLoading = false
+    }
+
+    private func handleAppleLogin(result: Result<ASAuthorization, Error>) async {
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            switch result {
+            case .success(let authorization):
+                if let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential {
+                    guard let appleIDToken = appleIDCredential.identityToken,
+                          let idTokenString = String(data: appleIDToken, encoding: .utf8) else {
+                        throw APIError.loginFailed
+                    }
+
+                    // We can also get the user's name here if needed: appleIDCredential.fullName
+                    // But for now, we just pass the ID token
+                    try await JumbleAPI.shared.loginWithApple(idToken: idTokenString)
+                    isLoggedIn = true
+                }
+            case .failure(let error):
+                print("Apple Sign in failed: \(error.localizedDescription)")
+                // Don't show error for user cancellation
+                if (error as NSError).code != ASAuthorizationError.canceled.rawValue {
+                   throw error
+                }
+            }
+        } catch {
+            errorMessage = "Apple Sign-In failed: \(error.localizedDescription)"
         }
 
         isLoading = false

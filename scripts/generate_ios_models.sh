@@ -11,16 +11,19 @@ BACKEND_URL="${BACKEND_URL:-https://boggle-game-ar.fly.dev}"
 SCHEMA_FILE="openapi.json"
 OUTPUT_DIR="BoggleApp/Generated"
 
-# Step 1: Download OpenAPI schema from backend
-echo "📥 Downloading OpenAPI schema from $BACKEND_URL..."
-curl -s "$BACKEND_URL/openapi.json" -o "$SCHEMA_FILE"
+# Step 1: Download OpenAPI schema from backend (unless skipped)
+if [ "$SKIP_DOWNLOAD" != "true" ]; then
+    echo "📥 Downloading OpenAPI schema from $BACKEND_URL..."
+    curl -s "$BACKEND_URL/openapi.json" -o "$SCHEMA_FILE"
 
-if [ ! -f "$SCHEMA_FILE" ]; then
-    echo "❌ Failed to download OpenAPI schema"
-    exit 1
+    if [ ! -f "$SCHEMA_FILE" ]; then
+        echo "❌ Failed to download OpenAPI schema"
+        exit 1
+    fi
+    echo "✅ Downloaded schema ($(du -h "$SCHEMA_FILE" | cut -f1))"
+else
+    echo "⏭️  Skipping download (using local $SCHEMA_FILE)"
 fi
-
-echo "✅ Downloaded schema ($(du -h "$SCHEMA_FILE" | cut -f1))"
 
 # Step 2: Check if openapi-generator is installed
 if ! command -v openapi-generator &> /dev/null; then

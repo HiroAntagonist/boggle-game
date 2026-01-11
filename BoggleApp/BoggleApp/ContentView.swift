@@ -6,13 +6,151 @@
 import SwiftUI
 
 struct ContentView: View {
+    @AppStorage("hasSeenOnboarding") var hasSeenOnboarding: Bool = false
+
     var body: some View {
-        LoginView()
+        Group {
+            if !hasSeenOnboarding {
+                OnboardingView(isPresented: $hasSeenOnboarding)
+            } else {
+                LoginView()
+            }
+        }
     }
 }
 
 #Preview {
     ContentView()
+}
+
+// MARK: - Onboarding View
+struct OnboardingView: View {
+    @Binding var isPresented: Bool
+    @State private var currentPage = 0
+    
+    let pages: [OnboardingPage] = [
+        OnboardingPage(
+            title: "Welcome to Jumble",
+            description: "The galaxy's favorite word game. Challenge your mind and compete with others.",
+            systemImage: "star.fill"
+        ),
+        OnboardingPage(
+            title: "Connect Tiles",
+            description: "Swipe to connect adjacent letters horizontally, vertically, or diagonally to form words.",
+            systemImage: "hand.draw.fill"
+        ),
+        OnboardingPage(
+            title: "Score Points",
+            description: "Find as many words as possible before time runs out. Longer words earn you more points!",
+            systemImage: "flag.checkered"
+        ),
+        OnboardingPage(
+            title: "Play Together",
+            description: "Create private lobbies to play with friends or join public games to compete globally.",
+            systemImage: "person.3.fill"
+        )
+    ]
+    
+    var body: some View {
+        ZStack {
+            TabView(selection: $currentPage) {
+                ForEach(0..<pages.count, id: \.self) { index in
+                    OnboardingPageView(page: pages[index])
+                        .tag(index)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .always))
+            .indexViewStyle(.page(backgroundDisplayMode: .always))
+            
+            // "Next" / "Get Started" Button Overlay
+            VStack {
+                Spacer()
+                
+                Button(action: {
+                    withAnimation {
+                        if currentPage < pages.count - 1 {
+                            currentPage += 1
+                        } else {
+                            // Helper to set the binding found in ContentView
+                            // But usually we set AppStorage directly.
+                            // Since we passed binding, let's toggle it.
+                            // But wait, the previous code used AppStorage directly.
+                            // Let's rely on the binding passing true to the state which updates AppStorage?
+                            // No, AppStorage is the source of truth in ContentView.
+                            // Let's just update the binding.
+                            isPresented = true
+                        }
+                    }
+                }) {
+                    Text(currentPage < pages.count - 1 ? "Next" : "Get Started")
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                }
+                .nebulaButtonStyle(color: .nebulaAccent)
+                .padding(.horizontal, 40)
+                .padding(.bottom, 50)
+            }
+        }
+        .withNebulaBackground()
+        .transition(.opacity)
+    }
+}
+
+struct OnboardingPage {
+    let title: String
+    let description: String
+    let systemImage: String
+}
+
+struct OnboardingPageView: View {
+    let page: OnboardingPage
+    
+    var body: some View {
+        VStack(spacing: 30) {
+            Spacer()
+            
+            // Icon
+            Image(systemName: page.systemImage)
+                .font(.system(size: 80))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [.nebulaAccent, .nebulaPrimary],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .shadow(color: .nebulaAccent.opacity(0.5), radius: 20, x: 0, y: 0)
+                .padding(40)
+                .background(
+                    Circle()
+                        .fill(Color.nebulaSurface)
+                        .overlay(
+                            Circle()
+                                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                        )
+                        .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 5)
+                )
+            
+            // Text Content
+            VStack(spacing: 16) {
+                Text(page.title)
+                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                
+                Text(page.description)
+                    .font(.body)
+                    .foregroundStyle(Color.nebulaTextSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 30)
+            }
+            
+            Spacer()
+            Spacer() // Push content up slightly to make room for button
+        }
+    }
 }
 
 // MARK: - Nebula Theme Colors

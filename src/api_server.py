@@ -87,6 +87,8 @@ from src.api_models import (
     BackgroundTasksHealth,
     TimerMonitorHealth,
     GamesHealth,
+    AppleAuthRequest,
+    DeleteAccountResponse,
 )
 from src.board import Board
 from src.dictionary import Dictionary
@@ -1990,6 +1992,173 @@ def google_auth(
     )
 
 
+@app.post("/auth/apple", response_model=LoginResponse)
+def apple_auth(
+    request: Request,
+    body: AppleAuthRequest,
+    db: Session = Depends(get_db)
+) -> LoginResponse:
+    """Authenticate with Sign in with Apple and get JWT access token.
+
+    Verifies Apple ID token and creates user if doesn't exist, or links OAuth to existing email.
+    """
+    import jwt  # PyJWT, not python-jose, typically used for Apple key verification
+    from jwt.algorithms import RSAAlgorithm
+    import requests
+    import json
+
+    try:
+        # Get Apple's public keys
+        # TODO: In production, cache these keys!
+        apple_keys_url = "https://appleid.apple.com/auth/keys"
+        keys_response = requests.get(apple_keys_url)
+        keys = keys_response.json()["keys"]
+
+        # Decode token header to find Key ID (kid)
+        # We use simple decode here just to get the header
+        header = jwt.get_unverified_header(body.id_token)
+        kid = header["kid"]
+
+        # Find the public key matching the kid
+        key_data = next(k for k in keys if k["kid"] == kid)
+        public_key = RSAAlgorithm.from_jwk(json.dumps(key_data))
+
+        # Verify the token
+        # audience should be your App ID (Bundle ID)
+        decoded = jwt.decode(
+            body.id_token,
+            public_key,
+            algorithms=["RS256"],
+            audience=os.getenv("APPLE_CLIENT_ID", "com.drishtilabs.jumble"),
+            options={"verify_exp": True}
+        )
+
+        email = decoded.get("email")
+        apple_id = decoded.get("sub")
+
+        # NOTE: Apple only sends email on the FIRST login.
+        # Ensure your client caching handles this, or update user logic to handle missing email
+        # if you rely strictly on email.
+        # For this implementation, we require email. If missing, client logic must ask user or handle accordingly.
+        # However, for simplicity here, we'll assume we get it or look up by apple_id.
+
+        if not apple_id:
+             raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid Apple token: missing subject (user ID)"
+            )
+
+    except Exception as e:
+        print(f"❌ Apple auth error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid Apple ID token: {str(e)}"
+        )
+
+    # Check if user with this apple_id already exists (best for returning users)
+    user = db.query(User).filter(User.oauth_id == apple_id, User.oauth_provider == "apple").first()
+
+    if not user and email:
+        # Fallback: Check by email (link account)
+        user = db.query(User).filter(User.email == email).first()
+        if user:
+            # Link existing account
+            if not user.oauth_provider:
+                user.oauth_provider = "apple"
+                user.oauth_id = apple_id
+                db.commit()
+                db.refresh(user)
+
+    if not user:
+        if not email:
+             raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email not provided in Apple token and no existing account found. Please authorize email sharing."
+            )
+
+        # Create new user
+        # Apple doesn't provide names in the ID token (it's in the 'user' object from client)
+        # We'll default display_name to email prefix if not provided separately (client sends it separately usually)
+        user = User(
+            email=email,
+            password_hash=None,
+            display_name=email.split("@")[0],
+            oauth_provider="apple",
+            oauth_id=apple_id
+        )
+        db.add(user)
+        try:
+            db.commit()
+            db.refresh(user)
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create user account"
+            )
+
+    # Create JWT token
+    token_data = {
+        "user_id": user.id,
+        "email": user.email
+    }
+    access_token = create_access_token(token_data, expires_delta=timedelta(days=30))
+
+    return LoginResponse(
+        access_token=access_token,
+        token_type="bearer"
+    )
+
+@app.delete("/auth/me", response_model=DeleteAccountResponse)
+def delete_account(
+    current_user: User = Depends(get_current_user_from_db),
+    db: Session = Depends(get_db)
+) -> DeleteAccountResponse:
+    """Delete the current user's account and all associated data.
+
+    - Deletes user record
+    - Cascades to delete created games (or abandons them) and game participation
+    """
+    from src.models import Game as GameModel, GamePlayer
+
+    user_id = current_user.id
+    email = current_user.email
+
+    print(f"⚠️ DELETING ACCOUNT: {email} ({user_id})")
+
+    try:
+        # 1. Delete GamePlayer records (participation history)
+        # Should be handled by cascade, but explicit is safer
+        db.query(GamePlayer).filter(GamePlayer.user_id == user_id).delete()
+
+        # 2. Manage created games
+        # If game is valid (waiting/in_progress), we might want to Abandon it.
+        # If finished/created, delete it.
+        # For simplicity adhering to privacy laws: delete usually implies removing the data.
+        # We will delete games created by this user to be thorough.
+        db.query(GameModel).filter(GameModel.creator_id == user_id).delete()
+
+        # 3. Delete the user
+        db.delete(current_user)
+
+        db.commit()
+
+        print(f"✅ ACCOUNT DELETED: {email}")
+
+        return DeleteAccountResponse(
+            message="Account deleted successfully",
+            status="deleted"
+        )
+
+    except Exception as e:
+        db.rollback()
+        print(f"❌ DELETE ACCOUNT FAILED: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete account: {str(e)}"
+        )
+
+
 @app.get("/auth/me", response_model=UserResponse)
 def get_current_user_info(current_user: User = Depends(get_current_user_from_db)) -> UserResponse:
     """Get current authenticated user information.
@@ -2221,6 +2390,15 @@ def get_leaderboard(
 # ============================================================================
 # LEGAL PAGES
 # ============================================================================
+
+@app.get("/support", response_class=HTMLResponse)
+async def support_page():
+    """Serve Support HTML page (required by App Store)."""
+    import os
+    template_path = os.path.join(os.path.dirname(__file__), "templates", "support.html")
+    with open(template_path, "r") as f:
+        return f.read()
+
 
 @app.get("/privacy", response_class=HTMLResponse)
 async def privacy_policy():
